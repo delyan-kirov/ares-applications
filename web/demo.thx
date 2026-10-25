@@ -9,15 +9,18 @@ $ with STR
 
 # `puts` returns a C `int`. Declaring that width matters on wasm32, where the
 # linker checks signatures and a mismatched one becomes a trapping stub; `C.puts`
-# models the return as `@int` (64-bit), so this module binds it itself.
-$ puts : @str -> <@io> @int32 = @extern "C" "puts" "libc"
+# models the return as `@Int` (64-bit), so this module binds it itself.
+$ puts : @Str -> <@IO> @Int32 = @extern "C" "puts" "libc"
 
-$ fib : @int -> @int = \n =
-	if n < 2 => n else fib (n - 1) + fib (n - 2)
+$ fib : @Int -> @Int = \n = if n < 2 => n else fib (n - 1) + fib (n - 2)
 
-$ banner : @str =
-	"Thrax on " ++ TARGET.name
-	++ " (" ++ STR.from_int TARGET.int_bits ++ "-bit word); "
-	++ "fib 20 = " ++ STR.from_int (fib 20)
+$ banner : @Str =
+    "Thrax on "
+        ++ TARGET.name
+        ++ " ("
+        ++ STR.from_int TARGET.int_bits
+        ++ "-bit word); "
+        ++ "fib 20 = "
+        ++ STR.from_int (fib 20)
 
-$ @main : @vec @str -> <@io> @int = \args = puts banner; 0
+$ @main : @Vec @Str -> <@IO> @Int = \args = puts banner; 0

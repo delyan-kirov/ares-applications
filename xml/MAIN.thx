@@ -13,208 +13,199 @@ $ with STR
 $ with VEC
 $ with OPT
 
-$ sample : @str =
-	"<?xml version=\"1.0\"?>\n"
-	++ "<!-- a tiny catalogue -->\n"
-	++ "<library name=\"Ada &amp; Co\">\n"
-	++ "  <book id=\"1\" lang=\"en\">\n"
-	++ "    <title>Thrax &lt;in practice&gt;</title>\n"
-	++ "    <author>A. Hacker</author>\n"
-	++ "    <tags><tag/><tag>effects</tag></tags>\n"
-	++ "  </book>\n"
-	++ "  <book id=\"2\" lang=\"bg\">\n"
-	++ "    <title>Continuations</title>\n"
-	++ "    <author>B. Writer</author>\n"
-	++ "    <note><![CDATA[raw <not markup> here]]></note>\n"
-	++ "  </book>\n"
-	++ "</library>\n"
+$ sample : @Str =
+    "<?xml version=\"1.0\"?>\n"
+        ++ "<!-- a tiny catalogue -->\n"
+        ++ "<library name=\"Ada &amp; Co\">\n"
+        ++ "  <book id=\"1\" lang=\"en\">\n"
+        ++ "    <title>Thrax &lt;in practice&gt;</title>\n"
+        ++ "    <author>A. Hacker</author>\n"
+        ++ "    <tags><tag/><tag>effects</tag></tags>\n"
+        ++ "  </book>\n"
+        ++ "  <book id=\"2\" lang=\"bg\">\n"
+        ++ "    <title>Continuations</title>\n"
+        ++ "    <author>B. Writer</author>\n"
+        ++ "    <note><![CDATA[raw <not markup> here]]></note>\n"
+        ++ "  </book>\n"
+        ++ "</library>\n"
 
 $ root : Node = is parse sample | Parsed.Ok.{ n } => n | _ => Node.Text.{ "" }
 
 # -- structure --------------------------------------------------------------
 
-$ ck_root : @int = if tag root == "library" => 0 else 1
+$ ck_root : @Int = if tag root == "library" => 0 else 1
 
-$ ck_books : @int = if @vec_len (find_all "book" root) == 2 => 0 else 1
+$ ck_books : @Int = if @vec_len (find_all "book" root) == 2 => 0 else 1
 
 # The root attribute value had an entity in it.
-$ ck_entity_attr : @int = if attr_or root "name" "" == "Ada & Co" => 0 else 1
+$ ck_entity_attr : @Int = if attr_or root "name" "" == "Ada & Co" => 0 else 1
 
 # `&lt;` and `&gt;` in text come back as the characters they stand for.
-$ ck_entity_text : @int =
-	if unwrap_or (text_at "title" root) "" == "Thrax <in practice>" => 0 else 1
+$ ck_entity_text : @Int =
+    if unwrap_or (text_at "title" root) "" == "Thrax <in practice>" => 0 else 1
 
 # CDATA is text, markup inside it is not markup.
-$ ck_cdata : @int =
-	if unwrap_or (text_at "note" root) "" == "raw <not markup> here" => 0 else 1
+$ ck_cdata : @Int = if unwrap_or (text_at "note" root) "" == "raw <not markup> here" => 0 else 1
 
 # A comment in the prolog does not become part of the tree.
-$ ck_no_comment_root : @int = if is_elem root => 0 else 1
+$ ck_no_comment_root : @Int = if is_elem root => 0 else 1
 
 # -- the empty-tag fork -----------------------------------------------------
 
 # `<tag/>` and `<tag>...</tag>` under one parent: the first is the `/>` branch,
 # the second is the branch the handler takes after `/>` fails.
-$ tags : @vec Node = find_all "tag" root
-$ ck_both_tag_forms : @int =
-	if @vec_len tags == 2
-		&& kid_count (@vec_get tags 0) == 0
-		&& text_of (@vec_get tags 1) == "effects"
-	=> 0 else 1
+$ tags : @Vec Node = find_all "tag" root
+$ ck_both_tag_forms : @Int =
+    if @vec_len tags == 2
+        && kid_count (@vec_get tags 0) == 0
+        && text_of (@vec_get tags 1) == "effects" =>
+        0
+    else 1
 
 # An attribute list on a self-closing tag still has to parse: the `/>` branch
 # runs after the attributes, so the fork is downstream of them.
-$ ck_selfclose_attrs : @int =
-	is parse "<a><b k=\"v\" /></a>"
-	| Parsed.Ok.{ n } =>
-		(is match_first (\u = tagged "b" (anywhere n))
-		 | Option.Some.{ b } => if attr_or b "k" "" == "v" => 0 else 1
-		 | _ => 1)
-	| _ => 1
+$ ck_selfclose_attrs : @Int =
+    is parse "<a><b k=\"v\" /></a>"
+    | Parsed.Ok.{ n } =>
+        (
+            is match_first (\u = tagged "b" (anywhere n))
+            | Option.Some.{ b } => if attr_or b "k" "" == "v" => 0 else 1
+            | _ => 1
+        )
+    | _ => 1
 
 # -- queries ----------------------------------------------------------------
 
-$ ck_path : @int =
-	if @vec_len (find_path ["library", "book", "title"] root) == 2 => 0 else 1
+$ ck_path : @Int = if @vec_len (find_path ["library", "book", "title"] root) == 2 => 0 else 1
 
 # A path that does not exist matches nothing, rather than failing.
-$ ck_path_miss : @int =
-	if @vec_len (find_path ["library", "title"] root) == 0 => 0 else 1
+$ ck_path_miss : @Int = if @vec_len (find_path ["library", "title"] root) == 0 => 0 else 1
 
-$ ck_where : @int =
-	is match_first (\u = with_attr "lang" "bg" (tagged "book" (anywhere root)))
-	| Option.Some.{ b } => if unwrap_or (text_at "title" b) "" == "Continuations" => 0 else 1
-	| _ => 1
+$ ck_where : @Int =
+    is match_first (\u = with_attr "lang" "bg" (tagged "book" (anywhere root)))
+    | Option.Some.{ b } => if unwrap_or (text_at "title" b) "" == "Continuations" => 0 else 1
+    | _ => 1
 
 # `all` enumerates every match; `first` stops at one.
-$ ck_all_titles : @int = if @vec_len (find_all "title" root) == 2 => 0 else 1
-$ ck_first_title : @int = if is_some (find_one "title" root) => 0 else 1
-$ ck_missing : @int = if is_none (find_one "nothing" root) => 0 else 1
+$ ck_all_titles : @Int = if @vec_len (find_all "title" root) == 2 => 0 else 1
+$ ck_first_title : @Int = if is_some (find_one "title" root) => 0 else 1
+$ ck_missing : @Int = if is_none (find_one "nothing" root) => 0 else 1
 
 # A query of my own, written as straight-line code over the choice effects:
 # every book whose author is A. Hacker, by title.
-$ by_hacker : @vec @str = matches <| \u =
-	let b = tagged "book" (anywhere root) in
-	let a = tagged "author" (child b) in
-	if text_of a == "A. Hacker" => unwrap_or (text_at "title" b) "" else no_match {}
+$ by_hacker : @Vec @Str =
+    matches <| \u =
+        let b = tagged "book" (anywhere root) in
+        let a = tagged "author" (child b) in
+        if text_of a == "A. Hacker" => unwrap_or (text_at "title" b) "" else no_match {}
 
-$ ck_custom_query : @int =
-	if @vec_len by_hacker == 1 && @vec_get by_hacker 0 == "Thrax <in practice>" => 0 else 1
+$ ck_custom_query : @Int =
+    if @vec_len by_hacker == 1 && @vec_get by_hacker 0 == "Thrax <in practice>" => 0 else 1
 
 # -- rendering --------------------------------------------------------------
 
 # Rendering is not byte-for-byte round-tripping (whitespace and entity spelling
 # are normalized), but re-parsing what was rendered gives the same tree back.
-$ rendered : @str = render root
+$ rendered : @Str = render root
 $ reparsed : Node = is parse rendered | Parsed.Ok.{ n } => n | _ => Node.Text.{ "" }
-$ ck_roundtrip : @int = if render reparsed == rendered => 0 else 1
+$ ck_roundtrip : @Int = if render reparsed == rendered => 0 else 1
 
-$ ck_escapes : @int =
-	if render Node.Text.{ "a < b & c" } == "a &lt; b &amp; c" => 0 else 1
+$ ck_escapes : @Int = if render Node.Text.{ "a < b & c" } == "a &lt; b &amp; c" => 0 else 1
 
-$ ck_attr_escapes : @int =
-	if render (elem "a" [Attr.{ .name = "k", .value = "\"q\"" }] [])
-		== "<a k=\"&quot;q&quot;\"/>"
-	=> 0 else 1
+$ ck_attr_escapes : @Int =
+    if render (
+        elem "a" [Attr.{ .name = "k", .value = "\"q\"" }] []
+    ) == "<a k=\"&quot;q&quot;\"/>" =>
+        0
+    else 1
 
 # -- errors -----------------------------------------------------------------
 
-$ err_at : @str -> @int = \src =
-	is parse src | Parsed.Bad.{ er } => er.at | _ => 0 - 1
+$ err_at : @Str -> @Int = \src = is parse src | Parsed.Bad.{ er } => er.at | _ => 0 - 1
 
 # The rendered diagnostic, for the checks that pin what a reader is told.
-$ err_report : @str -> @str = \src =
-	is parse src | Parsed.Bad.{ er } => report "doc.xml" src er | _ => ""
+$ err_report : @Str -> @Str = \src =
+    is parse src | Parsed.Bad.{ er } => report "doc.xml" src er | _ => ""
 
-$ says : @str -> @str -> @bool = \src part = STR.contains (err_report src) part
+$ says : @Str -> @Str -> @Bool = \src part = STR.contains (err_report src) part
 
 # A closing tag that does not match is reported where it is, not at the start.
-$ ck_mismatch : @int = if err_at "<a><b></c></a>" > 6 => 0 else 1
+$ ck_mismatch : @Int = if err_at "<a><b></c></a>" > 6 => 0 else 1
 
 # An unterminated comment is fatal rather than retried as text.
-$ ck_unterminated : @int = if err_at "<a><!-- x </a>" > 0 => 0 else 1
+$ ck_unterminated : @Int = if err_at "<a><!-- x </a>" > 0 => 0 else 1
 
 # Content after the root element is an error.
-$ ck_trailing : @int = if err_at "<a/><b/>" == 4 => 0 else 1
+$ ck_trailing : @Int = if err_at "<a/><b/>" == 4 => 0 else 1
 
 # Nothing at all is an error, not an empty document.
-$ ck_empty : @int = if err_at "" >= 0 => 0 else 1
+$ ck_empty : @Int = if err_at "" >= 0 => 0 else 1
 
 # -- what the reader is actually told ---------------------------------------
 
 # A stray `<` names the real problem and points at the line and column, with the
 # entity a reader needs; "expected an element" would be the grammar talking to
 # itself.
-$ ck_stray_lt : @int =
-	let src = "<a>\n  x < y\n</a>" in
-	if says src "expected a tag name after `<`"
-		&& says src "doc.xml:2:6"
-		&& says src "`&lt;`"
-		&& says src "found a space"
-	=> 0 else 1
+$ ck_stray_lt : @Int =
+    let src = "<a>\n  x < y\n</a>" in
+    if says src "expected a tag name after `<`"
+        && says src "doc.xml:2:6"
+        && says src "`&lt;`"
+        && says src "found a space" =>
+        0
+    else 1
 
 # A caret sits under the offending column, after the line itself.
-$ ck_caret : @int =
-	if says "<a k=v></a>" "   | <a k=v></a>\n   |      ^" => 0 else 1
+$ ck_caret : @Int = if says "<a k=v></a>" "   | <a k=v></a>\n   |      ^" => 0 else 1
 
 # A mismatched closing tag says where the open one was.
-$ ck_mismatch_note : @int =
-	let src = "<a>\n<b>\n</c>\n</a>" in
-	if says src "closes `<b>`" && says src "`<b>` opened at 2:1" => 0 else 1
+$ ck_mismatch_note : @Int =
+    let src = "<a>\n<b>\n</c>\n</a>" in
+    if says src "closes `<b>`" && says src "`<b>` opened at 2:1" => 0 else 1
 
 # An element that runs off the end of the input names itself.
-$ ck_unclosed_note : @int =
-	if says "<a><b>" "`<b>` is never closed: expected `</b>`"
-		&& says "<a><b>" "opened at 1:4"
-	=> 0 else 1
+$ ck_unclosed_note : @Int =
+    if says "<a><b>" "`<b>` is never closed: expected `</b>`" && says "<a><b>" "opened at 1:4" => 0
+    else 1
 
 # An unquoted attribute names the attribute, and shows how to write it.
-$ ck_attr_msg : @int =
-	if says "<a k=v></a>" "a quoted value for the attribute `k`"
-		&& says "<a k=v></a>" "write k=\"value\""
-	=> 0 else 1
+$ ck_attr_msg : @Int =
+    if says "<a k=v></a>" "a quoted value for the attribute `k`"
+        && says "<a k=v></a>" "write k=\"value\"" =>
+        0
+    else 1
 
 # An unterminated comment points at where the comment OPENED, not the end.
-$ ck_comment_msg : @int =
-	if says "<a><!-- x </a>" "unterminated comment"
-		&& says "<a><!-- x </a>" "doc.xml:1:4"
-	=> 0 else 1
+$ ck_comment_msg : @Int =
+    if says "<a><!-- x </a>" "unterminated comment" && says "<a><!-- x </a>" "doc.xml:1:4" => 0
+    else 1
 
-$ ck_empty_msg : @int = if says "" "the document is empty" => 0 else 1
+$ ck_empty_msg : @Int = if says "" "the document is empty" => 0 else 1
 
-$ ck_trailing_msg : @int =
-	if says "<a/><b/>" "content after the root element `<a>`"
-		&& says "<a/><b/>" "exactly one root element"
-	=> 0 else 1
+$ ck_trailing_msg : @Int =
+    if says "<a/><b/>" "content after the root element `<a>`"
+        && says "<a/><b/>" "exactly one root element" =>
+        0
+    else 1
 
 # `<!` opens one of three things, so a `<!` that opens none of them is told
 # which three, rather than being reported as a missing tag name.
-$ ck_bang_msg : @int =
-	if says "<a><!x></a>" "`<!--`, `<![CDATA[` or `<!DOCTYPE` after `<!`"
-		&& says "<a><!x></a>" "doc.xml:1:6"
-	=> 0 else 1
+$ ck_bang_msg : @Int =
+    if says "<a><!x></a>" "`<!--`, `<![CDATA[` or `<!DOCTYPE` after `<!`"
+        && says "<a><!x></a>" "doc.xml:1:6" =>
+        0
+    else 1
 
 # A hard failure has its own headline, so it does not also repeat what the caret
 # already shows.
-$ ck_no_found_noise : @int =
-	if says "<a><b>" "note: `<b>` opened at 1:4" => 0 else 1
+$ ck_no_found_noise : @Int = if says "<a><b>" "note: `<b>` opened at 1:4" => 0 else 1
 
 # A fragment needs no single root, so the same input parses there.
-$ ck_fragment : @int =
-	is parse_fragment "<a/><b/>"
-	| Parsed.Ok.{ ns } => if @vec_len ns == 2 => 0 else 1
-	| _ => 1
+$ ck_fragment : @Int =
+    is parse_fragment "<a/><b/>" | Parsed.Ok.{ ns } => if @vec_len ns == 2 => 0 else 1 | _ => 1
 
-$ test : @int =
-	ck_root + ck_books + ck_entity_attr + ck_entity_text + ck_cdata
-	+ ck_no_comment_root + ck_both_tag_forms + ck_selfclose_attrs
-	+ ck_path + ck_path_miss + ck_where + ck_all_titles + ck_first_title
-	+ ck_missing + ck_custom_query + ck_roundtrip + ck_escapes
-	+ ck_attr_escapes + ck_mismatch + ck_unterminated + ck_trailing
-	+ ck_empty + ck_fragment
-	+ ck_stray_lt + ck_caret + ck_mismatch_note + ck_unclosed_note
-	+ ck_attr_msg + ck_comment_msg + ck_empty_msg + ck_trailing_msg
-	+ ck_bang_msg + ck_no_found_noise
+$ test : @Int =
+    ck_root + ck_books + ck_entity_attr + ck_entity_text + ck_cdata + ck_no_comment_root + ck_both_tag_forms + ck_selfclose_attrs + ck_path + ck_path_miss + ck_where + ck_all_titles + ck_first_title + ck_missing + ck_custom_query + ck_roundtrip + ck_escapes + ck_attr_escapes + ck_mismatch + ck_unterminated + ck_trailing + ck_empty + ck_fragment + ck_stray_lt + ck_caret + ck_mismatch_note + ck_unclosed_note + ck_attr_msg + ck_comment_msg + ck_empty_msg + ck_trailing_msg + ck_bang_msg + ck_no_found_noise
 
 $ @e <| assert (test == 0) "XML: a check failed"
 
@@ -222,31 +213,31 @@ $ @e <| assert (test == 0) "XML: a check failed"
 # The demo
 # ==========================================================================
 
-$ describe : Node -> @int -> <@io> {} = \n depth =
-	(print (repeat "  " depth ++ "<" ++ tag n ++ ">") ;
-	 let t = trim (text_of n) in
-	 (is elements n
-	  | List.Nil => (if @array_len t > 0 => print (" " ++ t) else {})
-	  | _ => {}) ;
-	 print "\n" ;
-	 for (elements n) (\c = describe c (depth + 1)))
+$ describe : Node -> @Int -> <@IO> {} = \n depth =
+    (
+        print (repeat "  " depth ++ "<" ++ tag n ++ ">");
+        let t = trim (text_of n) in
+        (is elements n | List.Nil => (if @array_len t > 0 => print (" " ++ t) else {}) | _ => {});
+        print "\n";
+        for (elements n) (\c = describe c (depth + 1))
+    )
 
-$ summarize : Node -> <@io> {} = \n =
-	(println "tree:" ;
-	 describe n 1 ;
-	 println "" ;
-	 println ("titles: " ++ join ", " (map text_of (find_all "title" n))) ;
-	 println ("books in English: "
-		++ from_int (@vec_len (find_where "book" "lang" "en" n))) ;
-	 println ("rendered: " ++ from_int (@array_len (render n)) ++ " bytes"))
+$ summarize : Node -> <@IO> {} = \n =
+    (
+        println "tree:";
+        describe n 1;
+        println "";
+        println ("titles: " ++ join ", " (map text_of (find_all "title" n)));
+        println ("books in English: " ++ from_int (@vec_len (find_where "book" "lang" "en" n)));
+        println ("rendered: " ++ from_int (@array_len (render n)) ++ " bytes")
+    )
 
-$ @main : @vec @str -> <@io> @int = \args =
-	let path = if @vec_len args > 1 => @vec_get args 1 else "" in
-	let src = if @array_len path == 0 => sample else unwrap_or (read_file path) "" in
-	if @array_len src == 0 =>
-		(eprintln ("xml: could not read `" ++ path ++ "`") ; 1)
-	else
-		let name = if @array_len path == 0 => "<built-in sample>" else path in
-		is parse src
-		| Parsed.Ok.{ n } => (summarize n ; 0)
-		| Parsed.Bad.{ er } => (eprint (report name src er) ; 1)
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+    let path = if @vec_len args > 1 => @vec_get args 1 else "" in
+    let src = if @array_len path == 0 => sample else unwrap_or (read_file path) "" in
+    if @array_len src == 0 => (eprintln ("xml: could not read `" ++ path ++ "`"); 1)
+    else
+        let name = if @array_len path == 0 => "<built-in sample>" else path in
+        is parse src
+        | Parsed.Ok.{ n } => (summarize n; 0)
+        | Parsed.Bad.{ er } => (eprint (report name src er); 1)

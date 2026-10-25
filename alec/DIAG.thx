@@ -9,17 +9,25 @@ $ @mod DIAG
 
 $ with LEX
 
-$ Err : @struct = pos : Pos, msg : @str,
+$ Err : @struct = pos : Pos, msg : @Str,
 
 $ Diag : @effect =
-	fail : Err -> a,
-	warn : Err -> {},
+    fail : Err -> a,
+    warn : Err -> {},
 
-$ error_at : Pos -> @str -> <Diag> a = \p m = Diag.fail Err.{ .pos = p, .msg = m }
-$ warn_at : Pos -> @str -> <Diag> {} = \p m = Diag.warn Err.{ .pos = p, .msg = m }
+$ error_at : Pos -> @Str -> <Diag> a = \p m = Diag.fail Err.{ .pos = p, .msg = m }
+$ warn_at : Pos -> @Str -> <Diag> {} = \p m = Diag.warn Err.{ .pos = p, .msg = m }
 
 # `file:line:col: severity: message`, the shape editors and build tools parse.
-$ render : @str -> Err -> @str = \severity e =
-	if e.pos.line == 0 => "alec: " ++ severity ++ ": " ++ e.msg
-	else e.pos.file ++ ":" ++ to_string e.pos.line ++ ":" ++ to_string e.pos.col ++ ": "
-		++ severity ++ ": " ++ e.msg
+$ render : @Str -> Err -> @Str = \severity e =
+    if e.pos.line == 0 => "alec: " ++ severity ++ ": " ++ e.msg
+    else
+        e.pos.file
+            ++ ":"
+            ++ to_string e.pos.line
+            ++ ":"
+            ++ to_string e.pos.col
+            ++ ": "
+            ++ severity
+            ++ ": "
+            ++ e.msg

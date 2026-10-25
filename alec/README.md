@@ -262,4 +262,4 @@ import forms fail), #307 (`thrax run` eats the program's `--target=`), #308
 update on an unforced lazy value), #311 (types through a non-imported module),
 #312 (the dead `ext` keyword). The standard library gained `BITS` and `LIST`,
 `C.fwrite`/`C.clock`, a binary-safe `IO.write_file`, and fixes to `to_string`
-of the minimum `@int`, `VEC.from_list` order, and a native `STR.cmp_str`.
+of the minimum `@Int`, `VEC.from_list` order, and a native `STR.cmp_str`.

@@ -35,454 +35,504 @@ $ with PARSE
 $ with LINK
 $ with WASM
 
-$ magic : @str = "alec-tu 3\n"
+$ magic : @Str = "alec-tu 3\n"
 
 # A checksum of everything under alec's home that the parsed library depends
 # on, as `cksum` prints it.
-$ stamp : @str -> <@io> @str = \home =
-	capture ("cd '" ++ home ++ "' && cksum *.thx libc/*.c libc/*.h include/*.h 2>/dev/null")
+$ stamp : @Str -> <@IO> @Str = \home =
+    capture ("cd '" ++ home ++ "' && cksum *.thx libc/*.c libc/*.h include/*.h 2>/dev/null")
 
 # Write `units` (each library file's name and unit) under `stamp`; false when
 # the file cannot be written. A table of the units' names and byte lengths
 # comes first, so a reader can go straight to the units it wants.
-$ save : @str -> @str -> @vec {@str, TU} -> <@io> @bool = \path st units =
-	let encoded = VEC.map (\u = {u.0, w_tu List.Nil u.1}) units in
-	let table = VEC.foldl (\acc e = w_int (w_str acc e.0) (LIST.foldl (\n p = n + @array_len p) 0 e.1))
-		(w_int (w_str (put List.Nil magic) st) (@vec_len units)) encoded in
-	spill path (LIST.reverse (VEC.foldl (\acc e = LIST.append e.1 acc) table encoded))
+$ save : @Str -> @Str -> @Vec { @Str, TU } -> <@IO> @Bool = \path st units =
+    let encoded = VEC.map (\u = { u.0, w_tu List.Nil u.1 }) units in
+    let table = VEC.foldl (
+            \acc e = w_int (w_str acc e.0) (LIST.foldl (\n p = n + @array_len p) 0 e.1)
+        ) (w_int (w_str (put List.Nil magic) st) (@vec_len units)) encoded in
+    spill path (LIST.reverse (VEC.foldl (\acc e = LIST.append e.1 acc) table encoded))
 
 # The units saved at `path`, when it holds a cache made under `st`. Each is
 # read when it is first asked for.
-$ load : @str -> @str -> Target -> <@io> Option (@vec {@str, {} -> TU}) = \path st target =
-	is slurp path
-	| Option.Some.{ s } =>
-		if !(starts_with s magic) => Option.None
-		else
-			let saved = r_str s (@array_len magic) in
-			if saved.0 != st => Option.None
-			else
-				let table = r_list r_entry s saved.1 in
-				Option.Some.{ LIST.to_vec (place_units s target table.1 table.0 List.Nil) }
-	| _ => Option.None
+$ load : @Str -> @Str -> Target -> <@IO> Option (@Vec { @Str, {} -> TU }) = \path st target =
+    is slurp path
+    | Option.Some.{ s } =>
+        if !(starts_with s magic) => Option.None
+        else
+            let saved = r_str s (@array_len magic) in
+            if saved.0 != st => Option.None
+            else
+                let table = r_list r_entry s saved.1 in
+                Option.Some.{ LIST.to_vec (place_units s target table.1 table.0 List.Nil) }
+    | _ => Option.None
 
 $ @private
 
-$ fread : {buf: @str, size: @int, n: @int, stream: @int} -> <@io> @int = @extern "C" "fread" "libc"
+$ fread : { buf: @Str, size: @Int, n: @Int, stream: @Int } -> <@IO> @Int =
+    @extern "C" "fread" "libc"
 
 # The whole file. Natively `fread` fills a fresh buffer in place, in one call;
 # the interpreter hands C a copy of the buffer, which leaves ours empty, and
 # then the file is read a byte at a time instead.
-$ slurp : @str -> <@io> Option @str = \path =
-	let f = C.fopen {path, "rb"} in
-	if f == 0 => Option.None
-	else
-		C.fseek {f, 0, 2};
-		let n = C.ftell f in
-		C.fseek {f, 0, 0};
-		let buf = blank n " " in
-		let got = fread {buf, 1, n, f} in
-		C.fclose f;
-		if got == n && starts_with buf magic => Option.Some.{ buf } else read_file path
+$ slurp : @Str -> <@IO> Option @Str = \path =
+    let f = C.fopen { path, "rb" } in
+    if f == 0 => Option.None
+    else
+        C.fseek { f, 0, 2 };
+        let n = C.ftell f in
+        C.fseek { f, 0, 0 };
+        let buf = blank n " " in
+        let got = fread { buf, 1, n, f } in
+        C.fclose f; if got == n && starts_with buf magic => Option.Some.{ buf } else read_file path
 
 # A fresh string of `n` bytes for `fread` to fill, built by doubling.
-$ blank : @int -> @str -> @str = \n s = if @array_len s >= n => @array_slice s 0 n else blank n (s ++ s)
+$ blank : @Int -> @Str -> @Str = \n s =
+    if @array_len s >= n => @array_slice s 0 n else blank n (s ++ s)
 
-$ spill : @str -> List @str -> <@io> @bool = \path parts =
-	let f = C.fopen {path, "wb"} in
-	if f == 0 => @false
-	else
-		for parts (\p = (C.fwrite {p, 1, @array_len p, f}; {}));
-		(C.fclose f) == 0
+$ spill : @Str -> List @Str -> <@IO> @Bool = \path parts =
+    let f = C.fopen { path, "wb" } in
+    if f == 0 => @false
+    else for parts (\p = (C.fwrite { p, 1, @array_len p, f }; {})); (C.fclose f) == 0
 
-$ capture : @str -> <@io> @str = \cmd =
-	let f = C.popen {cmd, "r"} in
-	if f == 0 => "" else (let out = drain f "" in C.pclose f; out)
+$ capture : @Str -> <@IO> @Str = \cmd =
+    let f = C.popen { cmd, "r" } in if f == 0 => "" else (let out = drain f "" in C.pclose f; out)
 
-$ drain : @int -> @str -> <@io> @str = \f acc =
-	let c = C.fgetc f in
-	if c >= 0 && c <= 255 => drain f (@array_push acc c) else acc
+$ drain : @Int -> @Str -> <@IO> @Str = \f acc =
+    let c = C.fgetc f in if c >= 0 && c <= 255 => drain f (@array_push acc c) else acc
 
 # -- writing -----------------------------------------------------------------
 
 # The output is built as a reversed list of pieces, written out once at the end.
 
-$ put : List @str -> @str -> List @str = \acc s = List.Cons.{ s, acc }
+$ put : List @Str -> @Str -> List @Str = \acc s = List.Cons.{ s, acc }
 
-$ w_int : List @str -> @int -> List @str = \acc n = put acc (to_string n ++ " ")
-$ w_bool : List @str -> @bool -> List @str = \acc b = put acc (if b => "1 " else "0 ")
-$ w_str : List @str -> @str -> List @str = \acc s = put (put acc (to_string (@array_len s) ++ ":")) s
+$ w_int : List @Str -> @Int -> List @Str = \acc n = put acc (to_string n ++ " ")
+$ w_bool : List @Str -> @Bool -> List @Str = \acc b = put acc (if b => "1 " else "0 ")
+$ w_str : List @Str -> @Str -> List @Str = \acc s =
+    put (put acc (to_string (@array_len s) ++ ":")) s
 
-$ w_list : (List @str -> a -> List @str) -> List @str -> List a -> List @str = \f acc l =
-	LIST.foldl f (w_int acc (LIST.length l)) l
+$ w_list : (List @Str -> a -> List @Str) -> List @Str -> List a -> List @Str = \f acc l =
+    LIST.foldl f (w_int acc (LIST.length l)) l
 
-$ w_vec : (List @str -> a -> List @str) -> List @str -> @vec a -> List @str = \f acc v =
-	VEC.foldl f (w_int acc (@vec_len v)) v
+$ w_vec : (List @Str -> a -> List @Str) -> List @Str -> @Vec a -> List @Str = \f acc v =
+    VEC.foldl f (w_int acc (@vec_len v)) v
 
-$ w_pos : List @str -> Pos -> List @str = \acc p = w_int (w_int (w_str acc p.file) p.line) p.col
+$ w_pos : List @Str -> Pos -> List @Str = \acc p = w_int (w_int (w_str acc p.file) p.line) p.col
 
-$ w_intk : List @str -> IntK -> List @str = \acc k =
-	w_bool (w_int (w_bool (w_int acc k.size) k.unsigned) k.rank) k.plain
+$ w_intk : List @Str -> IntK -> List @Str = \acc k =
+    w_bool (w_int (w_bool (w_int acc k.size) k.unsigned) k.rank) k.plain
 
-$ w_fnty : List @str -> FnTy -> List @str = \acc f =
-	w_bool (w_bool (w_list w_ty (w_ty acc f.ret) f.params) f.variadic) f.proto
+$ w_fnty : List @Str -> FnTy -> List @Str = \acc f =
+    w_bool (w_bool (w_list w_ty (w_ty acc f.ret) f.params) f.variadic) f.proto
 
-$ w_ty : List @str -> Ty -> List @str = \acc t =
-	is t
-	| Ty.Void => w_int acc 0
-	| Ty.Int.{ k } => w_intk (w_int acc 1) k
-	| Ty.Float => w_int acc 2
-	| Ty.Double => w_int acc 3
-	| Ty.Ptr.{ b } => w_ty (w_int acc 4) b
-	| Ty.Arr.{ b, n } => w_int (w_ty (w_int acc 5) b) n
-	| Ty.Vla.{ b, n } => w_int (w_ty (w_int acc 6) b) n
-	| Ty.Func.{ f } => w_fnty (w_int acc 7) f
-	| Ty.Agg.{ i } => w_int (w_int acc 8) i
-	| Ty.Enum.{ i } => w_int (w_int acc 9) i
+$ w_ty : List @Str -> Ty -> List @Str = \acc t =
+    is t
+    | Ty.Void => w_int acc 0
+    | Ty.Int.{ k } => w_intk (w_int acc 1) k
+    | Ty.Float => w_int acc 2
+    | Ty.Double => w_int acc 3
+    | Ty.Ptr.{ b } => w_ty (w_int acc 4) b
+    | Ty.Arr.{ b, n } => w_int (w_ty (w_int acc 5) b) n
+    | Ty.Vla.{ b, n } => w_int (w_ty (w_int acc 6) b) n
+    | Ty.Func.{ f } => w_fnty (w_int acc 7) f
+    | Ty.Agg.{ i } => w_int (w_int acc 8) i
+    | Ty.Enum.{ i } => w_int (w_int acc 9) i
 
-$ w_member : List @str -> Member -> List @str = \acc m =
-	w_int (w_int (w_int (w_ty (w_str acc m.name) m.ty) m.offset) m.bit_off) m.bit_width
+$ w_member : List @Str -> Member -> List @Str = \acc m =
+    w_int (w_int (w_int (w_ty (w_str acc m.name) m.ty) m.offset) m.bit_off) m.bit_width
 
-$ w_expr : List @str -> Expr -> List @str = \acc x = w_pos (w_ty (w_enode acc x.e) x.ty) x.pos
+$ w_expr : List @Str -> Expr -> List @Str = \acc x = w_pos (w_ty (w_enode acc x.e) x.ty) x.pos
 
-$ w_enode : List @str -> ENode -> List @str = \acc e =
-	is e
-	| ENode.IntC.{ v } => w_int (w_int acc 0) v
-	| ENode.FltC.{ x } => w_int (w_int acc 1) (f64_bits x)
-	| ENode.Local.{ i } => w_int (w_int acc 2) i
-	| ENode.Global.{ n } => w_str (w_int acc 3) n
-	| ENode.Unary.{ op, a } => w_expr (w_str (w_int acc 4) op) a
-	| ENode.Bin.{ op, a, b } => w_expr (w_expr (w_str (w_int acc 5) op) a) b
-	| ENode.Assign.{ a, b } => w_expr (w_expr (w_int acc 6) a) b
-	| ENode.OpAssign.{ op, a, b, t } => w_ty (w_expr (w_expr (w_str (w_int acc 7) op) a) b) t
-	| ENode.PostOp.{ op, a, b } => w_expr (w_expr (w_str (w_int acc 8) op) a) b
-	| ENode.Cond.{ a, b, c } => w_expr (w_expr (w_expr (w_int acc 9) a) b) c
-	| ENode.Comma.{ a, b } => w_expr (w_expr (w_int acc 10) a) b
-	| ENode.Call.{ f, args, ft } => w_fnty (w_list w_expr (w_expr (w_int acc 11) f) args) ft
-	| ENode.Field.{ a, m } => w_member (w_expr (w_int acc 12) a) m
-	| ENode.Deref.{ a } => w_expr (w_int acc 13) a
-	| ENode.Addr.{ a } => w_expr (w_int acc 14) a
-	| ENode.Cast.{ a } => w_expr (w_int acc 15) a
-	| ENode.Zero.{ a, n } => w_int (w_expr (w_int acc 16) a) n
-	| ENode.Copy.{ a, b, n } => w_int (w_expr (w_expr (w_int acc 17) a) b) n
-	| ENode.Alloca.{ a } => w_expr (w_int acc 18) a
-	| ENode.VaStart.{ a } => w_expr (w_int acc 19) a
-	| ENode.VaArg.{ a } => w_expr (w_int acc 20) a
-	| ENode.SExpr.{ ss, a } => w_expr (w_list w_stmt (w_int acc 21) ss) a
-	| ENode.LabelAddr.{ n } => w_str (w_int acc 22) n
-	| ENode.Nop => w_int acc 23
+$ w_enode : List @Str -> ENode -> List @Str = \acc e =
+    is e
+    | ENode.IntC.{ v } => w_int (w_int acc 0) v
+    | ENode.FltC.{ x } => w_int (w_int acc 1) (f64_bits x)
+    | ENode.Local.{ i } => w_int (w_int acc 2) i
+    | ENode.Global.{ n } => w_str (w_int acc 3) n
+    | ENode.Unary.{ op, a } => w_expr (w_str (w_int acc 4) op) a
+    | ENode.Bin.{ op, a, b } => w_expr (w_expr (w_str (w_int acc 5) op) a) b
+    | ENode.Assign.{ a, b } => w_expr (w_expr (w_int acc 6) a) b
+    | ENode.OpAssign.{ op, a, b, t } => w_ty (w_expr (w_expr (w_str (w_int acc 7) op) a) b) t
+    | ENode.PostOp.{ op, a, b } => w_expr (w_expr (w_str (w_int acc 8) op) a) b
+    | ENode.Cond.{ a, b, c } => w_expr (w_expr (w_expr (w_int acc 9) a) b) c
+    | ENode.Comma.{ a, b } => w_expr (w_expr (w_int acc 10) a) b
+    | ENode.Call.{ f, args, ft } => w_fnty (w_list w_expr (w_expr (w_int acc 11) f) args) ft
+    | ENode.Field.{ a, m } => w_member (w_expr (w_int acc 12) a) m
+    | ENode.Deref.{ a } => w_expr (w_int acc 13) a
+    | ENode.Addr.{ a } => w_expr (w_int acc 14) a
+    | ENode.Cast.{ a } => w_expr (w_int acc 15) a
+    | ENode.Zero.{ a, n } => w_int (w_expr (w_int acc 16) a) n
+    | ENode.Copy.{ a, b, n } => w_int (w_expr (w_expr (w_int acc 17) a) b) n
+    | ENode.Alloca.{ a } => w_expr (w_int acc 18) a
+    | ENode.VaStart.{ a } => w_expr (w_int acc 19) a
+    | ENode.VaArg.{ a } => w_expr (w_int acc 20) a
+    | ENode.SExpr.{ ss, a } => w_expr (w_list w_stmt (w_int acc 21) ss) a
+    | ENode.LabelAddr.{ n } => w_str (w_int acc 22) n
+    | ENode.Nop => w_int acc 23
 
-$ w_target : List @str -> {@int, @int, @str} -> List @str = \acc t = w_str (w_int (w_int acc t.0) t.1) t.2
+$ w_target : List @Str -> { @Int, @Int, @Str } -> List @Str = \acc t =
+    w_str (w_int (w_int acc t.0) t.1) t.2
 
-$ w_stmt : List @str -> Stmt -> List @str = \acc s =
-	is s
-	| Stmt.Do.{ a } => w_expr (w_int acc 0) a
-	| Stmt.Block.{ ss } => w_list w_stmt (w_int acc 1) ss
-	| Stmt.If.{ c, a, b } => w_stmt (w_stmt (w_expr (w_int acc 2) c) a) b
-	| Stmt.While.{ c, b } => w_stmt (w_expr (w_int acc 3) c) b
-	| Stmt.DoWhile.{ b, c } => w_expr (w_stmt (w_int acc 4) b) c
-	| Stmt.For.{ i, c, n, b } => w_stmt (w_expr (w_expr (w_stmt (w_int acc 5) i) c) n) b
-	| Stmt.Switch.{ c, b } => w_stmt (w_expr (w_int acc 6) c) b
-	| Stmt.Case.{ lo, hi, b } => w_stmt (w_int (w_int (w_int acc 7) lo) hi) b
-	| Stmt.Default.{ b } => w_stmt (w_int acc 8) b
-	| Stmt.Break => w_int acc 9
-	| Stmt.Continue => w_int acc 10
-	| Stmt.Goto.{ l } => w_str (w_int acc 11) l
-	| Stmt.Label.{ l, b } => w_stmt (w_str (w_int acc 12) l) b
-	| Stmt.Return.{ a } => w_expr (w_int acc 13) a
-	| Stmt.Empty => w_int acc 14
-	| Stmt.Jump.{ a, ts, d } => w_str (w_list w_target (w_expr (w_int acc 15) a) ts) d
-	| Stmt.GotoPtr.{ a } => w_expr (w_int acc 16) a
+$ w_stmt : List @Str -> Stmt -> List @Str = \acc s =
+    is s
+    | Stmt.Do.{ a } => w_expr (w_int acc 0) a
+    | Stmt.Block.{ ss } => w_list w_stmt (w_int acc 1) ss
+    | Stmt.If.{ c, a, b } => w_stmt (w_stmt (w_expr (w_int acc 2) c) a) b
+    | Stmt.While.{ c, b } => w_stmt (w_expr (w_int acc 3) c) b
+    | Stmt.DoWhile.{ b, c } => w_expr (w_stmt (w_int acc 4) b) c
+    | Stmt.For.{ i, c, n, b } => w_stmt (w_expr (w_expr (w_stmt (w_int acc 5) i) c) n) b
+    | Stmt.Switch.{ c, b } => w_stmt (w_expr (w_int acc 6) c) b
+    | Stmt.Case.{ lo, hi, b } => w_stmt (w_int (w_int (w_int acc 7) lo) hi) b
+    | Stmt.Default.{ b } => w_stmt (w_int acc 8) b
+    | Stmt.Break => w_int acc 9
+    | Stmt.Continue => w_int acc 10
+    | Stmt.Goto.{ l } => w_str (w_int acc 11) l
+    | Stmt.Label.{ l, b } => w_stmt (w_str (w_int acc 12) l) b
+    | Stmt.Return.{ a } => w_expr (w_int acc 13) a
+    | Stmt.Empty => w_int acc 14
+    | Stmt.Jump.{ a, ts, d } => w_str (w_list w_target (w_expr (w_int acc 15) a) ts) d
+    | Stmt.GotoPtr.{ a } => w_expr (w_int acc 16) a
 
-$ w_lvar : List @str -> LVar -> List @str = \acc l =
-	w_int (w_bool (w_ty (w_str (w_int acc l.id) l.name) l.ty) l.mem) l.align
+$ w_lvar : List @Str -> LVar -> List @Str = \acc l =
+    w_int (w_bool (w_ty (w_str (w_int acc l.id) l.name) l.ty) l.mem) l.align
 
-$ w_func : List @str -> Func -> List @str = \acc f =
-	let a1 = w_list w_int (w_fnty (w_str acc f.name) f.ty) f.params in
-	let a2 = w_body (w_list w_lvar a1 f.locals) f.body in
-	w_pos (w_int (w_bool a2 f.static) f.va) f.pos
+$ w_func : List @Str -> Func -> List @Str = \acc f =
+    let a1 = w_list w_int (w_fnty (w_str acc f.name) f.ty) f.params in
+    let a2 = w_body (w_list w_lvar a1 f.locals) f.body in
+    w_pos (w_int (w_bool a2 f.static) f.va) f.pos
 
 # A body that is a block keeps its statements behind their length, so a reader
 # can step over them; anything else is written in line.
-$ w_body : List @str -> Stmt -> List @str = \acc b =
-	is b
-	| Stmt.Block.{ ss } =>
-		let inner = w_list w_stmt List.Nil ss in
-		LIST.append inner (w_int (w_int acc 1) (LIST.foldl (\n p = n + @array_len p) 0 inner))
-	| _ => w_stmt (w_int acc 0) b
+$ w_body : List @Str -> Stmt -> List @Str = \acc b =
+    is b
+    | Stmt.Block.{ ss } =>
+        let inner = w_list w_stmt List.Nil ss in
+        LIST.append inner (w_int (w_int acc 1) (LIST.foldl (\n p = n + @array_len p) 0 inner))
+    | _ => w_stmt (w_int acc 0) b
 
-$ w_reloc : List @str -> Reloc -> List @str = \acc r = w_int (w_str (w_int acc r.offset) r.sym) r.addend
+$ w_reloc : List @Str -> Reloc -> List @Str = \acc r =
+    w_int (w_str (w_int acc r.offset) r.sym) r.addend
 
-$ w_gvar : List @str -> GVar -> List @str = \acc g =
-	let a1 = w_vec w_reloc (w_str (w_ty (w_str acc g.name) g.ty) g.data) g.relocs in
-	w_pos (w_int (w_bool (w_bool (w_bool (w_bool a1 g.defined) g.init) g.static) g.tls) g.align) g.pos
+$ w_gvar : List @Str -> GVar -> List @Str = \acc g =
+    let a1 = w_vec w_reloc (w_str (w_ty (w_str acc g.name) g.ty) g.data) g.relocs in
+    w_pos (
+        w_int (w_bool (w_bool (w_bool (w_bool a1 g.defined) g.init) g.static) g.tls) g.align
+    ) g.pos
 
-$ w_agg : List @str -> Agg -> List @str = \acc a =
-	let a1 = w_vec w_member (w_bool (w_str acc a.tag) a.union) a.members in
-	w_bool (w_bool (w_int (w_int a1 a.size) a.align) a.complete) a.flexible
+$ w_agg : List @Str -> Agg -> List @Str = \acc a =
+    let a1 = w_vec w_member (w_bool (w_str acc a.tag) a.union) a.members in
+    w_bool (w_bool (w_int (w_int a1 a.size) a.align) a.complete) a.flexible
 
-$ w_tu : List @str -> TU -> List @str = \acc u =
-	let a1 = w_vec w_gvar (w_vec w_func acc u.funcs) u.globals in
-	let a2 = w_vec (\a p = w_ty (w_str a p.0) p.1) a1 (MAP.to_list u.protos) in
-	let a3 = w_vec (\a p = w_agg (w_int a p.0) p.1) a2 (MAP.to_list u.layout.aggs) in
-	w_vec (\a f = w_list w_str (w_str a f.name) (func_refs u f)) a3 u.funcs
+$ w_tu : List @Str -> TU -> List @Str = \acc u =
+    let a1 = w_vec w_gvar (w_vec w_func acc u.funcs) u.globals in
+    let a2 = w_vec (\a p = w_ty (w_str a p.0) p.1) a1 (MAP.to_list u.protos) in
+    let a3 = w_vec (\a p = w_agg (w_int a p.0) p.1) a2 (MAP.to_list u.layout.aggs) in
+    w_vec (\a f = w_list w_str (w_str a f.name) (func_refs u f)) a3 u.funcs
 
 # -- reading -----------------------------------------------------------------
 
 # Each reader takes the text and an offset and returns the value read with the
 # offset just past it.
 
-$ r_int : @str -> @int -> {@int, @int} = \s i =
-	let neg = @array_get s i == 45 in
-	let r = digits s (if neg => i + 1 else i) 0 in
-	{if neg => r.0 else 0 - r.0, r.1 + 1}
+$ r_int : @Str -> @Int -> { @Int, @Int } = \s i =
+    let neg = @array_get s i == 45 in
+    let r = digits s (if neg => i + 1 else i) 0 in { if neg => r.0 else 0 - r.0, r.1 + 1 }
 
 # Accumulated negated, so the most negative integer reads back too.
-$ digits : @str -> @int -> @int -> {@int, @int} = \s i acc =
-	let c = @array_get s i in
-	if c >= 48 && c <= 57 => digits s (i + 1) (acc * 10 - (c - 48)) else {acc, i}
+$ digits : @Str -> @Int -> @Int -> { @Int, @Int } = \s i acc =
+    let c = @array_get s i in
+    if c >= 48 && c <= 57 => digits s (i + 1) (acc * 10 - (c - 48)) else { acc, i }
 
-$ r_bool : @str -> @int -> {@bool, @int} = \s i = let r = r_int s i in {r.0 != 0, r.1}
+$ r_bool : @Str -> @Int -> { @Bool, @Int } = \s i = let r = r_int s i in { r.0 != 0, r.1 }
 
-$ r_str : @str -> @int -> {@str, @int} = \s i =
-	let n = r_int s i in
-	{@array_slice s n.1 (n.1 + n.0), n.1 + n.0}
+$ r_str : @Str -> @Int -> { @Str, @Int } = \s i =
+    let n = r_int s i in { @array_slice s n.1 (n.1 + n.0), n.1 + n.0 }
 
-$ r_float : @str -> @int -> {@float64, @int} = \s i = let r = r_int s i in {f64_of_bits r.0, r.1}
+$ r_float : @Str -> @Int -> { @Float64, @Int } = \s i =
+    let r = r_int s i in { f64_of_bits r.0, r.1 }
 
-$ r_list : (@str -> @int -> {a, @int}) -> @str -> @int -> {List a, @int} = \f s i =
-	let n = r_int s i in
-	r_list_go f s n.0 n.1 List.Nil
+$ r_list : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> { List a, @Int } = \f s i =
+    let n = r_int s i in r_list_go f s n.0 n.1 List.Nil
 
-$ r_list_go : (@str -> @int -> {a, @int}) -> @str -> @int -> @int -> List a -> {List a, @int} = \f s n i acc =
-	if n == 0 => {LIST.reverse acc, i}
-	else
-		let r = f s i in
-		let x = r.0 in
-		r_list_go f s (n - 1) r.1 List.Cons.{ x, acc }
+$ r_list_go : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a -> { List a, @Int } = \f s n i acc =
+    if n == 0 => { LIST.reverse acc, i }
+    else let r = f s i in let x = r.0 in r_list_go f s (n - 1) r.1 List.Cons.{ x, acc }
 
-$ r_vec : (@str -> @int -> {a, @int}) -> @str -> @int -> {@vec a, @int} = \f s i =
-	let r = r_list f s i in
-	{LIST.to_vec r.0, r.1}
+$ r_vec : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> { @Vec a, @Int } = \f s i =
+    let r = r_list f s i in { LIST.to_vec r.0, r.1 }
 
-$ r_pos : @str -> @int -> {Pos, @int} = \s i =
-	let f = r_str s i in
-	let l = r_int s f.1 in
-	let c = r_int s l.1 in
-	{Pos.{ .file = f.0, .line = l.0, .col = c.0 }, c.1}
+$ r_pos : @Str -> @Int -> { Pos, @Int } = \s i =
+    let f = r_str s i in
+    let l = r_int s f.1 in
+    let c = r_int s l.1 in { Pos.{ .file = f.0, .line = l.0, .col = c.0 }, c.1 }
 
-$ r_intk : @str -> @int -> {IntK, @int} = \s i =
-	let sz = r_int s i in
-	let u = r_bool s sz.1 in
-	let rk = r_int s u.1 in
-	let pl = r_bool s rk.1 in
-	{IntK.{ .size = sz.0, .unsigned = u.0, .rank = rk.0, .plain = pl.0 }, pl.1}
+$ r_intk : @Str -> @Int -> { IntK, @Int } = \s i =
+    let sz = r_int s i in
+    let u = r_bool s sz.1 in
+    let rk = r_int s u.1 in
+    let pl = r_bool s rk.1 in
+    { IntK.{ .size = sz.0, .unsigned = u.0, .rank = rk.0, .plain = pl.0 }, pl.1 }
 
-$ r_fnty : @str -> @int -> {FnTy, @int} = \s i =
-	let rt = r_ty s i in
-	let ps = r_list r_ty s rt.1 in
-	let va = r_bool s ps.1 in
-	let pr = r_bool s va.1 in
-	{FnTy.{ .ret = rt.0, .params = ps.0, .variadic = va.0, .proto = pr.0 }, pr.1}
+$ r_fnty : @Str -> @Int -> { FnTy, @Int } = \s i =
+    let rt = r_ty s i in
+    let ps = r_list r_ty s rt.1 in
+    let va = r_bool s ps.1 in
+    let pr = r_bool s va.1 in
+    { FnTy.{ .ret = rt.0, .params = ps.0, .variadic = va.0, .proto = pr.0 }, pr.1 }
 
-$ r_ty : @str -> @int -> {Ty, @int} = \s i =
-	let t = r_int s i in
-	is t.0
-	| 0 => {Ty.Void, t.1}
-	| 1 => (let k = r_intk s t.1 in {Ty.Int.{ k.0 }, k.1})
-	| 2 => {Ty.Float, t.1}
-	| 3 => {Ty.Double, t.1}
-	| 4 => (let b = r_ty s t.1 in {Ty.Ptr.{ b.0 }, b.1})
-	| 5 => (let b = r_ty s t.1 in let n = r_int s b.1 in {Ty.Arr.{ b.0, n.0 }, n.1})
-	| 6 => (let b = r_ty s t.1 in let n = r_int s b.1 in {Ty.Vla.{ b.0, n.0 }, n.1})
-	| 7 => (let f = r_fnty s t.1 in {Ty.Func.{ f.0 }, f.1})
-	| 8 => (let n = r_int s t.1 in {Ty.Agg.{ n.0 }, n.1})
-	| _ => (let n = r_int s t.1 in {Ty.Enum.{ n.0 }, n.1})
+$ r_ty : @Str -> @Int -> { Ty, @Int } = \s i =
+    let t = r_int s i in
+    is t.0
+    | 0 => { Ty.Void, t.1 }
+    | 1 => (let k = r_intk s t.1 in { Ty.Int.{ k.0 }, k.1 })
+    | 2 => { Ty.Float, t.1 }
+    | 3 => { Ty.Double, t.1 }
+    | 4 => (let b = r_ty s t.1 in { Ty.Ptr.{ b.0 }, b.1 })
+    | 5 => (let b = r_ty s t.1 in let n = r_int s b.1 in { Ty.Arr.{ b.0, n.0 }, n.1 })
+    | 6 => (let b = r_ty s t.1 in let n = r_int s b.1 in { Ty.Vla.{ b.0, n.0 }, n.1 })
+    | 7 => (let f = r_fnty s t.1 in { Ty.Func.{ f.0 }, f.1 })
+    | 8 => (let n = r_int s t.1 in { Ty.Agg.{ n.0 }, n.1 })
+    | _ => (let n = r_int s t.1 in { Ty.Enum.{ n.0 }, n.1 })
 
-$ r_member : @str -> @int -> {Member, @int} = \s i =
-	let n = r_str s i in
-	let t = r_ty s n.1 in
-	let o = r_int s t.1 in
-	let bo = r_int s o.1 in
-	let bw = r_int s bo.1 in
-	{Member.{ .name = n.0, .ty = t.0, .offset = o.0, .bit_off = bo.0, .bit_width = bw.0 }, bw.1}
+$ r_member : @Str -> @Int -> { Member, @Int } = \s i =
+    let n = r_str s i in
+    let t = r_ty s n.1 in
+    let o = r_int s t.1 in
+    let bo = r_int s o.1 in
+    let bw = r_int s bo.1 in
+    { Member.{ .name = n.0, .ty = t.0, .offset = o.0, .bit_off = bo.0, .bit_width = bw.0 }, bw.1 }
 
-$ r_expr : @str -> @int -> {Expr, @int} = \s i =
-	let e = r_enode s i in
-	let t = r_ty s e.1 in
-	let p = r_pos s t.1 in
-	{Expr.{ .e = e.0, .ty = t.0, .pos = p.0 }, p.1}
+$ r_expr : @Str -> @Int -> { Expr, @Int } = \s i =
+    let e = r_enode s i in
+    let t = r_ty s e.1 in let p = r_pos s t.1 in { Expr.{ .e = e.0, .ty = t.0, .pos = p.0 }, p.1 }
 
-$ r_enode : @str -> @int -> {ENode, @int} = \s i =
-	let t = r_int s i in
-	let j = t.1 in
-	is t.0
-	| 0 => (let v = r_int s j in {ENode.IntC.{ v.0 }, v.1})
-	| 1 => (let v = r_float s j in {ENode.FltC.{ v.0 }, v.1})
-	| 2 => (let v = r_int s j in {ENode.Local.{ v.0 }, v.1})
-	| 3 => (let v = r_str s j in {ENode.Global.{ v.0 }, v.1})
-	| 4 => (let op = r_str s j in let a = r_expr s op.1 in {ENode.Unary.{ op.0, a.0 }, a.1})
-	| 5 =>
-		(let op = r_str s j in let a = r_expr s op.1 in let b = r_expr s a.1 in
-		 {ENode.Bin.{ op.0, a.0, b.0 }, b.1})
-	| 6 => (let a = r_expr s j in let b = r_expr s a.1 in {ENode.Assign.{ a.0, b.0 }, b.1})
-	| 7 =>
-		(let op = r_str s j in let a = r_expr s op.1 in let b = r_expr s a.1 in let ty = r_ty s b.1 in
-		 {ENode.OpAssign.{ op.0, a.0, b.0, ty.0 }, ty.1})
-	| 8 =>
-		(let op = r_str s j in let a = r_expr s op.1 in let b = r_expr s a.1 in
-		 {ENode.PostOp.{ op.0, a.0, b.0 }, b.1})
-	| 9 =>
-		(let a = r_expr s j in let b = r_expr s a.1 in let c = r_expr s b.1 in
-		 {ENode.Cond.{ a.0, b.0, c.0 }, c.1})
-	| 10 => (let a = r_expr s j in let b = r_expr s a.1 in {ENode.Comma.{ a.0, b.0 }, b.1})
-	| 11 =>
-		(let f = r_expr s j in let args = r_list r_expr s f.1 in let ft = r_fnty s args.1 in
-		 {ENode.Call.{ f.0, args.0, ft.0 }, ft.1})
-	| 12 => (let a = r_expr s j in let m = r_member s a.1 in {ENode.Field.{ a.0, m.0 }, m.1})
-	| 13 => (let a = r_expr s j in {ENode.Deref.{ a.0 }, a.1})
-	| 14 => (let a = r_expr s j in {ENode.Addr.{ a.0 }, a.1})
-	| 15 => (let a = r_expr s j in {ENode.Cast.{ a.0 }, a.1})
-	| 16 => (let a = r_expr s j in let n = r_int s a.1 in {ENode.Zero.{ a.0, n.0 }, n.1})
-	| 17 =>
-		(let a = r_expr s j in let b = r_expr s a.1 in let n = r_int s b.1 in
-		 {ENode.Copy.{ a.0, b.0, n.0 }, n.1})
-	| 18 => (let a = r_expr s j in {ENode.Alloca.{ a.0 }, a.1})
-	| 19 => (let a = r_expr s j in {ENode.VaStart.{ a.0 }, a.1})
-	| 20 => (let a = r_expr s j in {ENode.VaArg.{ a.0 }, a.1})
-	| 21 => (let ss = r_list r_stmt s j in let a = r_expr s ss.1 in {ENode.SExpr.{ ss.0, a.0 }, a.1})
-	| 22 => (let n = r_str s j in {ENode.LabelAddr.{ n.0 }, n.1})
-	| _ => {ENode.Nop, j}
+$ r_enode : @Str -> @Int -> { ENode, @Int } = \s i =
+    let t = r_int s i in
+    let j = t.1 in
+    is t.0
+    | 0 => (let v = r_int s j in { ENode.IntC.{ v.0 }, v.1 })
+    | 1 => (let v = r_float s j in { ENode.FltC.{ v.0 }, v.1 })
+    | 2 => (let v = r_int s j in { ENode.Local.{ v.0 }, v.1 })
+    | 3 => (let v = r_str s j in { ENode.Global.{ v.0 }, v.1 })
+    | 4 => (let op = r_str s j in let a = r_expr s op.1 in { ENode.Unary.{ op.0, a.0 }, a.1 })
+    | 5 =>
+        (
+            let op = r_str s j in
+            let a = r_expr s op.1 in let b = r_expr s a.1 in { ENode.Bin.{ op.0, a.0, b.0 }, b.1 }
+        )
+    | 6 => (let a = r_expr s j in let b = r_expr s a.1 in { ENode.Assign.{ a.0, b.0 }, b.1 })
+    | 7 =>
+        (
+            let op = r_str s j in
+            let a = r_expr s op.1 in
+            let b = r_expr s a.1 in
+            let ty = r_ty s b.1 in { ENode.OpAssign.{ op.0, a.0, b.0, ty.0 }, ty.1 }
+        )
+    | 8 =>
+        (
+            let op = r_str s j in
+            let a = r_expr s op.1 in
+            let b = r_expr s a.1 in { ENode.PostOp.{ op.0, a.0, b.0 }, b.1 }
+        )
+    | 9 =>
+        (
+            let a = r_expr s j in
+            let b = r_expr s a.1 in let c = r_expr s b.1 in { ENode.Cond.{ a.0, b.0, c.0 }, c.1 }
+        )
+    | 10 => (let a = r_expr s j in let b = r_expr s a.1 in { ENode.Comma.{ a.0, b.0 }, b.1 })
+    | 11 =>
+        (
+            let f = r_expr s j in
+            let args = r_list r_expr s f.1 in
+            let ft = r_fnty s args.1 in { ENode.Call.{ f.0, args.0, ft.0 }, ft.1 }
+        )
+    | 12 => (let a = r_expr s j in let m = r_member s a.1 in { ENode.Field.{ a.0, m.0 }, m.1 })
+    | 13 => (let a = r_expr s j in { ENode.Deref.{ a.0 }, a.1 })
+    | 14 => (let a = r_expr s j in { ENode.Addr.{ a.0 }, a.1 })
+    | 15 => (let a = r_expr s j in { ENode.Cast.{ a.0 }, a.1 })
+    | 16 => (let a = r_expr s j in let n = r_int s a.1 in { ENode.Zero.{ a.0, n.0 }, n.1 })
+    | 17 =>
+        (
+            let a = r_expr s j in
+            let b = r_expr s a.1 in let n = r_int s b.1 in { ENode.Copy.{ a.0, b.0, n.0 }, n.1 }
+        )
+    | 18 => (let a = r_expr s j in { ENode.Alloca.{ a.0 }, a.1 })
+    | 19 => (let a = r_expr s j in { ENode.VaStart.{ a.0 }, a.1 })
+    | 20 => (let a = r_expr s j in { ENode.VaArg.{ a.0 }, a.1 })
+    | 21 =>
+        (let ss = r_list r_stmt s j in let a = r_expr s ss.1 in { ENode.SExpr.{ ss.0, a.0 }, a.1 })
+    | 22 => (let n = r_str s j in { ENode.LabelAddr.{ n.0 }, n.1 })
+    | _ => { ENode.Nop, j }
 
-$ r_target : @str -> @int -> {{@int, @int, @str}, @int} = \s i =
-	let lo = r_int s i in
-	let hi = r_int s lo.1 in
-	let l = r_str s hi.1 in
-	{{lo.0, hi.0, l.0}, l.1}
+$ r_target : @Str -> @Int -> { { @Int, @Int, @Str }, @Int } = \s i =
+    let lo = r_int s i in
+    let hi = r_int s lo.1 in let l = r_str s hi.1 in { { lo.0, hi.0, l.0 }, l.1 }
 
-$ r_stmt : @str -> @int -> {Stmt, @int} = \s i =
-	let t = r_int s i in
-	let j = t.1 in
-	is t.0
-	| 0 => (let a = r_expr s j in {Stmt.Do.{ a.0 }, a.1})
-	| 1 => (let ss = r_list r_stmt s j in {Stmt.Block.{ ss.0 }, ss.1})
-	| 2 =>
-		(let c = r_expr s j in let a = r_stmt s c.1 in let b = r_stmt s a.1 in
-		 {Stmt.If.{ c.0, a.0, b.0 }, b.1})
-	| 3 => (let c = r_expr s j in let b = r_stmt s c.1 in {Stmt.While.{ c.0, b.0 }, b.1})
-	| 4 => (let b = r_stmt s j in let c = r_expr s b.1 in {Stmt.DoWhile.{ b.0, c.0 }, c.1})
-	| 5 =>
-		(let a = r_stmt s j in let c = r_expr s a.1 in let n = r_expr s c.1 in let b = r_stmt s n.1 in
-		 {Stmt.For.{ a.0, c.0, n.0, b.0 }, b.1})
-	| 6 => (let c = r_expr s j in let b = r_stmt s c.1 in {Stmt.Switch.{ c.0, b.0 }, b.1})
-	| 7 =>
-		(let lo = r_int s j in let hi = r_int s lo.1 in let b = r_stmt s hi.1 in
-		 {Stmt.Case.{ lo.0, hi.0, b.0 }, b.1})
-	| 8 => (let b = r_stmt s j in {Stmt.Default.{ b.0 }, b.1})
-	| 9 => {Stmt.Break, j}
-	| 10 => {Stmt.Continue, j}
-	| 11 => (let l = r_str s j in {Stmt.Goto.{ l.0 }, l.1})
-	| 12 => (let l = r_str s j in let b = r_stmt s l.1 in {Stmt.Label.{ l.0, b.0 }, b.1})
-	| 13 => (let a = r_expr s j in {Stmt.Return.{ a.0 }, a.1})
-	| 14 => {Stmt.Empty, j}
-	| 15 =>
-		(let a = r_expr s j in let ts = r_list r_target s a.1 in let d = r_str s ts.1 in
-		 {Stmt.Jump.{ a.0, ts.0, d.0 }, d.1})
-	| _ => (let a = r_expr s j in {Stmt.GotoPtr.{ a.0 }, a.1})
+$ r_stmt : @Str -> @Int -> { Stmt, @Int } = \s i =
+    let t = r_int s i in
+    let j = t.1 in
+    is t.0
+    | 0 => (let a = r_expr s j in { Stmt.Do.{ a.0 }, a.1 })
+    | 1 => (let ss = r_list r_stmt s j in { Stmt.Block.{ ss.0 }, ss.1 })
+    | 2 =>
+        (
+            let c = r_expr s j in
+            let a = r_stmt s c.1 in let b = r_stmt s a.1 in { Stmt.If.{ c.0, a.0, b.0 }, b.1 }
+        )
+    | 3 => (let c = r_expr s j in let b = r_stmt s c.1 in { Stmt.While.{ c.0, b.0 }, b.1 })
+    | 4 => (let b = r_stmt s j in let c = r_expr s b.1 in { Stmt.DoWhile.{ b.0, c.0 }, c.1 })
+    | 5 =>
+        (
+            let a = r_stmt s j in
+            let c = r_expr s a.1 in
+            let n = r_expr s c.1 in let b = r_stmt s n.1 in { Stmt.For.{ a.0, c.0, n.0, b.0 }, b.1 }
+        )
+    | 6 => (let c = r_expr s j in let b = r_stmt s c.1 in { Stmt.Switch.{ c.0, b.0 }, b.1 })
+    | 7 =>
+        (
+            let lo = r_int s j in
+            let hi = r_int s lo.1 in let b = r_stmt s hi.1 in { Stmt.Case.{ lo.0, hi.0, b.0 }, b.1 }
+        )
+    | 8 => (let b = r_stmt s j in { Stmt.Default.{ b.0 }, b.1 })
+    | 9 => { Stmt.Break, j }
+    | 10 => { Stmt.Continue, j }
+    | 11 => (let l = r_str s j in { Stmt.Goto.{ l.0 }, l.1 })
+    | 12 => (let l = r_str s j in let b = r_stmt s l.1 in { Stmt.Label.{ l.0, b.0 }, b.1 })
+    | 13 => (let a = r_expr s j in { Stmt.Return.{ a.0 }, a.1 })
+    | 14 => { Stmt.Empty, j }
+    | 15 =>
+        (
+            let a = r_expr s j in
+            let ts = r_list r_target s a.1 in
+            let d = r_str s ts.1 in { Stmt.Jump.{ a.0, ts.0, d.0 }, d.1 }
+        )
+    | _ => (let a = r_expr s j in { Stmt.GotoPtr.{ a.0 }, a.1 })
 
-$ r_lvar : @str -> @int -> {LVar, @int} = \s i =
-	let id = r_int s i in
-	let n = r_str s id.1 in
-	let t = r_ty s n.1 in
-	let m = r_bool s t.1 in
-	let al = r_int s m.1 in
-	{LVar.{ .id = id.0, .name = n.0, .ty = t.0, .mem = m.0, .align = al.0 }, al.1}
+$ r_lvar : @Str -> @Int -> { LVar, @Int } = \s i =
+    let id = r_int s i in
+    let n = r_str s id.1 in
+    let t = r_ty s n.1 in
+    let m = r_bool s t.1 in
+    let al = r_int s m.1 in
+    { LVar.{ .id = id.0, .name = n.0, .ty = t.0, .mem = m.0, .align = al.0 }, al.1 }
 
-$ r_func : @str -> @int -> {Func, @int} = \s i =
-	let n = r_str s i in
-	let ft = r_fnty s n.1 in
-	let ps = r_list r_int s ft.1 in
-	let ls = r_list r_lvar s ps.1 in
-	let b = r_body s ls.1 in
-	let st = r_bool s b.1 in
-	let va = r_int s st.1 in
-	let p = r_pos s va.1 in
-	{Func.{ .name = n.0, .ty = ft.0, .params = ps.0, .locals = ls.0, .body = b.0, .static = st.0,
-		.va = va.0, .pos = p.0 }, p.1}
+$ r_func : @Str -> @Int -> { Func, @Int } = \s i =
+    let n = r_str s i in
+    let ft = r_fnty s n.1 in
+    let ps = r_list r_int s ft.1 in
+    let ls = r_list r_lvar s ps.1 in
+    let b = r_body s ls.1 in
+    let st = r_bool s b.1 in
+    let va = r_int s st.1 in
+    let p = r_pos s va.1 in
+    {
+        Func.{
+            .name = n.0,
+            .ty = ft.0,
+            .params = ps.0,
+            .locals = ls.0,
+            .body = b.0,
+            .static = st.0,
+            .va = va.0,
+            .pos = p.0
+        },
+        p.1
+    }
 
-$ r_body : @str -> @int -> {Stmt, @int} = \s i =
-	let t = r_int s i in
-	if t.0 == 0 => r_stmt s t.1
-	else
-		let n = r_int s t.1 in
-		{Stmt.Block.{ (r_list r_stmt s n.1).0 }, n.1 + n.0}
+$ r_body : @Str -> @Int -> { Stmt, @Int } = \s i =
+    let t = r_int s i in
+    if t.0 == 0 => r_stmt s t.1
+    else let n = r_int s t.1 in { Stmt.Block.{ (r_list r_stmt s n.1).0 }, n.1 + n.0 }
 
-$ r_fn_refs : @str -> @int -> {{@str, List @str}, @int} = \s i =
-	let n = r_str s i in
-	let rs = r_list r_str s n.1 in
-	{{n.0, rs.0}, rs.1}
+$ r_fn_refs : @Str -> @Int -> { { @Str, List @Str }, @Int } = \s i =
+    let n = r_str s i in let rs = r_list r_str s n.1 in { { n.0, rs.0 }, rs.1 }
 
-$ r_reloc : @str -> @int -> {Reloc, @int} = \s i =
-	let o = r_int s i in
-	let y = r_str s o.1 in
-	let a = r_int s y.1 in
-	{Reloc.{ .offset = o.0, .sym = y.0, .addend = a.0 }, a.1}
+$ r_reloc : @Str -> @Int -> { Reloc, @Int } = \s i =
+    let o = r_int s i in
+    let y = r_str s o.1 in
+    let a = r_int s y.1 in { Reloc.{ .offset = o.0, .sym = y.0, .addend = a.0 }, a.1 }
 
-$ r_gvar : @str -> @int -> {GVar, @int} = \s i =
-	let n = r_str s i in
-	let t = r_ty s n.1 in
-	let d = r_str s t.1 in
-	let rs = r_vec r_reloc s d.1 in
-	let df = r_bool s rs.1 in
-	let it = r_bool s df.1 in
-	let st = r_bool s it.1 in
-	let tl = r_bool s st.1 in
-	let al = r_int s tl.1 in
-	let p = r_pos s al.1 in
-	{GVar.{ .name = n.0, .ty = t.0, .data = d.0, .relocs = rs.0, .defined = df.0, .init = it.0,
-		.static = st.0, .tls = tl.0, .align = al.0, .pos = p.0 }, p.1}
+$ r_gvar : @Str -> @Int -> { GVar, @Int } = \s i =
+    let n = r_str s i in
+    let t = r_ty s n.1 in
+    let d = r_str s t.1 in
+    let rs = r_vec r_reloc s d.1 in
+    let df = r_bool s rs.1 in
+    let it = r_bool s df.1 in
+    let st = r_bool s it.1 in
+    let tl = r_bool s st.1 in
+    let al = r_int s tl.1 in
+    let p = r_pos s al.1 in
+    {
+        GVar.{
+            .name = n.0,
+            .ty = t.0,
+            .data = d.0,
+            .relocs = rs.0,
+            .defined = df.0,
+            .init = it.0,
+            .static = st.0,
+            .tls = tl.0,
+            .align = al.0,
+            .pos = p.0
+        },
+        p.1
+    }
 
-$ r_agg : @str -> @int -> {Agg, @int} = \s i =
-	let tg = r_str s i in
-	let un = r_bool s tg.1 in
-	let ms = r_vec r_member s un.1 in
-	let sz = r_int s ms.1 in
-	let al = r_int s sz.1 in
-	let cp = r_bool s al.1 in
-	let fx = r_bool s cp.1 in
-	{Agg.{ .tag = tg.0, .union = un.0, .members = ms.0, .size = sz.0, .align = al.0, .complete = cp.0,
-		.flexible = fx.0 }, fx.1}
+$ r_agg : @Str -> @Int -> { Agg, @Int } = \s i =
+    let tg = r_str s i in
+    let un = r_bool s tg.1 in
+    let ms = r_vec r_member s un.1 in
+    let sz = r_int s ms.1 in
+    let al = r_int s sz.1 in
+    let cp = r_bool s al.1 in
+    let fx = r_bool s cp.1 in
+    {
+        Agg.{
+            .tag = tg.0,
+            .union = un.0,
+            .members = ms.0,
+            .size = sz.0,
+            .align = al.0,
+            .complete = cp.0,
+            .flexible = fx.0
+        },
+        fx.1
+    }
 
-$ r_proto : @str -> @int -> {{@str, Ty}, @int} = \s i =
-	let n = r_str s i in
-	let t = r_ty s n.1 in
-	{{n.0, t.0}, t.1}
+$ r_proto : @Str -> @Int -> { { @Str, Ty }, @Int } = \s i =
+    let n = r_str s i in let t = r_ty s n.1 in { { n.0, t.0 }, t.1 }
 
-$ r_agg_entry : @str -> @int -> {{@int, Agg}, @int} = \s i =
-	let id = r_int s i in
-	let a = r_agg s id.1 in
-	{{id.0, a.0}, a.1}
+$ r_agg_entry : @Str -> @Int -> { { @Int, Agg }, @Int } = \s i =
+    let id = r_int s i in let a = r_agg s id.1 in { { id.0, a.0 }, a.1 }
 
-$ r_tu : @str -> Target -> @int -> {TU, @int} = \s target i =
-	let fs = r_vec r_func s i in
-	let gs = r_vec r_gvar s fs.1 in
-	let ps = r_list r_proto s gs.1 in
-	let ags = r_list r_agg_entry s ps.1 in
-	let frs = r_list r_fn_refs s ags.1 in
-	let protos = LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_str ps.0,
-	    aggs = LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_int ags.0,
-	    refs = LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_str frs.0 in
-	{TU.{ .funcs = fs.0, .globals = gs.0, .protos = protos,
-		.layout = Layout.{ .target = target, .aggs = aggs }, .refs = refs }, frs.1}
+$ r_tu : @Str -> Target -> @Int -> { TU, @Int } = \s target i =
+    let fs = r_vec r_func s i in
+    let gs = r_vec r_gvar s fs.1 in
+    let ps = r_list r_proto s gs.1 in
+    let ags = r_list r_agg_entry s ps.1 in
+    let frs = r_list r_fn_refs s ags.1 in
+    let protos = LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_str ps.0,
+        aggs = LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_int ags.0,
+        refs = LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_str frs.0 in
+    {
+        TU.{
+            .funcs = fs.0,
+            .globals = gs.0,
+            .protos = protos,
+            .layout = Layout.{ .target = target, .aggs = aggs },
+            .refs = refs
+        },
+        frs.1
+    }
 
-$ r_entry : @str -> @int -> {{@str, @int}, @int} = \s i =
-	let n = r_str s i in
-	let len = r_int s n.1 in
-	{{n.0, len.0}, len.1}
+$ r_entry : @Str -> @Int -> { { @Str, @Int }, @Int } = \s i =
+    let n = r_str s i in let len = r_int s n.1 in { { n.0, len.0 }, len.1 }
 
 # The units laid out from offset `at`, each a reader of its own bytes.
-$ place_units : @str -> Target -> @int -> List {@str, @int} -> List {@str, {} -> TU} -> List {@str, {} -> TU} = \s target at entries acc =
-	is entries
-	| List.Cons.{ e, rest } =>
-		let unit = {e.0, \u = (r_tu s target at).0} in
-		place_units s target (at + e.1) rest List.Cons.{ unit, acc }
-	| _ => LIST.reverse acc
+$ place_units : @Str -> Target -> @Int -> List { @Str, @Int } -> List { @Str, {} -> TU } -> List { @Str, {} -> TU } = \s target at entries acc =
+    is entries
+    | List.Cons.{ e, rest } =>
+        let unit = { e.0, \u = (r_tu s target at).0 } in
+        place_units s target (at + e.1) rest List.Cons.{ unit, acc }
+    | _ => LIST.reverse acc

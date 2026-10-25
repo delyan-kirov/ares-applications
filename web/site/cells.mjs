@@ -11,7 +11,7 @@ export const CELLS = [
 
 $ with HOST
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print "hello, Thrax";
 	HOST.print "every definition has a type, and @main returns the exit code";
 	0
@@ -26,11 +26,11 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ fib : @int -> @int = \\n =
+$ fib : @Int -> @Int = \\n =
 	if n < 2 => n
 	else fib (n - 1) + fib (n - 2)
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print <| "fib 10 = " ++ STR.from_int (fib 10);
 	HOST.print <| "fib 20 = " ++ STR.from_int (fib 20);
 	0
@@ -46,15 +46,15 @@ $ with STR
 $ with HOST
 
 $ Shape : @union =
-	Circle: @int,
-	Rect: {@int, @int},
+	Circle: @Int,
+	Rect: {@Int, @Int},
 
-$ area : Shape -> @int = \\s =
+$ area : Shape -> @Int = \\s =
 	is s
 		| Shape.Circle.{r} => 3 * r * r
 		| Shape.Rect.{w, h} => w * h
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print <| "circle r=2: " ++ STR.from_int (area Shape.Circle.{2});
 	HOST.print <| "rect 3x4:   " ++ STR.from_int (area Shape.Rect.{3, 4});
 	0
@@ -69,10 +69,10 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ Point : @struct = x: @int, y: @int,
-$ Point3 : @struct = with Point, z: @int,
+$ Point : @struct = x: @Int, y: @Int,
+$ Point3 : @struct = with Point, z: @Int,
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	let p = Point3.{ .x = 1, .y = 2, .z = 3 } in
 	HOST.print <| "x + y + z = " ++ STR.from_int (p.x + p.y + p.z);
 	0
@@ -87,13 +87,13 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ sign : @int -> @str = \\n =
+$ sign : @Int -> @Str = \\n =
 	is n
 		| m if m > 0 => "positive"
 		| m if m < 0 => "negative"
 		| _ => "zero"
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print <| "sign  7 = " ++ sign 7;
 	HOST.print <| "sign -3 = " ++ sign (0 - 3);
 	HOST.print <| "sign  0 = " ++ sign 0;
@@ -111,7 +111,7 @@ $ with HOST
 
 $ swap : {a, b} -> {b, a} = \\t = {t.1, t.0}
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	let
 		p = {42, "answer"},
 		q = swap p,
@@ -124,18 +124,18 @@ $ @main : @vec @str -> <@io> @int = \\args =
   {
     id: "lists",
     title: "Sequences",
-    blurb: "`[a, b, c]` builds a `@vec`, the default sequence; `h :: t` prepends, `[]` is empty. Patterns mirror the sugar: `| []` and `| h :: t` walk a sequence one element at a time, and together they cover every one, so no catch-all arm is needed.",
+    blurb: "`[a, b, c]` builds a `@Vec`, the default sequence; `h :: t` prepends, `[]` is empty. Patterns mirror the sugar: `| []` and `| h :: t` walk a sequence one element at a time, and together they cover every one, so no catch-all arm is needed.",
     src: `$ @mod MAIN
 
 $ with STR
 $ with HOST
 
-$ sum : @vec @int -> @int = \\xs =
+$ sum : @Vec @Int -> @Int = \\xs =
 	is xs
 		| [] => 0
 		| h :: t => h + sum t
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	let xs = [1, 2, 3, 4, 5] in
 	HOST.print <| "sum [1..5] = " ++ STR.from_int (sum xs);
 	0
@@ -150,10 +150,10 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ inc : @int -> @int = \\x = x + 1
-$ dbl : @int -> @int = \\x = x + x
+$ inc : @Int -> @Int = \\x = x + 1
+$ dbl : @Int -> @Int = \\x = x + x
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	let r = 5 |> inc |> dbl in
 	HOST.print <| "5 |> inc |> dbl = " ++ STR.from_int r;
 	0
@@ -168,22 +168,22 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ IArea : @struct t = area: t -> @int,
+$ IArea : @struct t = area: t -> @Int,
 
-$ Rect : @struct = w: @int, h: @int,
+$ Rect : @struct = w: @Int, h: @Int,
 $ impl_IArea_for_Rect : IArea Rect = .{ .area = \\r = r.w * r.h }
 
-$ Square : @struct = side: @int,
+$ Square : @struct = side: @Int,
 $ impl_IArea_for_Square : IArea Square = .{ .area = \\s = s.side * s.side }
 
 # \`d\` is the context parameter. A recursive call names it with \`@ctx d\`; an
 # ordinary call site writes nothing.
-$ total : @ctx IArea t -> @vec t -> @int = \\d xs =
+$ total : @ctx IArea t -> @Vec t -> @Int = \\d xs =
 	is xs
 		| [] => 0
 		| h :: rest => d.area h + total (@ctx d) rest
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print <| "rects:   " ++ STR.from_int (total [Rect.{2, 3}, Rect.{1, 4}]);
 	HOST.print <| "squares: " ++ STR.from_int (total [Square.{3}, Square.{5}]);
 	0
@@ -198,14 +198,14 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ Money : @struct = cents: @int,
+$ Money : @struct = cents: @Int,
 
 $ impl_IAdd_for_Money : IAdd Money = .{ .add = \\a b = Money.{ .cents = a.cents + b.cents } }
 
-$ show : Money -> @str = \\m =
+$ show : Money -> @Str = \\m =
 	"$" ++ STR.from_int (m.cents / 100) ++ "." ++ STR.from_int (m.cents % 100)
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	let paid = Money.{ .cents = 150 } + Money.{ .cents = 99 } in
 	HOST.print <| "1.50 + 0.99 = " ++ show paid;
 	0
@@ -220,9 +220,9 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ Yield : @effect = yield : @int -> {},
+$ Yield : @effect = yield : @Int -> {},
 
-$ sumGen : ({} -> <Yield> {}) -> @int = \\gen =
+$ sumGen : ({} -> <Yield> {}) -> @Int = \\gen =
 	do gen {}
 	ctl k | Yield.yield v => v + k {}
 	      | _ => 0
@@ -230,7 +230,7 @@ $ sumGen : ({} -> <Yield> {}) -> @int = \\gen =
 $ gen3 : {} -> <Yield> {} =
 	Yield.yield 10 ; Yield.yield 20 ; Yield.yield 12 ; {}
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print <| "sum of yields = " ++ STR.from_int (sumGen gen3);
 	0
 `,
@@ -244,13 +244,13 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ Exn : @effect = throw : @str -> a,
+$ Exn : @effect = throw : @Str -> a,
 
-$ safeDiv : @int -> @int -> @int = \\a b =
+$ safeDiv : @Int -> @Int -> @Int = \\a b =
 	do if b == 0 => Exn.throw "divide by zero" else a / b
 	ctl k | Exn.throw msg => 0 - 1
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print <| "84 / 2 = " ++ STR.from_int (safeDiv 84 2);
 	HOST.print <| "10 / 0 = " ++ STR.from_int (safeDiv 10 0);
 	0
@@ -265,16 +265,16 @@ $ @main : @vec @str -> <@io> @int = \\args =
 $ with STR
 $ with HOST
 
-$ State : @effect = get : {} -> @int, put : @int -> {},
+$ State : @effect = get : {} -> @Int, put : @Int -> {},
 
-$ runState : ({} -> <State> @int) -> @int -> @int = \\action s0 =
+$ runState : ({} -> <State> @Int) -> @Int -> @Int = \\action s0 =
 	let h = do action {}
 	        ctl k | get u => \\s = k s s
 	              | put n => \\s = k {} n
 	              | x => \\s = x
 	 in h s0
 
-$ counter : {} -> <State> @int =
+$ counter : {} -> <State> @Int =
 	let
 		x = get {},
 		_ = put <| x + 1,
@@ -282,7 +282,7 @@ $ counter : {} -> <State> @int =
 	 in
 		x + y
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	HOST.print <| "counter from 10 = " ++ STR.from_int (runState counter 10);
 	0
 `,
@@ -297,17 +297,17 @@ $ with STR
 $ with HOST
 
 # Flip to true and re-run to start seeing the colors.
-$ animate : @bool = @false
+$ animate : @Bool = @false
 
 # An effect standing for "recolor the scratchpad".
-$ ChangeColorEffect : @effect = recolor : @str -> {},
+$ ChangeColorEffect : @effect = recolor : @Str -> {},
 
 # Host imports
-$ paint  : @str -> {}  = @extern "WASM" "change_color" ""
-$ random : @int -> @int = @extern "WASM" "random" ""
-$ delay  : @int -> {}  = @extern "WASM" "delay" ""
+$ paint  : @Str -> {}  = @extern "WASM" "change_color" ""
+$ random : @Int -> @Int = @extern "WASM" "random" ""
+$ delay  : @Int -> {}  = @extern "WASM" "delay" ""
 
-$ color : {} -> @str =
+$ color : {} -> @Str =
 	"rgb(" ++ STR.from_int (random 256)
 	      ++ ", " ++ STR.from_int (random 256)
 	      ++ ", " ++ STR.from_int (random 256) ++ ")"
@@ -316,7 +316,7 @@ $ withColor : ({} -> <ChangeColorEffect> {}) -> {} = \\body =
 	do body {}
 	ctl k | ChangeColorEffect.recolor c => (if animate => paint c else {}) ; k {}
 
-$ spin : @int -> <ChangeColorEffect> {} = \\n =
+$ spin : @Int -> <ChangeColorEffect> {} = \\n =
 	if n == 0 => {}
 	else
 		let c = color {} in
@@ -324,7 +324,7 @@ $ spin : @int -> <ChangeColorEffect> {} = \\n =
 		recolor c ;
 		spin (n - 1)
 
-$ @main : @vec @str -> <@io> @int = \\args =
+$ @main : @Vec @Str -> <@IO> @Int = \\args =
 	delay 150 ;
 	withColor (\\u = spin 12) ;
 	0

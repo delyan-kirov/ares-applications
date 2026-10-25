@@ -16,83 +16,83 @@ $ with TYPE
 $ Expr : @struct = e : ENode, ty : Ty, pos : Pos,
 
 $ ENode : @union =
-	IntC : { @int },
-	FltC : { @float64 },
-	Local : { @int },
-	Global : { @str },
-	Unary : { @str, Expr },
-	Bin : { @str, Expr, Expr },
-	Assign : { Expr, Expr },
-	OpAssign : { @str, Expr, Expr, Ty },
-	PostOp : { @str, Expr, Expr },
-	Cond : { Expr, Expr, Expr },
-	Comma : { Expr, Expr },
-	Call : { Expr, List Expr, FnTy },
-	Field : { Expr, Member },
-	Deref : { Expr },
-	Addr : { Expr },
-	Cast : { Expr },
-	Zero : { Expr, @int },
-	Copy : { Expr, Expr, @int },
-	Alloca : { Expr },
-	VaStart : { Expr },
-	VaArg : { Expr },
-	SExpr : { List Stmt, Expr },
-	LabelAddr : { @str },
-	Nop : {},
+    IntC : { @Int },
+    FltC : { @Float64 },
+    Local : { @Int },
+    Global : { @Str },
+    Unary : { @Str, Expr },
+    Bin : { @Str, Expr, Expr },
+    Assign : { Expr, Expr },
+    OpAssign : { @Str, Expr, Expr, Ty },
+    PostOp : { @Str, Expr, Expr },
+    Cond : { Expr, Expr, Expr },
+    Comma : { Expr, Expr },
+    Call : { Expr, List Expr, FnTy },
+    Field : { Expr, Member },
+    Deref : { Expr },
+    Addr : { Expr },
+    Cast : { Expr },
+    Zero : { Expr, @Int },
+    Copy : { Expr, Expr, @Int },
+    Alloca : { Expr },
+    VaStart : { Expr },
+    VaArg : { Expr },
+    SExpr : { List Stmt, Expr },
+    LabelAddr : { @Str },
+    Nop : {},
 
 $ Stmt : @union =
-	Do : { Expr },
-	Block : { List Stmt },
-	If : { Expr, Stmt, Stmt },
-	While : { Expr, Stmt },
-	DoWhile : { Stmt, Expr },
-	For : { Stmt, Expr, Expr, Stmt },
-	Switch : { Expr, Stmt },
-	Case : { @int, @int, Stmt },
-	Default : { Stmt },
-	Break : {},
-	Continue : {},
-	Goto : { @str },
-	Label : { @str, Stmt },
-	Return : { Expr },
-	Empty : {},
-	Jump : { Expr, List {@int, @int, @str}, @str },
-	GotoPtr : { Expr },
+    Do : { Expr },
+    Block : { List Stmt },
+    If : { Expr, Stmt, Stmt },
+    While : { Expr, Stmt },
+    DoWhile : { Stmt, Expr },
+    For : { Stmt, Expr, Expr, Stmt },
+    Switch : { Expr, Stmt },
+    Case : { @Int, @Int, Stmt },
+    Default : { Stmt },
+    Break : {},
+    Continue : {},
+    Goto : { @Str },
+    Label : { @Str, Stmt },
+    Return : { Expr },
+    Empty : {},
+    Jump : { Expr, List { @Int, @Int, @Str }, @Str },
+    GotoPtr : { Expr },
 
 # A local variable. `mem` says it must live in the frame (its address is taken,
 # or it is an array, struct or union); everything else becomes a wasm local.
-$ LVar : @struct = id : @int, name : @str, ty : Ty, mem : @bool, align : @int,
+$ LVar : @struct = id : @Int, name : @Str, ty : Ty, mem : @Bool, align : @Int,
 
 $ Func : @struct =
-	name : @str,
-	ty : FnTy,
-	params : List @int,
-	locals : List LVar,
-	body : Stmt,
-	static : @bool,
-	va : @int,
-	pos : Pos,
+    name : @Str,
+    ty : FnTy,
+    params : List @Int,
+    locals : List LVar,
+    body : Stmt,
+    static : @Bool,
+    va : @Int,
+    pos : Pos,
 
 # A relocation in a global's initial bytes: at `offset` goes the address of
 # `sym` plus `addend` (for a function, its table index).
-$ Reloc : @struct = offset : @int, sym : @str, addend : @int,
+$ Reloc : @struct = offset : @Int, sym : @Str, addend : @Int,
 
 $ GVar : @struct =
-	name : @str,
-	ty : Ty,
-	data : @str,
-	relocs : @vec Reloc,
-	defined : @bool,
-	init : @bool,
-	static : @bool,
-	tls : @bool,
-	align : @int,
-	pos : Pos,
+    name : @Str,
+    ty : Ty,
+    data : @Str,
+    relocs : @Vec Reloc,
+    defined : @Bool,
+    init : @Bool,
+    static : @Bool,
+    tls : @Bool,
+    align : @Int,
+    pos : Pos,
 
 $ mk_expr : ENode -> Ty -> Pos -> Expr = \e t p = Expr.{ .e = e, .ty = t, .pos = p }
 
-$ int_expr : @int -> Ty -> Pos -> Expr = \v t p = mk_expr ENode.IntC.{ v } t p
+$ int_expr : @Int -> Ty -> Pos -> Expr = \v t p = mk_expr ENode.IntC.{ v } t p
 
 # A copy with another type or position. These read every field rather than
 # using a record update: an expression taken out of a node's lazy slot may still
@@ -104,6 +104,7 @@ $ with_pos : Expr -> Pos -> Expr = \x p = Expr.{ .e = x.e, .ty = x.ty, .pos = p 
 $ nop : Pos -> Expr = \p = mk_expr ENode.Nop TYPE.t_void p
 
 # `n` zero bytes.
-$ zeros : @int -> @str = \n = zeros_onto "" n
+$ zeros : @Int -> @Str = \n = zeros_onto "" n
 
-$ zeros_onto : @str -> @int -> @str = \acc n = if n <= 0 => acc else zeros_onto (@array_push acc 0) (n - 1)
+$ zeros_onto : @Str -> @Int -> @Str = \acc n =
+    if n <= 0 => acc else zeros_onto (@array_push acc 0) (n - 1)

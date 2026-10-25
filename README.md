@@ -46,6 +46,6 @@ git submodule add <repo-url> applications/<name>
 ```
 
 Give the app a `flake.nix` (see `launcher/flake.nix`) and a `MAIN.thx` with an
-entry point, `$ @main : @vec @str -> <@io> @int`. Run it with `thrax run MAIN.thx`
+entry point, `$ @main : @Vec @Str -> <@IO> @Int`. Run it with `thrax run MAIN.thx`
 (interpreter) or `thrax build MAIN.thx` (native binary) from the app's own
 directory.

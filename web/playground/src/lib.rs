@@ -394,7 +394,7 @@ mod tests {
         for (name, _) in MODULES {
             let src = format!(
                 "$ @mod MAIN\n$ with {name}\n\
-                 $ @main : @vec @str -> <@io> @int = \\args = 0\n"
+                 $ @main : @Vec @Str -> <@IO> @Int = \\args = 0\n"
             );
             let out = run_source(&src);
             assert_eq!(out, "exit 0", "`$ with {name}` does not compile:\n{out}");
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn runs_a_program() {
-        let src = "$ @mod MAIN\n$ @main : @vec @str -> <@io> @int = \\args = 6 * 7 - 42\n";
+        let src = "$ @mod MAIN\n$ @main : @Vec @Str -> <@IO> @Int = \\args = 6 * 7 - 42\n";
         assert_eq!(run_source(src), "exit 0");
     }
 
@@ -411,14 +411,14 @@ mod tests {
     fn imports_the_bundled_stdlib() {
         let src = "$ @mod MAIN\n\
                    $ with STR\n\
-                   $ @main : @vec @str -> <@io> @int = \\args =\n\
+                   $ @main : @Vec @Str -> <@IO> @Int = \\args =\n\
                    \tif STR.from_int 123 == \"123\" => 0 else 1\n";
         assert_eq!(run_source(src), "exit 0");
     }
 
     #[test]
     fn reports_a_type_error() {
-        let src = "$ @mod MAIN\n$ @main : @vec @str -> <@io> @int = \\args = \"x\" + 1\n";
+        let src = "$ @mod MAIN\n$ @main : @Vec @Str -> <@IO> @Int = \\args = \"x\" + 1\n";
         let out = run_source(src);
         assert!(out.contains("error") || out.contains("mismatch"), "{out}");
     }
@@ -430,7 +430,7 @@ mod tests {
         // type-checking of the bundled `HOST` module end to end.
         let src = "$ @mod MAIN\n\
                    $ with HOST\n\
-                   $ @main : @vec @str -> <@io> @int = \\args = HOST.print \"hi\"; 0\n";
+                   $ @main : @Vec @Str -> <@IO> @Int = \\args = HOST.print \"hi\"; 0\n";
         let ir = super::compile(src, 2);
         assert!(!ir.to_lowercase().contains("error"), "{ir}");
         assert!(ir.contains("WASM"), "{ir}");

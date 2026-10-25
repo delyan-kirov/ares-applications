@@ -18,367 +18,562 @@ $ with BITS
 $ with WASM
 
 # The whole module.
-$ module_lines : @str -> List @str = \s = render s (\n = @true) @true
+$ module_lines : @Str -> List @Str = \s = render s (\n = @true) @true
 
 # Only the functions whose names `keep` accepts.
-$ function_lines : @str -> (@str -> @bool) -> List @str = \s keep = render s keep @false
+$ function_lines : @Str -> (@Str -> @Bool) -> List @Str = \s keep = render s keep @false
 
 $ @private
 
-$ Sec : @struct = id : @int, start : @int, end : @int,
+$ Sec : @struct = id : @Int, start : @Int, end : @Int,
 
-$ Imp : @struct = module : @str, name : @str, kind : @int, index : @int,
+$ Imp : @struct = module : @Str, name : @Str, kind : @Int, index : @Int,
 
 # What printing an instruction needs: function names by index.
-$ Names : @struct = funcs : Map @int @str,
+$ Names : @struct = funcs : Map @Int @Str,
 
-$ render : @str -> (@str -> @bool) -> @bool -> List @str = \s keep full =
-	if @array_len s < 8 || @array_slice s 0 4 != "\0asm" => LIST.singleton ";; not a WebAssembly module"
-	else
-		let secs = sections s 8 List.Nil in
-		let nm = Names.{ .funcs = func_names s secs } in
-		let imports = items s secs 2 r_import in
-		let nimp = LIST.length (LIST.filter (\i = i.kind == 0) imports) in
-		let ftypes = items s secs 3 r_u in
-		let funcs = code_lines s secs nm nimp ftypes keep in
-		if !full => funcs
-		else
-			let head = LIST.concat [
-				LIST.singleton "(module",
-				LIST.map (\t = "  (type " ++ t ++ ")") (numbered (items s secs 1 r_functype)),
-				LIST.map (\i = "  " ++ import_line nm i) (imports_numbered imports 0 List.Nil),
-				LIST.map (\t = "  (table " ++ t ++ ")") (items s secs 4 r_table),
-				LIST.map (\m = "  (memory " ++ m ++ ")") (items s secs 5 r_memory),
-				LIST.map (\g = "  (global " ++ g ++ ")") (numbered (items s secs 6 r_global)),
-				LIST.map (\e = "  (export " ++ e ++ ")") (items s secs 7 r_export),
-				LIST.map (\e = "  (elem " ++ e ++ ")") (items s secs 9 (r_elem nm))] in
-			LIST.concat [head, funcs,
-				LIST.map (\d = "  (data " ++ d ++ ")") (items s secs 11 r_data),
-				LIST.singleton ")"]
+$ render : @Str -> (@Str -> @Bool) -> @Bool -> List @Str = \s keep full =
+    if @array_len s < 8 || @array_slice s 0 4 != "\0asm" =>
+        LIST.singleton ";; not a WebAssembly module"
+    else
+        let secs = sections s 8 List.Nil in
+        let nm = Names.{ .funcs = func_names s secs } in
+        let imports = items s secs 2 r_import in
+        let nimp = LIST.length (LIST.filter (\i = i.kind == 0) imports) in
+        let ftypes = items s secs 3 r_u in
+        let funcs = code_lines s secs nm nimp ftypes keep in
+        if !full => funcs
+        else
+            let head = LIST.concat [
+                    LIST.singleton "(module",
+                    LIST.map (\t = "  (type " ++ t ++ ")") (numbered (items s secs 1 r_functype)),
+                    LIST.map (\i = "  " ++ import_line nm i) (imports_numbered imports 0 List.Nil),
+                    LIST.map (\t = "  (table " ++ t ++ ")") (items s secs 4 r_table),
+                    LIST.map (\m = "  (memory " ++ m ++ ")") (items s secs 5 r_memory),
+                    LIST.map (\g = "  (global " ++ g ++ ")") (numbered (items s secs 6 r_global)),
+                    LIST.map (\e = "  (export " ++ e ++ ")") (items s secs 7 r_export),
+                    LIST.map (\e = "  (elem " ++ e ++ ")") (items s secs 9 (r_elem nm))
+                ] in
+            LIST.concat [
+                head,
+                funcs,
+                LIST.map (\d = "  (data " ++ d ++ ")") (items s secs 11 r_data),
+                LIST.singleton ")"
+            ]
 
-$ sections : @str -> @int -> List Sec -> List Sec = \s i acc =
-	if i >= @array_len s => LIST.reverse acc
-	else
-		let n = r_u s (i + 1) in
-		let sec = Sec.{ .id = @array_get s i, .start = n.1, .end = n.1 + n.0 } in
-		sections s sec.end List.Cons.{ sec, acc }
+$ sections : @Str -> @Int -> List Sec -> List Sec = \s i acc =
+    if i >= @array_len s => LIST.reverse acc
+    else
+        let n = r_u s (i + 1) in
+        let sec = Sec.{ .id = @array_get s i, .start = n.1, .end = n.1 + n.0 } in
+        sections s sec.end List.Cons.{ sec, acc }
 
-$ find : List Sec -> @int -> Option Sec = \secs id =
-	is secs
-	| List.Cons.{ h, t } => if h.id == id && id != 0 => Option.Some.{ h } else find t id
-	| _ => Option.None
+$ find : List Sec -> @Int -> Option Sec = \secs id =
+    is secs
+    | List.Cons.{ h, t } => if h.id == id && id != 0 => Option.Some.{ h } else find t id
+    | _ => Option.None
 
 # The items of section `id`, a vector of whatever `f` reads.
-$ items : @str -> List Sec -> @int -> (@str -> @int -> {a, @int}) -> List a = \s secs id f =
-	is find secs id
-	| Option.Some.{ sec } => (let n = r_u s sec.start in read_n f s n.0 n.1 List.Nil).0
-	| _ => List.Nil
+$ items : @Str -> List Sec -> @Int -> (@Str -> @Int -> { a, @Int }) -> List a = \s secs id f =
+    is find secs id
+    | Option.Some.{ sec } => (let n = r_u s sec.start in read_n f s n.0 n.1 List.Nil).0
+    | _ => List.Nil
 
-$ read_n : (@str -> @int -> {a, @int}) -> @str -> @int -> @int -> List a -> {List a, @int} = \f s n i acc =
-	if n == 0 => {LIST.reverse acc, i}
-	else
-		let r = f s i in
-		let x = r.0 in
-		read_n f s (n - 1) r.1 List.Cons.{ x, acc }
+$ read_n : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a -> { List a, @Int } = \f s n i acc =
+    if n == 0 => { LIST.reverse acc, i }
+    else let r = f s i in let x = r.0 in read_n f s (n - 1) r.1 List.Cons.{ x, acc }
 
-$ numbered : List @str -> List @str = \xs = number_go xs 0 List.Nil
+$ numbered : List @Str -> List @Str = \xs = number_go xs 0 List.Nil
 
-$ number_go : List @str -> @int -> List @str -> List @str = \xs i acc =
-	is xs
-	| List.Cons.{ h, t } => number_go t (i + 1) List.Cons.{ to_string i ++ " " ++ h, acc }
-	| _ => LIST.reverse acc
+$ number_go : List @Str -> @Int -> List @Str -> List @Str = \xs i acc =
+    is xs
+    | List.Cons.{ h, t } => number_go t (i + 1) List.Cons.{ to_string i ++ " " ++ h, acc }
+    | _ => LIST.reverse acc
 
 # -- primitives ----------------------------------------------------------------
 
-$ r_u : @str -> @int -> {@int, @int} = \s i = uleb_go s i 0 0
+$ r_u : @Str -> @Int -> { @Int, @Int } = \s i = uleb_go s i 0 0
 
-$ uleb_go : @str -> @int -> @int -> @int -> {@int, @int} = \s i shift acc =
-	let b = @array_get s i in
-	let v = acc + shl (band b 127) shift in
-	if b >= 128 => uleb_go s (i + 1) (shift + 7) v else {v, i + 1}
+$ uleb_go : @Str -> @Int -> @Int -> @Int -> { @Int, @Int } = \s i shift acc =
+    let b = @array_get s i in
+    let v = acc + shl (band b 127) shift in
+    if b >= 128 => uleb_go s (i + 1) (shift + 7) v else { v, i + 1 }
 
-$ r_s : @str -> @int -> {@int, @int} = \s i = sleb_go s i 0 0
+$ r_s : @Str -> @Int -> { @Int, @Int } = \s i = sleb_go s i 0 0
 
-$ sleb_go : @str -> @int -> @int -> @int -> {@int, @int} = \s i shift acc =
-	let b = @array_get s i in
-	let v = acc + shl (band b 127) shift in
-	if b >= 128 => sleb_go s (i + 1) (shift + 7) v
-	else if band b 64 != 0 && shift + 7 < 64 => {v - shl 1 (shift + 7), i + 1}
-	else {v, i + 1}
+$ sleb_go : @Str -> @Int -> @Int -> @Int -> { @Int, @Int } = \s i shift acc =
+    let b = @array_get s i in
+    let v = acc + shl (band b 127) shift in
+    if b >= 128 => sleb_go s (i + 1) (shift + 7) v
+    else if band b 64 != 0 && shift + 7 < 64 => { v - shl 1 (shift + 7), i + 1 }
+    else { v, i + 1 }
 
-$ r_name : @str -> @int -> {@str, @int} = \s i =
-	let n = r_u s i in
-	{@array_slice s n.1 (n.1 + n.0), n.1 + n.0}
+$ r_name : @Str -> @Int -> { @Str, @Int } = \s i =
+    let n = r_u s i in { @array_slice s n.1 (n.1 + n.0), n.1 + n.0 }
 
-$ le_go : @str -> @int -> @int -> @int -> @int = \s i n acc =
-	if n == 0 => acc else le_go s i (n - 1) (acc * 256 + @array_get s (i + n - 1))
+$ le_go : @Str -> @Int -> @Int -> @Int -> @Int = \s i n acc =
+    if n == 0 => acc else le_go s i (n - 1) (acc * 256 + @array_get s (i + n - 1))
 
-$ vt : @int -> @str = \b =
-	is b
-	| 127 => "i32" | 126 => "i64" | 125 => "f32" | 124 => "f64" | 112 => "funcref"
-	| _ => "0x" ++ hex b
+$ vt : @Int -> @Str = \b =
+    is b
+    | 127 => "i32"
+    | 126 => "i64"
+    | 125 => "f32"
+    | 124 => "f64"
+    | 112 => "funcref"
+    | _ => "0x" ++ hex b
 
-$ hex : @int -> @str = \b =
-	let d = "0123456789abcdef" in
-	@array_push (@array_push "" (@array_get d (b / 16))) (@array_get d (b % 16))
+$ hex : @Int -> @Str = \b =
+    let d = "0123456789abcdef" in
+    @array_push (@array_push "" (@array_get d (b / 16))) (@array_get d (b % 16))
 
 # A byte string as a text-format string literal.
-$ quote : @str -> @str = \bytes = "\"" ++ quote_go bytes 0 "" ++ "\""
+$ quote : @Str -> @Str = \bytes = "\"" ++ quote_go bytes 0 "" ++ "\""
 
-$ quote_go : @str -> @int -> @str -> @str = \b i acc =
-	if i >= @array_len b => acc
-	else
-		let c = @array_get b i in
-		quote_go b (i + 1)
-			(if c >= 32 && c < 127 && c != 34 && c != 92 => @array_push acc c else acc ++ "\\" ++ hex c)
+$ quote_go : @Str -> @Int -> @Str -> @Str = \b i acc =
+    if i >= @array_len b => acc
+    else
+        let c = @array_get b i in
+        quote_go b (
+            i + 1
+        ) (
+            if c >= 32 && c < 127 && c != 34 && c != 92 => @array_push acc c
+            else acc ++ "\\" ++ hex c
+        )
 
-$ fname : Names -> @int -> @str = \nm i =
-	is MAP.get nm.funcs i | Option.Some.{ n } => "$" ++ n | _ => to_string i
+$ fname : Names -> @Int -> @Str = \nm i =
+    is MAP.get nm.funcs i | Option.Some.{ n } => "$" ++ n | _ => to_string i
 
 # -- sections ------------------------------------------------------------------
 
-$ r_functype : @str -> @int -> {@str, @int} = \s i =
-	let ps = read_n r_vt s (r_u s (i + 1)).0 (r_u s (i + 1)).1 List.Nil in
-	let rs = read_n r_vt s (r_u s ps.1).0 (r_u s ps.1).1 List.Nil in
-	{"(func" ++ group "param" ps.0 ++ group "result" rs.0 ++ ")", rs.1}
+$ r_functype : @Str -> @Int -> { @Str, @Int } = \s i =
+    let ps = read_n r_vt s (r_u s (i + 1)).0 (r_u s (i + 1)).1 List.Nil in
+    let rs = read_n r_vt s (r_u s ps.1).0 (r_u s ps.1).1 List.Nil in
+    { "(func" ++ group "param" ps.0 ++ group "result" rs.0 ++ ")", rs.1 }
 
-$ r_vt : @str -> @int -> {@str, @int} = \s i = {vt (@array_get s i), i + 1}
+$ r_vt : @Str -> @Int -> { @Str, @Int } = \s i = { vt (@array_get s i), i + 1 }
 
-$ group : @str -> List @str -> @str = \kw xs =
-	is xs | List.Nil => "" | _ => " (" ++ kw ++ LIST.foldl (\a x = a ++ " " ++ x) "" xs ++ ")"
+$ group : @Str -> List @Str -> @Str = \kw xs =
+    is xs | List.Nil => "" | _ => " (" ++ kw ++ LIST.foldl (\a x = a ++ " " ++ x) "" xs ++ ")"
 
-$ r_import : @str -> @int -> {Imp, @int} = \s i =
-	let m = r_name s i in
-	let n = r_name s m.1 in
-	let kind = @array_get s n.1 in
-	let x = r_u s (n.1 + 1) in
-	{Imp.{ .module = m.0, .name = n.0, .kind = kind, .index = x.0 }, x.1}
+$ r_import : @Str -> @Int -> { Imp, @Int } = \s i =
+    let m = r_name s i in
+    let n = r_name s m.1 in
+    let kind = @array_get s n.1 in
+    let x = r_u s (n.1 + 1) in
+    { Imp.{ .module = m.0, .name = n.0, .kind = kind, .index = x.0 }, x.1 }
 
 # Imported functions take the first function indices, in order.
-$ imports_numbered : List Imp -> @int -> List {@int, Imp} -> List {@int, Imp} = \xs n acc =
-	is xs
-	| List.Cons.{ h, t } =>
-		(let entry = {n, h} in
-		 imports_numbered t (if h.kind == 0 => n + 1 else n) List.Cons.{ entry, acc })
-	| _ => LIST.reverse acc
+$ imports_numbered : List Imp -> @Int -> List { @Int, Imp } -> List { @Int, Imp } = \xs n acc =
+    is xs
+    | List.Cons.{ h, t } =>
+        (
+            let entry = { n, h } in
+            imports_numbered t (if h.kind == 0 => n + 1 else n) List.Cons.{ entry, acc }
+        )
+    | _ => LIST.reverse acc
 
-$ import_line : Names -> {@int, Imp} -> @str = \nm e =
-	let i = e.1 in
-	"(import " ++ quote i.module ++ " " ++ quote i.name ++ " "
-	++ (if i.kind == 0 => "(func " ++ to_string e.0 ++ " " ++ fname nm e.0 ++ " (type " ++ to_string i.index ++ "))"
-	    else "(kind " ++ to_string i.kind ++ ")")
-	++ ")"
+$ import_line : Names -> { @Int, Imp } -> @Str = \nm e =
+    let i = e.1 in
+    "(import "
+        ++ quote i.module
+        ++ " "
+        ++ quote i.name
+        ++ " "
+        ++ (
+            if i.kind == 0 =>
+                "(func "
+                    ++ to_string e.0
+                    ++ " "
+                    ++ fname nm e.0
+                    ++ " (type "
+                    ++ to_string i.index
+                    ++ "))"
+            else "(kind " ++ to_string i.kind ++ ")"
+        )
+        ++ ")"
 
-$ r_limits : @str -> @int -> {@str, @int} = \s i =
-	let flag = @array_get s i in
-	let lo = r_u s (i + 1) in
-	let addr = if band flag 4 != 0 => "i64 " else "" in
-	if band flag 1 != 0 => (let hi = r_u s lo.1 in {addr ++ to_string lo.0 ++ " " ++ to_string hi.0, hi.1})
-	else {addr ++ to_string lo.0, lo.1}
+$ r_limits : @Str -> @Int -> { @Str, @Int } = \s i =
+    let flag = @array_get s i in
+    let lo = r_u s (i + 1) in
+    let addr = if band flag 4 != 0 => "i64 " else "" in
+    if band flag 1 != 0 =>
+        (let hi = r_u s lo.1 in { addr ++ to_string lo.0 ++ " " ++ to_string hi.0, hi.1 })
+    else { addr ++ to_string lo.0, lo.1 }
 
-$ r_table : @str -> @int -> {@str, @int} = \s i =
-	let l = r_limits s (i + 1) in
-	{l.0 ++ " " ++ vt (@array_get s i), l.1}
+$ r_table : @Str -> @Int -> { @Str, @Int } = \s i =
+    let l = r_limits s (i + 1) in { l.0 ++ " " ++ vt (@array_get s i), l.1 }
 
-$ r_memory : @str -> @int -> {@str, @int} = \s i = r_limits s i
+$ r_memory : @Str -> @Int -> { @Str, @Int } = \s i = r_limits s i
 
-$ r_global : @str -> @int -> {@str, @int} = \s i =
-	let t = vt (@array_get s i) in
-	let mut = @array_get s (i + 1) == 1 in
-	let init = const_expr s (i + 2) in
-	{(if mut => "(mut " ++ t ++ ")" else t) ++ " (" ++ init.0 ++ ")", init.1}
+$ r_global : @Str -> @Int -> { @Str, @Int } = \s i =
+    let t = vt (@array_get s i) in
+    let mut = @array_get s (i + 1) == 1 in
+    let init = const_expr s (i + 2) in
+    { (if mut => "(mut " ++ t ++ ")" else t) ++ " (" ++ init.0 ++ ")", init.1 }
 
 # A constant expression: one instruction and `end`.
-$ const_expr : @str -> @int -> {@str, @int} = \s i =
-	let r = instr (Names.{ .funcs = MAP.new_int }) s i in
-	{r.0, r.1 + 1}
+$ const_expr : @Str -> @Int -> { @Str, @Int } = \s i =
+    let r = instr (Names.{ .funcs = MAP.new_int }) s i in { r.0, r.1 + 1 }
 
-$ r_export : @str -> @int -> {@str, @int} = \s i =
-	let n = r_name s i in
-	let kind = @array_get s n.1 in
-	let x = r_u s (n.1 + 1) in
-	let k = is kind | 0 => "func" | 1 => "table" | 2 => "memory" | 3 => "global" | _ => "kind" in
-	{quote n.0 ++ " (" ++ k ++ " " ++ to_string x.0 ++ ")", x.1}
+$ r_export : @Str -> @Int -> { @Str, @Int } = \s i =
+    let n = r_name s i in
+    let kind = @array_get s n.1 in
+    let x = r_u s (n.1 + 1) in
+    let k = is kind
+        | 0 => "func"
+        | 1 => "table"
+        | 2 => "memory"
+        | 3 => "global"
+        | _ => "kind" in
+    { quote n.0 ++ " (" ++ k ++ " " ++ to_string x.0 ++ ")", x.1 }
 
-$ r_elem : Names -> @str -> @int -> {@str, @int} = \nm s i =
-	let flag = r_u s i in
-	if flag.0 != 0 => {"(flags " ++ to_string flag.0 ++ ")", @array_len s}
-	else
-		let off = const_expr s flag.1 in
-		let n = r_u s off.1 in
-		let fs = read_n r_u s n.0 n.1 List.Nil in
-		{"(" ++ off.0 ++ ")" ++ LIST.foldl (\a f = a ++ " " ++ fname nm f) "" fs.0, fs.1}
+$ r_elem : Names -> @Str -> @Int -> { @Str, @Int } = \nm s i =
+    let flag = r_u s i in
+    if flag.0 != 0 => { "(flags " ++ to_string flag.0 ++ ")", @array_len s }
+    else
+        let off = const_expr s flag.1 in
+        let n = r_u s off.1 in
+        let fs = read_n r_u s n.0 n.1 List.Nil in
+        { "(" ++ off.0 ++ ")" ++ LIST.foldl (\a f = a ++ " " ++ fname nm f) "" fs.0, fs.1 }
 
-$ r_data : @str -> @int -> {@str, @int} = \s i =
-	let flag = r_u s i in
-	if flag.0 != 0 => {"(flags " ++ to_string flag.0 ++ ")", @array_len s}
-	else
-		let off = const_expr s flag.1 in
-		let b = r_name s off.1 in
-		{"(" ++ off.0 ++ ") " ++ quote b.0, b.1}
+$ r_data : @Str -> @Int -> { @Str, @Int } = \s i =
+    let flag = r_u s i in
+    if flag.0 != 0 => { "(flags " ++ to_string flag.0 ++ ")", @array_len s }
+    else
+        let off = const_expr s flag.1 in
+        let b = r_name s off.1 in { "(" ++ off.0 ++ ") " ++ quote b.0, b.1 }
 
 # The `name` section's function names, by index.
-$ func_names : @str -> List Sec -> Map @int @str = \s secs =
-	is secs
-	| List.Cons.{ h, t } =>
-		if h.id == 0 && (r_name s h.start).0 == "name" => name_subs s (r_name s h.start).1 h.end
-		else func_names s t
-	| _ => MAP.new_int
+$ func_names : @Str -> List Sec -> Map @Int @Str = \s secs =
+    is secs
+    | List.Cons.{ h, t } =>
+        if h.id == 0 && (r_name s h.start).0 == "name" => name_subs s (r_name s h.start).1 h.end
+        else func_names s t
+    | _ => MAP.new_int
 
-$ name_subs : @str -> @int -> @int -> Map @int @str = \s i end =
-	if i >= end => MAP.new_int
-	else
-		let id = @array_get s i in
-		let size = r_u s (i + 1) in
-		if id == 1 =>
-			(let n = r_u s size.1 in
-			 (read_n r_assoc s n.0 n.1 List.Nil).0 |> LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_int)
-		else name_subs s (size.1 + size.0) end
+$ name_subs : @Str -> @Int -> @Int -> Map @Int @Str = \s i end =
+    if i >= end => MAP.new_int
+    else
+        let id = @array_get s i in
+        let size = r_u s (i + 1) in
+        if id == 1 =>
+            (
+                let n = r_u s size.1 in
+                (read_n r_assoc s n.0 n.1 List.Nil).0
+                    |> LIST.foldl (\m p = MAP.insert m p.0 p.1) MAP.new_int
+            )
+        else name_subs s (size.1 + size.0) end
 
-$ r_assoc : @str -> @int -> {{@int, @str}, @int} = \s i =
-	let x = r_u s i in
-	let n = r_name s x.1 in
-	{{x.0, n.0}, n.1}
+$ r_assoc : @Str -> @Int -> { { @Int, @Str }, @Int } = \s i =
+    let x = r_u s i in let n = r_name s x.1 in { { x.0, n.0 }, n.1 }
 
 # -- code ----------------------------------------------------------------------
 
-$ code_lines : @str -> List Sec -> Names -> @int -> List @int -> (@str -> @bool) -> List @str = \s secs nm nimp ftypes keep =
-	is find secs 10
-	| Option.Some.{ sec } =>
-		let n = r_u s sec.start in
-		bodies s nm nimp ftypes keep n.0 n.1 nimp List.Nil
-	| _ => List.Nil
+$ code_lines : @Str -> List Sec -> Names -> @Int -> List @Int -> (@Str -> @Bool) -> List @Str = \s secs nm nimp ftypes keep =
+    is find secs 10
+    | Option.Some.{ sec } =>
+        let n = r_u s sec.start in bodies s nm nimp ftypes keep n.0 n.1 nimp List.Nil
+    | _ => List.Nil
 
-$ bodies : @str -> Names -> @int -> List @int -> (@str -> @bool) -> @int -> @int -> @int -> List (List @str) -> List @str = \s nm nimp ftypes keep n i idx acc =
-	if n == 0 => LIST.concat (LIST.reverse acc)
-	else
-		let size = r_u s i in
-		let next = size.1 + size.0 in
-		let name = unwrap_or (MAP.get nm.funcs idx) "" in
-		let ty = is LIST.nth ftypes (idx - nimp) | Option.Some.{ t } => t | _ => 0 in
-		let lines = if keep name => body s nm idx ty size.1 next else List.Nil in
-		bodies s nm nimp ftypes keep (n - 1) next (idx + 1) List.Cons.{ lines, acc }
+$ bodies : @Str -> Names -> @Int -> List @Int -> (@Str -> @Bool) -> @Int -> @Int -> @Int -> List (List @Str) -> List @Str = \s nm nimp ftypes keep n i idx acc =
+    if n == 0 => LIST.concat (LIST.reverse acc)
+    else
+        let size = r_u s i in
+        let next = size.1 + size.0 in
+        let name = unwrap_or (MAP.get nm.funcs idx) "" in
+        let ty = is LIST.nth ftypes (idx - nimp) | Option.Some.{ t } => t | _ => 0 in
+        let lines = if keep name => body s nm idx ty size.1 next else List.Nil in
+        bodies s nm nimp ftypes keep (n - 1) next (idx + 1) List.Cons.{ lines, acc }
 
-$ body : @str -> Names -> @int -> @int -> @int -> @int -> List @str = \s nm idx ty i end =
-	let nl = r_u s i in
-	let ls = read_n r_local s nl.0 nl.1 List.Nil in
-	let locals = LIST.foldl (\a l = a ++ l) "" ls.0 in
-	let head = "  (func " ++ to_string idx ++ " " ++ fname nm idx ++ " (type " ++ to_string ty ++ ")" in
-	let lines = code nm s ls.1 end 2 List.Nil in
-	LIST.concat [LIST.singleton head,
-		(if locals == "" => List.Nil else LIST.singleton ("    (local" ++ locals ++ ")")),
-		lines, LIST.singleton "  )"]
+$ body : @Str -> Names -> @Int -> @Int -> @Int -> @Int -> List @Str = \s nm idx ty i end =
+    let nl = r_u s i in
+    let ls = read_n r_local s nl.0 nl.1 List.Nil in
+    let locals = LIST.foldl (\a l = a ++ l) "" ls.0 in
+    let head = "  (func "
+            ++ to_string idx
+            ++ " "
+            ++ fname nm idx
+            ++ " (type "
+            ++ to_string ty
+            ++ ")" in
+    let lines = code nm s ls.1 end 2 List.Nil in
+    LIST.concat [
+        LIST.singleton head,
+        (if locals == "" => List.Nil else LIST.singleton ("    (local" ++ locals ++ ")")),
+        lines,
+        LIST.singleton "  )"
+    ]
 
-$ r_local : @str -> @int -> {@str, @int} = \s i =
-	let n = r_u s i in
-	{rep (" " ++ vt (@array_get s n.1)) n.0 "", n.1 + 1}
+$ r_local : @Str -> @Int -> { @Str, @Int } = \s i =
+    let n = r_u s i in { rep (" " ++ vt (@array_get s n.1)) n.0 "", n.1 + 1 }
 
-$ rep : @str -> @int -> @str -> @str = \x n acc = if n <= 0 => acc else rep x (n - 1) (acc ++ x)
+$ rep : @Str -> @Int -> @Str -> @Str = \x n acc = if n <= 0 => acc else rep x (n - 1) (acc ++ x)
 
-$ pad : @int -> @str = \d = if d <= 0 => "" else "  " ++ pad (d - 1)
+$ pad : @Int -> @Str = \d = if d <= 0 => "" else "  " ++ pad (d - 1)
 
 # Instructions up to the body's last `end`, indented by nesting.
-$ code : Names -> @str -> @int -> @int -> @int -> List @str -> List @str = \nm s i end depth acc =
-	if i >= end - 1 => LIST.reverse acc
-	else
-		let b = @array_get s i in
-		let r = instr nm s i in
-		let d = if b == 11 || b == 5 => depth - 1 else depth in
-		let line = pad d ++ r.0 in
-		code nm s r.1 end (if b == 2 || b == 3 || b == 4 => depth + 1 else if b == 11 => depth - 1 else depth)
-			List.Cons.{ line, acc }
+$ code : Names -> @Str -> @Int -> @Int -> @Int -> List @Str -> List @Str = \nm s i end depth acc =
+    if i >= end - 1 => LIST.reverse acc
+    else
+        let b = @array_get s i in
+        let r = instr nm s i in
+        let d = if b == 11 || b == 5 => depth - 1 else depth in
+        let line = pad d ++ r.0 in
+        code nm s r.1 end (
+            if b == 2 || b == 3 || b == 4 => depth + 1 else if b == 11 => depth - 1 else depth
+        ) List.Cons.{ line, acc }
 
-$ blocktype : @str -> @int -> {@str, @int} = \s i =
-	let b = @array_get s i in
-	if b == 64 => {"", i + 1}
-	else if b >= 124 && b <= 127 => {" (result " ++ vt b ++ ")", i + 1}
-	else (let t = r_s s i in {" (type " ++ to_string t.0 ++ ")", t.1})
+$ blocktype : @Str -> @Int -> { @Str, @Int } = \s i =
+    let b = @array_get s i in
+    if b == 64 => { "", i + 1 }
+    else if b >= 124 && b <= 127 => { " (result " ++ vt b ++ ")", i + 1 }
+    else (let t = r_s s i in { " (type " ++ to_string t.0 ++ ")", t.1 })
 
-$ memarg : @str -> @int -> {@str, @int} = \s i =
-	let a = r_u s i in
-	let o = r_u s a.1 in
-	{(if o.0 == 0 => "" else " offset=" ++ to_string o.0) ++ " align=" ++ to_string (shl 1 a.0), o.1}
+$ memarg : @Str -> @Int -> { @Str, @Int } = \s i =
+    let a = r_u s i in
+    let o = r_u s a.1 in
+    {
+        (if o.0 == 0 => "" else " offset=" ++ to_string o.0) ++ " align=" ++ to_string (shl 1 a.0),
+        o.1
+    }
 
 # One instruction at `i`: its text and the offset after it.
-$ instr : Names -> @str -> @int -> {@str, @int} = \nm s i =
-	let b = @array_get s i in
-	let j = i + 1 in
-	if b >= 69 && b <= 196 => {@vec_get numeric (b - 69), j}
-	else if b >= 40 && b <= 62 => (let m = memarg s j in {@vec_get memops (b - 40) ++ m.0, m.1})
-	else is b
-		| 0 => {"unreachable", j}
-		| 1 => {"nop", j}
-		| 2 => (let t = blocktype s j in {"block" ++ t.0, t.1})
-		| 3 => (let t = blocktype s j in {"loop" ++ t.0, t.1})
-		| 4 => (let t = blocktype s j in {"if" ++ t.0, t.1})
-		| 5 => {"else", j}
-		| 11 => {"end", j}
-		| 12 => (let l = r_u s j in {"br " ++ to_string l.0, l.1})
-		| 13 => (let l = r_u s j in {"br_if " ++ to_string l.0, l.1})
-		| 14 =>
-			(let n = r_u s j in
-			 let ls = read_n r_u s n.0 n.1 List.Nil in
-			 let d = r_u s ls.1 in
-			 {"br_table" ++ LIST.foldl (\a l = a ++ " " ++ to_string l) "" ls.0 ++ " " ++ to_string d.0, d.1})
-		| 15 => {"return", j}
-		| 16 => (let f = r_u s j in {"call " ++ fname nm f.0, f.1})
-		| 17 => (let t = r_u s j in let tb = r_u s t.1 in {"call_indirect (type " ++ to_string t.0 ++ ")", tb.1})
-		| 26 => {"drop", j}
-		| 27 => {"select", j}
-		| 32 => (let x = r_u s j in {"local.get " ++ to_string x.0, x.1})
-		| 33 => (let x = r_u s j in {"local.set " ++ to_string x.0, x.1})
-		| 34 => (let x = r_u s j in {"local.tee " ++ to_string x.0, x.1})
-		| 35 => (let x = r_u s j in {"global.get " ++ to_string x.0, x.1})
-		| 36 => (let x = r_u s j in {"global.set " ++ to_string x.0, x.1})
-		| 63 => {"memory.size", j + 1}
-		| 64 => {"memory.grow", j + 1}
-		| 65 => (let v = r_s s j in {"i32.const " ++ to_string (sext v.0 32), v.1})
-		| 66 => (let v = r_s s j in {"i64.const " ++ to_string v.0, v.1})
-		| 67 => {"f32.const " ++ to_string (f64_of_f32_bits (le_go s j 4 0)), j + 4}
-		| 68 => {"f64.const " ++ to_string (f64_of_bits (le_go s j 8 0)), j + 8}
-		| 252 => fc s j
-		| _ => {"unknown 0x" ++ hex b, j}
+$ instr : Names -> @Str -> @Int -> { @Str, @Int } = \nm s i =
+    let b = @array_get s i in
+    let j = i + 1 in
+    if b >= 69 && b <= 196 => { @vec_get numeric (b - 69), j }
+    else if b >= 40 && b <= 62 => (let m = memarg s j in { @vec_get memops (b - 40) ++ m.0, m.1 })
+    else
+        is b
+        | 0 => { "unreachable", j }
+        | 1 => { "nop", j }
+        | 2 => (let t = blocktype s j in { "block" ++ t.0, t.1 })
+        | 3 => (let t = blocktype s j in { "loop" ++ t.0, t.1 })
+        | 4 => (let t = blocktype s j in { "if" ++ t.0, t.1 })
+        | 5 => { "else", j }
+        | 11 => { "end", j }
+        | 12 => (let l = r_u s j in { "br " ++ to_string l.0, l.1 })
+        | 13 => (let l = r_u s j in { "br_if " ++ to_string l.0, l.1 })
+        | 14 =>
+            (
+                let n = r_u s j in
+                let ls = read_n r_u s n.0 n.1 List.Nil in
+                let d = r_u s ls.1 in
+                {
+                    "br_table"
+                        ++ LIST.foldl (\a l = a ++ " " ++ to_string l) "" ls.0
+                        ++ " "
+                        ++ to_string d.0,
+                    d.1
+                }
+            )
+        | 15 => { "return", j }
+        | 16 => (let f = r_u s j in { "call " ++ fname nm f.0, f.1 })
+        | 17 =>
+            (
+                let t = r_u s j in
+                let tb = r_u s t.1 in { "call_indirect (type " ++ to_string t.0 ++ ")", tb.1 }
+            )
+        | 26 => { "drop", j }
+        | 27 => { "select", j }
+        | 32 => (let x = r_u s j in { "local.get " ++ to_string x.0, x.1 })
+        | 33 => (let x = r_u s j in { "local.set " ++ to_string x.0, x.1 })
+        | 34 => (let x = r_u s j in { "local.tee " ++ to_string x.0, x.1 })
+        | 35 => (let x = r_u s j in { "global.get " ++ to_string x.0, x.1 })
+        | 36 => (let x = r_u s j in { "global.set " ++ to_string x.0, x.1 })
+        | 63 => { "memory.size", j + 1 }
+        | 64 => { "memory.grow", j + 1 }
+        | 65 => (let v = r_s s j in { "i32.const " ++ to_string (sext v.0 32), v.1 })
+        | 66 => (let v = r_s s j in { "i64.const " ++ to_string v.0, v.1 })
+        | 67 => { "f32.const " ++ to_string (f64_of_f32_bits (le_go s j 4 0)), j + 4 }
+        | 68 => { "f64.const " ++ to_string (f64_of_bits (le_go s j 8 0)), j + 8 }
+        | 252 => fc s j
+        | _ => { "unknown 0x" ++ hex b, j }
 
-$ fc : @str -> @int -> {@str, @int} = \s i =
-	let sub = r_u s i in
-	let k = sub.1 in
-	if sub.0 <= 7 => {@vec_get sat sub.0, k}
-	else is sub.0
-		| 8 => (let d = r_u s k in {"memory.init " ++ to_string d.0, d.1 + 1})
-		| 9 => (let d = r_u s k in {"data.drop " ++ to_string d.0, d.1})
-		| 10 => {"memory.copy", k + 2}
-		| 11 => {"memory.fill", k + 1}
-		| _ => {"unknown 0xfc " ++ to_string sub.0, k}
+$ fc : @Str -> @Int -> { @Str, @Int } = \s i =
+    let sub = r_u s i in
+    let k = sub.1 in
+    if sub.0 <= 7 => { @vec_get sat sub.0, k }
+    else
+        is sub.0
+        | 8 => (let d = r_u s k in { "memory.init " ++ to_string d.0, d.1 + 1 })
+        | 9 => (let d = r_u s k in { "data.drop " ++ to_string d.0, d.1 })
+        | 10 => { "memory.copy", k + 2 }
+        | 11 => { "memory.fill", k + 1 }
+        | _ => { "unknown 0xfc " ++ to_string sub.0, k }
 
-$ sat : @vec @str = ["i32.trunc_sat_f32_s", "i32.trunc_sat_f32_u", "i32.trunc_sat_f64_s", "i32.trunc_sat_f64_u",
-	"i64.trunc_sat_f32_s", "i64.trunc_sat_f32_u", "i64.trunc_sat_f64_s", "i64.trunc_sat_f64_u"]
+$ sat : @Vec @Str =
+    [
+        "i32.trunc_sat_f32_s",
+        "i32.trunc_sat_f32_u",
+        "i32.trunc_sat_f64_s",
+        "i32.trunc_sat_f64_u",
+        "i64.trunc_sat_f32_s",
+        "i64.trunc_sat_f32_u",
+        "i64.trunc_sat_f64_s",
+        "i64.trunc_sat_f64_u"
+    ]
 
 # Opcodes 0x28 to 0x3e.
-$ memops : @vec @str = ["i32.load", "i64.load", "f32.load", "f64.load",
-	"i32.load8_s", "i32.load8_u", "i32.load16_s", "i32.load16_u",
-	"i64.load8_s", "i64.load8_u", "i64.load16_s", "i64.load16_u", "i64.load32_s", "i64.load32_u",
-	"i32.store", "i64.store", "f32.store", "f64.store",
-	"i32.store8", "i32.store16", "i64.store8", "i64.store16", "i64.store32"]
+$ memops : @Vec @Str =
+    [
+        "i32.load",
+        "i64.load",
+        "f32.load",
+        "f64.load",
+        "i32.load8_s",
+        "i32.load8_u",
+        "i32.load16_s",
+        "i32.load16_u",
+        "i64.load8_s",
+        "i64.load8_u",
+        "i64.load16_s",
+        "i64.load16_u",
+        "i64.load32_s",
+        "i64.load32_u",
+        "i32.store",
+        "i64.store",
+        "f32.store",
+        "f64.store",
+        "i32.store8",
+        "i32.store16",
+        "i64.store8",
+        "i64.store16",
+        "i64.store32"
+    ]
 
 # Opcodes 0x45 to 0xc4, which take no immediate.
-$ numeric : @vec @str = [
-	"i32.eqz", "i32.eq", "i32.ne", "i32.lt_s", "i32.lt_u", "i32.gt_s", "i32.gt_u", "i32.le_s", "i32.le_u", "i32.ge_s", "i32.ge_u",
-	"i64.eqz", "i64.eq", "i64.ne", "i64.lt_s", "i64.lt_u", "i64.gt_s", "i64.gt_u", "i64.le_s", "i64.le_u", "i64.ge_s", "i64.ge_u",
-	"f32.eq", "f32.ne", "f32.lt", "f32.gt", "f32.le", "f32.ge",
-	"f64.eq", "f64.ne", "f64.lt", "f64.gt", "f64.le", "f64.ge",
-	"i32.clz", "i32.ctz", "i32.popcnt", "i32.add", "i32.sub", "i32.mul", "i32.div_s", "i32.div_u", "i32.rem_s", "i32.rem_u",
-	"i32.and", "i32.or", "i32.xor", "i32.shl", "i32.shr_s", "i32.shr_u", "i32.rotl", "i32.rotr",
-	"i64.clz", "i64.ctz", "i64.popcnt", "i64.add", "i64.sub", "i64.mul", "i64.div_s", "i64.div_u", "i64.rem_s", "i64.rem_u",
-	"i64.and", "i64.or", "i64.xor", "i64.shl", "i64.shr_s", "i64.shr_u", "i64.rotl", "i64.rotr",
-	"f32.abs", "f32.neg", "f32.ceil", "f32.floor", "f32.trunc", "f32.nearest", "f32.sqrt",
-	"f32.add", "f32.sub", "f32.mul", "f32.div", "f32.min", "f32.max", "f32.copysign",
-	"f64.abs", "f64.neg", "f64.ceil", "f64.floor", "f64.trunc", "f64.nearest", "f64.sqrt",
-	"f64.add", "f64.sub", "f64.mul", "f64.div", "f64.min", "f64.max", "f64.copysign",
-	"i32.wrap_i64", "i32.trunc_f32_s", "i32.trunc_f32_u", "i32.trunc_f64_s", "i32.trunc_f64_u",
-	"i64.extend_i32_s", "i64.extend_i32_u", "i64.trunc_f32_s", "i64.trunc_f32_u", "i64.trunc_f64_s", "i64.trunc_f64_u",
-	"f32.convert_i32_s", "f32.convert_i32_u", "f32.convert_i64_s", "f32.convert_i64_u", "f32.demote_f64",
-	"f64.convert_i32_s", "f64.convert_i32_u", "f64.convert_i64_s", "f64.convert_i64_u", "f64.promote_f32",
-	"i32.reinterpret_f32", "i64.reinterpret_f64", "f32.reinterpret_i32", "f64.reinterpret_i64",
-	"i32.extend8_s", "i32.extend16_s", "i64.extend8_s", "i64.extend16_s", "i64.extend32_s"]
+$ numeric : @Vec @Str =
+    [
+        "i32.eqz",
+        "i32.eq",
+        "i32.ne",
+        "i32.lt_s",
+        "i32.lt_u",
+        "i32.gt_s",
+        "i32.gt_u",
+        "i32.le_s",
+        "i32.le_u",
+        "i32.ge_s",
+        "i32.ge_u",
+        "i64.eqz",
+        "i64.eq",
+        "i64.ne",
+        "i64.lt_s",
+        "i64.lt_u",
+        "i64.gt_s",
+        "i64.gt_u",
+        "i64.le_s",
+        "i64.le_u",
+        "i64.ge_s",
+        "i64.ge_u",
+        "f32.eq",
+        "f32.ne",
+        "f32.lt",
+        "f32.gt",
+        "f32.le",
+        "f32.ge",
+        "f64.eq",
+        "f64.ne",
+        "f64.lt",
+        "f64.gt",
+        "f64.le",
+        "f64.ge",
+        "i32.clz",
+        "i32.ctz",
+        "i32.popcnt",
+        "i32.add",
+        "i32.sub",
+        "i32.mul",
+        "i32.div_s",
+        "i32.div_u",
+        "i32.rem_s",
+        "i32.rem_u",
+        "i32.and",
+        "i32.or",
+        "i32.xor",
+        "i32.shl",
+        "i32.shr_s",
+        "i32.shr_u",
+        "i32.rotl",
+        "i32.rotr",
+        "i64.clz",
+        "i64.ctz",
+        "i64.popcnt",
+        "i64.add",
+        "i64.sub",
+        "i64.mul",
+        "i64.div_s",
+        "i64.div_u",
+        "i64.rem_s",
+        "i64.rem_u",
+        "i64.and",
+        "i64.or",
+        "i64.xor",
+        "i64.shl",
+        "i64.shr_s",
+        "i64.shr_u",
+        "i64.rotl",
+        "i64.rotr",
+        "f32.abs",
+        "f32.neg",
+        "f32.ceil",
+        "f32.floor",
+        "f32.trunc",
+        "f32.nearest",
+        "f32.sqrt",
+        "f32.add",
+        "f32.sub",
+        "f32.mul",
+        "f32.div",
+        "f32.min",
+        "f32.max",
+        "f32.copysign",
+        "f64.abs",
+        "f64.neg",
+        "f64.ceil",
+        "f64.floor",
+        "f64.trunc",
+        "f64.nearest",
+        "f64.sqrt",
+        "f64.add",
+        "f64.sub",
+        "f64.mul",
+        "f64.div",
+        "f64.min",
+        "f64.max",
+        "f64.copysign",
+        "i32.wrap_i64",
+        "i32.trunc_f32_s",
+        "i32.trunc_f32_u",
+        "i32.trunc_f64_s",
+        "i32.trunc_f64_u",
+        "i64.extend_i32_s",
+        "i64.extend_i32_u",
+        "i64.trunc_f32_s",
+        "i64.trunc_f32_u",
+        "i64.trunc_f64_s",
+        "i64.trunc_f64_u",
+        "f32.convert_i32_s",
+        "f32.convert_i32_u",
+        "f32.convert_i64_s",
+        "f32.convert_i64_u",
+        "f32.demote_f64",
+        "f64.convert_i32_s",
+        "f64.convert_i32_u",
+        "f64.convert_i64_s",
+        "f64.convert_i64_u",
+        "f64.promote_f32",
+        "i32.reinterpret_f32",
+        "i64.reinterpret_f64",
+        "f32.reinterpret_i32",
+        "f64.reinterpret_i64",
+        "i32.extend8_s",
+        "i32.extend16_s",
+        "i64.extend8_s",
+        "i64.extend16_s",
+        "i64.extend32_s"
+    ]
 
 $ @e <| assert (@vec_len numeric == 128 && @vec_len memops == 23) "WAT: opcode tables out of step"

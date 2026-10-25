@@ -22,20 +22,20 @@ drawRectangle { .p0 = x, .p1 = y, .p2 = w, .p3 = h, .p4 = col }      # a record
 beginDrawing {}                                                       # unit
 ```
 
-The generated bindings use the `@`-sigil built-in types (`@int32`, `@nat8`, ...),
-so coordinates are `@int32`; the app stays integer-only (positions, sizes, the
+The generated bindings use the `@`-sigil built-in types (`@Int32`, `@Nat8`, ...),
+so coordinates are `@Int32`; the app stays integer-only (positions, sizes, the
 mouse via `getMouseX`/`getMouseY`), no floats.
 
 ## Type-to-search
 
 The search box reads keystrokes with raylib's `getCharPressed` and filters the
 list by a case-insensitive substring match. `getCharPressed` returns a C `int`
-(`@int32`), but the string library works in `Int`, and those widths are distinct
+(`@Int32`), but the string library works in `Int`, and those widths are distinct
 types. The `@cast` intrinsic bridges them:
 
 ```
-$ read_chars : @str -> @str = \q =
-	let c = getCharPressed {} in            # c : @int32
+$ read_chars : @Str -> @Str = \q =
+	let c = getCharPressed {} in            # c : @Int32
 	if c == 0 => q
 	else if c >= 32 && c < 127 => read_chars (q ++ from_byte (@cast c))
 	else read_chars q                       # from_byte wants Int; @cast c widens it
@@ -43,7 +43,7 @@ $ read_chars : @str -> @str = \q =
 
 `@cast` reinterprets an integer at another width. It is type-directed: the target
 comes from the checking context (an argument position or an annotated binding),
-so `from_byte (@cast c)` casts to `Int` because `from_byte : Int -> @str`. Both
+so `from_byte (@cast c)` casts to `Int` because `from_byte : Int -> @Str`. Both
 engines box integers uniformly, so it is a no-op at runtime; the actual C width is
 applied only at the `@extern` boundary.
 
@@ -145,7 +145,7 @@ vector near the top of `MAIN.thx`, built with the `app` helper (label, command,
 whether it needs a terminal):
 
 ```
-$ fallback_apps : @vec App =
+$ fallback_apps : @Vec App =
 	[ app "Terminal" "xterm"      @false
 	, app "Files"    "xdg-open ." @false
 	, app "Browser"  "firefox"    @false ]

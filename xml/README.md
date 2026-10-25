@@ -24,18 +24,18 @@ $ with XML
 
 $ doc : Node = is parse src | Parsed.Ok.{ n } => n | _ => ...
 
-$ titles : @vec Node = find_all "title" doc
-$ english : @vec Node = find_where "book" "lang" "en" doc
-$ first_title : Option @str = text_at "title" doc
-$ nested : @vec Node = find_path ["library", "book", "title"] doc
-$ back : @str = render doc
+$ titles : @Vec Node = find_all "title" doc
+$ english : @Vec Node = find_where "book" "lang" "en" doc
+$ first_title : Option @Str = text_at "title" doc
+$ nested : @Vec Node = find_path ["library", "book", "title"] doc
+$ back : @Str = render doc
 ```
 
 | | |
 | --- | --- |
-| `parse : @str -> Parsed Node` | a whole document, root element returned |
-| `parse_fragment : @str -> Parsed (@vec Node)` | top-level nodes, no single root |
-| `render : Node -> @str` | serialize, escaping text and attribute values |
+| `parse : @Str -> Parsed Node` | a whole document, root element returned |
+| `parse_fragment : @Str -> Parsed (@Vec Node)` | top-level nodes, no single root |
+| `render : Node -> @Str` | serialize, escaping text and attribute values |
 | `tag`, `attrs`, `attr`, `attr_or`, `kids`, `kid_count`, `elements`, `text_of`, `is_elem` | read a node |
 | `find_all`, `find_one`, `find_where`, `find_path`, `text_at` | ready-made queries |
 | `report`, `show_error` | render a failure |
@@ -53,8 +53,8 @@ a Thrax string is a byte vector and this library does not encode UTF-8 yet.
 Four effects, and nothing else, carry the parser:
 
 ```thrax
-$ Scan   : @effect = view : {} -> View, bump : @int -> {},
-$ Choice : @effect = fork : {} -> @bool,
+$ Scan   : @effect = view : {} -> View, bump : @Int -> {},
+$ Choice : @effect = fork : {} -> @Bool,
 $ Soft   : @effect = reject : Err -> a,
 $ Hard   : @effect = fatal : Err -> a,
 ```
@@ -105,7 +105,7 @@ decide what "all the answers" means: `matches` resumes every branch and collects
 every outcome, `match_first` resumes until one survives.
 
 ```thrax
-$ by_hacker : @vec @str = matches <| \u =
+$ by_hacker : @Vec @Str = matches <| \u =
 	let b = tagged "book" (anywhere root) in
 	let a = tagged "author" (child b) in
 	if text_of a == "A. Hacker" => unwrap_or (text_at "title" b) "" else no_match {}

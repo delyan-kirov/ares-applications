@@ -8,10 +8,10 @@ language side. Macros are not supported (they are stripped, like comments).
 
 | C construct | Thrax binding |
 | --- | --- |
-| `typedef enum { RED, GREEN = 5 } E;` | `$ E : @alias = @int32` plus `$ red : @int32 = 0`, `$ green : @int32 = 5` |
-| `typedef struct { int x; float y; } S;` | `$ S : @struct @extern "C" = x: @int32, y: @float32,` |
-| `typedef union { int i; float f; } U;` | `$ U : @union @extern "C" = i: @int32, f: @float32,` |
-| `typedef struct Handle Handle;` (opaque) | `$ Handle : @alias = @ptr` |
+| `typedef enum { RED, GREEN = 5 } E;` | `$ E : @alias = @Int32` plus `$ red : @Int32 = 0`, `$ green : @Int32 = 5` |
+| `typedef struct { int x; float y; } S;` | `$ S : @struct @extern "C" = x: @Int32, y: @Float32,` |
+| `typedef union { int i; float f; } U;` | `$ U : @union @extern "C" = i: @Int32, f: @Float32,` |
+| `typedef struct Handle Handle;` (opaque) | `$ Handle : @alias = @Ptr` |
 | `Ret GetOne(A a);` | `$ getOne : A -> Ret = @extern "C" "GetOne" "LIB"` |
 | `Ret GetThing(A a, B b);` | `$ getThing : {p0: A, p1: B} -> Ret = @extern "C" "GetThing" "LIB"` |
 | `void Tick(void);` | `$ tick : {} -> {} = @extern "C" "Tick" "LIB"` |
@@ -29,7 +29,7 @@ becomes `red`); the C symbol in the `@extern` string keeps its original case, an
 type names (structs, unions, aliases, the enum type) stay capitalized.
 
 Type mapping: `int`/`unsigned`/`short`/`long` and `char`/`float`/`double`/`bool`
-map to the matching sized Thrax numerics; `void` is `{}`; a single `char*` is `@str`
+map to the matching sized Thrax numerics; `void` is `{}`; a single `char*` is `@Str`
 in a signature; any other pointer (including `char**`) is `Ptr`; in a struct field
 every pointer is `Ptr`. A struct or union with an **array or bit-field member** is
 skipped with a `# skipped ...` note, and any function passing/returning such a type
@@ -54,9 +54,9 @@ LIB=libfoo.so  MOD=Foo  OUT=foo.thx  thrax run MAIN.thx header.h [more.h ...]
 - `MOD` the generated module name (default `BINDINGS`).
 - `OUT` the output file; if unset, the bindings are written to stdout.
 
-`@main : @vec @str -> <@io> @int` is the program entry, the one signature the
+`@main : @Vec @Str -> <@IO> @Int` is the program entry, the one signature the
 compiler accepts: it takes the argument vector (`args[0]` is the program) and
-returns an exit code, and its `<@io>` row covers the file IO.
+returns an exit code, and its `<@IO>` row covers the file IO.
 
 Example against the bundled `test.h`:
 

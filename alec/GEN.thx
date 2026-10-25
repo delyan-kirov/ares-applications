@@ -32,44 +32,44 @@ $ with STR
 # What every function's code generation reads: layout, the symbol tables the
 # linker built, and the target.
 $ Ctx : @struct =
-	lay : Layout,
-	tg : Target,
-	addrs : Map @str @int,
-	fidx : Map @str @int,
-	tidx : Map @str @int,
-	ftys : Map @str FnTy,
-	heap : @int,
+    lay : Layout,
+    tg : Target,
+    addrs : Map @Str @Int,
+    fidx : Map @Str @Int,
+    tidx : Map @Str @Int,
+    ftys : Map @Str FnTy,
+    heap : @Int,
 
 $ Slot : @union =
-	SLocal : { @int },
-	SFrame : { @int },
-	SInd : { @int },
+    SLocal : { @Int },
+    SFrame : { @Int },
+    SInd : { @Int },
 
 # The wasm block stack. `LDisp` is a label-dispatch loop: the labels of one C
 # block, and the local holding the segment a `goto` wants.
 $ Lbl : @union =
-	LBrk : {},
-	LCont : {},
-	LPlain : {},
-	LDisp : { List @str, @int },
+    LBrk : {},
+    LCont : {},
+    LPlain : {},
+    LDisp : { List @Str, @Int },
 
-$ Code : @effect = emit : @str -> {},
+$ Code : @effect = emit : @Str -> {},
 
-$ Types : @effect = type_of : Sig -> @int,
+$ Types : @effect = type_of : Sig -> @Int,
 
 $ Fr : @effect =
-	tmp : ValT -> @int,
-	slot : @int -> Slot,
-	set_slot : {@int, Slot} -> {},
-	alloc : {@int, @int} -> @int,
-	push : Lbl -> {},
-	pop : {} -> {},
-	labels : {} -> List Lbl,
+    tmp : ValT -> @Int,
+    slot : @Int -> Slot,
+    set_slot : { @Int, Slot } -> {},
+    alloc : { @Int, @Int } -> @Int,
+    push : Lbl -> {},
+    pop : {} -> {},
+    labels : {} -> List Lbl,
 
 # Raised when a jump cannot be expressed with structured blocks (a `case`
 # nested inside another statement, a `goto` into a block). The function is then
 # flattened and generated again.
-$ Bail : @effect = unstructured : @str -> a,
+$ Bail : @effect = unstructured : @Str -> a,
 
 $ G : @alias = <Code, Types, Fr, Diag, Bail>
 
@@ -78,147 +78,202 @@ $ G : @alias = <Code, Types, Fr, Diag, Bail>
 # shadow stack pointer saved at entry.
 # `flat` is set when generating a flattened function: statement expressions
 # are then flattened too.
-$ F : @struct = ret : Ty, sret : @int, va : @int, fp : @int, saved : @int, name : @str, flat : @bool,
+$ F : @struct =
+    ret : Ty,
+    sret : @Int,
+    va : @Int,
+    fp : @Int,
+    saved : @Int,
+    name : @Str,
+    flat : @Bool,
 
 $ vt_of : Target -> Ty -> ValT = \tg t =
-	is t
-	| Ty.Float => ValT.F32
-	| Ty.Double => ValT.F64
-	| Ty.Int.{ k } => if k.size == 8 => ValT.I64 else ValT.I32
-	| Ty.Enum.{ i } => ValT.I32
-	| _ => ptr_vt tg
+    is t
+    | Ty.Float => ValT.F32
+    | Ty.Double => ValT.F64
+    | Ty.Int.{ k } => if k.size == 8 => ValT.I64 else ValT.I32
+    | Ty.Enum.{ i } => ValT.I32
+    | _ => ptr_vt tg
 
 $ ptr_vt : Target -> ValT = \tg = if tg.wasm64 => ValT.I64 else ValT.I32
 
 # The wasm signature of a C function type. A struct result comes back through
 # a hidden first parameter; variadic arguments through a hidden last one.
 $ sig_of : Target -> FnTy -> Sig = \tg f =
-	let p = ptr_vt tg in
-	let ps = LIST.foldl (\acc t = @vec_push acc (vt_of tg t)) (if is_agg f.ret => [p] else @vec_new {}) f.params in
-	Sig.{ .params = (if f.variadic => @vec_push ps p else ps),
-		.results = (if is_void f.ret || is_agg f.ret => @vec_new {} else [vt_of tg f.ret]) }
+    let p = ptr_vt tg in
+    let ps = LIST.foldl (
+            \acc t = @vec_push acc (vt_of tg t)
+        ) (if is_agg f.ret => [p] else @vec_new {}) f.params in
+    Sig.{
+        .params = (if f.variadic => @vec_push ps p else ps),
+        .results = (if is_void f.ret || is_agg f.ret => @vec_new {} else [vt_of tg f.ret])
+    }
 
-$ emit : @str -> <Code> {} = \s = Code.emit s
-
+$ emit : @Str -> <Code> {} = \s = Code.emit s
 
 # Generate one function's body. `ctx` is what the linker decided; `types` the
 # signature table so far, returned extended.
-$ gen_func : Ctx -> Func -> TypeTab -> <Diag> {Body, TypeTab} = \ctx fn tt =
-	do gen_body ctx fn fn.body @false tt
-	ctl k
-	   | Bail.unstructured why =>
-			let flat = flatten_with ".L" fn.body in
-			do gen_body ctx fn flat @true tt
-			ctl k2 | Bail.unstructured why2 => error_at fn.pos ("cannot compile '" ++ fn.name ++ "': " ++ why2)
+$ gen_func : Ctx -> Func -> TypeTab -> <Diag> { Body, TypeTab } = \ctx fn tt =
+    do gen_body ctx fn fn.body @false tt
+    ctl k
+    | Bail.unstructured why =>
+        let flat = flatten_with ".L" fn.body in
+        do gen_body ctx fn flat @true tt
+        ctl k2
+        | Bail.unstructured why2 => error_at fn.pos ("cannot compile '" ++ fn.name ++ "': " ++ why2)
 
-$ gen_body : Ctx -> Func -> Stmt -> @bool -> TypeTab -> <Diag, Bail> {Body, TypeTab} = \ctx fn body flat tt =
-	let p = ptr_vt ctx.tg in
-	let sret = is_agg fn.ty.ret in
-	let nfixed = LIST.length fn.params in
-	let nparams = nfixed + (if sret => 1 else 0) + (if fn.ty.variadic => 1 else 0) in
-	let first = if sret => 1 else 0 in
-	let pidx = param_index fn.params first MAP.new_int in
-	let st0 = FrSt.{ .slots = MAP.new_int, .locals = @vec_new {}, .nparams = nparams, .frame = 0, .labels = List.Nil } in
-	let r = with_types tt (\u =
-		with_frame st0 (\u2 =
-			let fp = Fr.tmp p, saved = Fr.tmp p in
-			let va = if fn.ty.variadic => nparams - 1 else 0 - 1 in
-			let copies = assign_slots ctx fn pidx va fp fn.locals "" in
-			let f = F.{ .ret = fn.ty.ret, .sret = (if sret => 0 else 0 - 1), .va = va, .fp = fp, .saved = saved, .name = fn.name, .flat = flat } in
-			let code = with_code (\u3 =
-				stmt ctx f body;
-				emit (epilogue f);
-				if is_void fn.ty.ret || sret => {} else emit (zero_of ctx fn.ty.ret)) in
-			{f, copies, code})) in
-	let inner = r.0 in
-	let fst = inner.1 in
-	let f = inner.0.0 in
-	let size = align_to fst.frame 16 in
-	let prologue = global_get 0 ++ local_tee f.saved ++ pconst ctx size ++ psub ctx ++ local_tee f.fp ++ global_set 0 in
-	{Body.{ .locals = fst.locals, .code = prologue ++ inner.0.1 ++ inner.0.2 }, r.1}
+$ gen_body : Ctx -> Func -> Stmt -> @Bool -> TypeTab -> <Diag, Bail> { Body, TypeTab } = \ctx fn body flat tt =
+    let p = ptr_vt ctx.tg in
+    let sret = is_agg fn.ty.ret in
+    let nfixed = LIST.length fn.params in
+    let nparams = nfixed + (if sret => 1 else 0) + (if fn.ty.variadic => 1 else 0) in
+    let first = if sret => 1 else 0 in
+    let pidx = param_index fn.params first MAP.new_int in
+    let st0 = FrSt.{
+            .slots = MAP.new_int,
+            .locals = @vec_new {},
+            .nparams = nparams,
+            .frame = 0,
+            .labels = List.Nil
+        } in
+    let r = with_types tt (
+            \u =
+                with_frame st0 (
+                    \u2 =
+                        let fp = Fr.tmp p, saved = Fr.tmp p in
+                        let va = if fn.ty.variadic => nparams - 1 else 0 - 1 in
+                        let copies = assign_slots ctx fn pidx va fp fn.locals "" in
+                        let f = F.{
+                                .ret = fn.ty.ret,
+                                .sret = (if sret => 0 else 0 - 1),
+                                .va = va,
+                                .fp = fp,
+                                .saved = saved,
+                                .name = fn.name,
+                                .flat = flat
+                            } in
+                        let code = with_code (
+                                \u3 =
+                                    stmt ctx f body;
+                                    emit (epilogue f);
+                                    if is_void fn.ty.ret || sret => {}
+                                    else emit (zero_of ctx fn.ty.ret)
+                            ) in
+                        { f, copies, code }
+                )
+        ) in
+    let inner = r.0 in
+    let fst = inner.1 in
+    let f = inner.0.0 in
+    let size = align_to fst.frame 16 in
+    let prologue = global_get 0
+            ++ local_tee f.saved
+            ++ pconst ctx size
+            ++ psub ctx
+            ++ local_tee f.fp
+            ++ global_set 0 in
+    { Body.{ .locals = fst.locals, .code = prologue ++ inner.0.1 ++ inner.0.2 }, r.1 }
 
-$ TypeTab : @struct = sigs : @vec Sig, keys : Map @str @int,
+$ TypeTab : @struct = sigs : @Vec Sig, keys : Map @Str @Int,
 
 $ empty_types : TypeTab = TypeTab.{ .sigs = @vec_new {}, .keys = MAP.new_str }
 
-$ type_index : TypeTab -> Sig -> {@int, TypeTab} = \tt s =
-	let k = sig_key s in
-	is MAP.get tt.keys k
-	| Option.Some.{ i } => {i, tt}
-	| _ => {@vec_len tt.sigs, TypeTab.{ .sigs = @vec_push tt.sigs s, .keys = MAP.insert tt.keys k (@vec_len tt.sigs) }}
+$ type_index : TypeTab -> Sig -> { @Int, TypeTab } = \tt s =
+    let k = sig_key s in
+    is MAP.get tt.keys k
+    | Option.Some.{ i } => { i, tt }
+    | _ =>
+        {
+            @vec_len tt.sigs,
+            TypeTab.{ .sigs = @vec_push tt.sigs s, .keys = MAP.insert tt.keys k (@vec_len tt.sigs) }
+        }
 
 # Calls to these names are instructions, not functions: the C library is built
 # on them (memory growth, the float operations wasm has natively).
-$ intrinsic : @str -> Option @str = \n =
-	is n
-	| "__builtin_sqrt" => Option.Some.{ op 159 } | "__builtin_sqrtf" => Option.Some.{ op 145 }
-	| "__builtin_fabs" => Option.Some.{ op 153 } | "__builtin_fabsf" => Option.Some.{ op 139 }
-	| "__builtin_floor" => Option.Some.{ op 156 } | "__builtin_floorf" => Option.Some.{ op 142 }
-	| "__builtin_ceil" => Option.Some.{ op 155 } | "__builtin_ceilf" => Option.Some.{ op 141 }
-	| "__builtin_trunc" => Option.Some.{ op 157 } | "__builtin_truncf" => Option.Some.{ op 143 }
-	| "__builtin_nearbyint" => Option.Some.{ op 158 } | "__builtin_nearbyintf" => Option.Some.{ op 144 }
-	| "__builtin_copysign" => Option.Some.{ op 166 } | "__builtin_copysignf" => Option.Some.{ op 152 }
-	| "__builtin_fmin" => Option.Some.{ op 164 } | "__builtin_fmax" => Option.Some.{ op 165 }
-	| "__builtin_trap" | "__builtin_abort" => Option.Some.{ unreachable }
-	| "__builtin_wasm_memory_size" => Option.Some.{ memory_size }
-	| "__builtin_wasm_memory_grow" => Option.Some.{ memory_grow }
-	| "__builtin_wasm_memory_copy" => Option.Some.{ memory_copy }
-	| "__builtin_wasm_memory_fill" => Option.Some.{ memory_fill }
-	| "__builtin_clz" => Option.Some.{ op 103 } | "__builtin_ctz" => Option.Some.{ op 104 }
-	| "__builtin_popcount" => Option.Some.{ op 105 }
-	| "__builtin_clzll" => Option.Some.{ op 121 } | "__builtin_ctzll" => Option.Some.{ op 122 }
-	| "__builtin_popcountll" => Option.Some.{ op 123 }
-	| _ => Option.None
+$ intrinsic : @Str -> Option @Str = \n =
+    is n
+    | "__builtin_sqrt" => Option.Some.{ op 159 }
+    | "__builtin_sqrtf" => Option.Some.{ op 145 }
+    | "__builtin_fabs" => Option.Some.{ op 153 }
+    | "__builtin_fabsf" => Option.Some.{ op 139 }
+    | "__builtin_floor" => Option.Some.{ op 156 }
+    | "__builtin_floorf" => Option.Some.{ op 142 }
+    | "__builtin_ceil" => Option.Some.{ op 155 }
+    | "__builtin_ceilf" => Option.Some.{ op 141 }
+    | "__builtin_trunc" => Option.Some.{ op 157 }
+    | "__builtin_truncf" => Option.Some.{ op 143 }
+    | "__builtin_nearbyint" => Option.Some.{ op 158 }
+    | "__builtin_nearbyintf" => Option.Some.{ op 144 }
+    | "__builtin_copysign" => Option.Some.{ op 166 }
+    | "__builtin_copysignf" => Option.Some.{ op 152 }
+    | "__builtin_fmin" => Option.Some.{ op 164 }
+    | "__builtin_fmax" => Option.Some.{ op 165 }
+    | "__builtin_trap" | "__builtin_abort" => Option.Some.{ unreachable }
+    | "__builtin_wasm_memory_size" => Option.Some.{ memory_size }
+    | "__builtin_wasm_memory_grow" => Option.Some.{ memory_grow }
+    | "__builtin_wasm_memory_copy" => Option.Some.{ memory_copy }
+    | "__builtin_wasm_memory_fill" => Option.Some.{ memory_fill }
+    | "__builtin_clz" => Option.Some.{ op 103 }
+    | "__builtin_ctz" => Option.Some.{ op 104 }
+    | "__builtin_popcount" => Option.Some.{ op 105 }
+    | "__builtin_clzll" => Option.Some.{ op 121 }
+    | "__builtin_ctzll" => Option.Some.{ op 122 }
+    | "__builtin_popcountll" => Option.Some.{ op 123 }
+    | _ => Option.None
 
 $ @private
 
-$ is_mem_ty : Ty -> @bool = \t = is_agg t || is_array t || is_func t || is_vla t
+$ is_mem_ty : Ty -> @Bool = \t = is_agg t || is_array t || is_func t || is_vla t
 
-$ pconst : Ctx -> @int -> @str = \c v = if c.tg.wasm64 => i64_const v else i32_const v
+$ pconst : Ctx -> @Int -> @Str = \c v = if c.tg.wasm64 => i64_const v else i32_const v
 
-$ padd : Ctx -> @str = \c = op (if c.tg.wasm64 => 124 else 106)
-$ psub : Ctx -> @str = \c = op (if c.tg.wasm64 => 125 else 107)
-$ pand : Ctx -> @str = \c = op (if c.tg.wasm64 => 131 else 113)
+$ padd : Ctx -> @Str = \c = op (if c.tg.wasm64 => 124 else 106)
+$ psub : Ctx -> @Str = \c = op (if c.tg.wasm64 => 125 else 107)
+$ pand : Ctx -> @Str = \c = op (if c.tg.wasm64 => 131 else 113)
 
-$ is64 : ValT -> @bool = \v = is v | ValT.I64 => @true | _ => @false
+$ is64 : ValT -> @Bool = \v = is v | ValT.I64 => @true | _ => @false
 
-$ signed : Ty -> @bool = \t = is t | Ty.Int.{ k } => !k.unsigned | Ty.Enum.{ i } => @true | _ => @false
+$ signed : Ty -> @Bool = \t =
+    is t
+    | Ty.Int.{ k } => !k.unsigned
+    | Ty.Enum.{ i } => @true
+    | _ => @false
 
 # -- loads and stores ------------------------------------------------------------
 
-$ load : Ctx -> Ty -> @int -> @str = \c t off =
-	is t
-	| Ty.Int.{ k } =>
-		if k.size == 1 => mem_op (if k.unsigned => 45 else 44) 0 off
-		else if k.size == 2 => mem_op (if k.unsigned => 47 else 46) 0 off
-		else if k.size == 4 => mem_op 40 0 off
-		else mem_op 41 0 off
-	| Ty.Enum.{ i } => mem_op 40 0 off
-	| Ty.Float => mem_op 42 0 off
-	| Ty.Double => mem_op 43 0 off
-	| _ => mem_op (if c.tg.wasm64 => 41 else 40) 0 off
+$ load : Ctx -> Ty -> @Int -> @Str = \c t off =
+    is t
+    | Ty.Int.{ k } =>
+        if k.size == 1 => mem_op (if k.unsigned => 45 else 44) 0 off
+        else if k.size == 2 => mem_op (if k.unsigned => 47 else 46) 0 off
+        else if k.size == 4 => mem_op 40 0 off
+        else mem_op 41 0 off
+    | Ty.Enum.{ i } => mem_op 40 0 off
+    | Ty.Float => mem_op 42 0 off
+    | Ty.Double => mem_op 43 0 off
+    | _ => mem_op (if c.tg.wasm64 => 41 else 40) 0 off
 
-$ store : Ctx -> Ty -> @int -> @str = \c t off =
-	is t
-	| Ty.Int.{ k } =>
-		if k.size == 1 => mem_op 58 0 off
-		else if k.size == 2 => mem_op 59 0 off
-		else if k.size == 4 => mem_op 54 0 off
-		else mem_op 55 0 off
-	| Ty.Enum.{ i } => mem_op 54 0 off
-	| Ty.Float => mem_op 56 0 off
-	| Ty.Double => mem_op 57 0 off
-	| _ => mem_op (if c.tg.wasm64 => 55 else 54) 0 off
+$ store : Ctx -> Ty -> @Int -> @Str = \c t off =
+    is t
+    | Ty.Int.{ k } =>
+        if k.size == 1 => mem_op 58 0 off
+        else if k.size == 2 => mem_op 59 0 off
+        else if k.size == 4 => mem_op 54 0 off
+        else mem_op 55 0 off
+    | Ty.Enum.{ i } => mem_op 54 0 off
+    | Ty.Float => mem_op 56 0 off
+    | Ty.Double => mem_op 57 0 off
+    | _ => mem_op (if c.tg.wasm64 => 55 else 54) 0 off
 
 # -- branches --------------------------------------------------------------------
 
-$ depth : (Lbl -> @bool) -> List Lbl -> @int -> Option @int = \ok ls i =
-	is ls
-	| List.Cons.{ h, t } => if ok h => Option.Some.{ i } else depth ok t (i + 1)
-	| _ => Option.None
+$ depth : (Lbl -> @Bool) -> List Lbl -> @Int -> Option @Int = \ok ls i =
+    is ls
+    | List.Cons.{ h, t } => if ok h => Option.Some.{ i } else depth ok t (i + 1)
+    | _ => Option.None
 
-$ is_brk : Lbl -> @bool = \l = is l | Lbl.LBrk => @true | _ => @false
-$ is_cont : Lbl -> @bool = \l = is l | Lbl.LCont => @true | _ => @false
+$ is_brk : Lbl -> @Bool = \l = is l | Lbl.LBrk => @true | _ => @false
+$ is_cont : Lbl -> @Bool = \l = is l | Lbl.LCont => @true | _ => @false
 
 $ with_label : Lbl -> ({} -> <G> {}) -> <G> {} = \l body = Fr.push l; body {}; Fr.pop {}
 
@@ -226,816 +281,1093 @@ $ with_label : Lbl -> ({} -> <G> {}) -> <G> {} = \l body = Fr.push l; body {}; F
 
 # Push the address of an lvalue, returning a constant byte offset still to be
 # added: a load or store folds it into its own offset immediate.
-$ addr_off : Ctx -> F -> Expr -> <G> @int = \c f e =
-	is e.e
-	| ENode.Local.{ id } =>
-		(is Fr.slot id
-		 | Slot.SFrame.{ off } => (emit (local_get f.fp); off)
-		 | Slot.SInd.{ i } => (emit (local_get i); 0)
-		 | _ => error_at e.pos "internal: address of a register local")
-	| ENode.Global.{ g } =>
-		if is_func e.ty => (emit (pconst c (table_of c g e.pos)); 0)
-		else (emit (pconst c (addr_of c g e.pos)); 0)
-	| ENode.Deref.{ p } => (gen c f p; 0)
-	| ENode.Field.{ x, m } => let o = addr_off c f x in o + m.offset
-	| ENode.SExpr.{ ss, x } => (sexpr_stmts c f ss; addr_off c f x)
-	| ENode.Comma.{ a, b } => (gen_void c f a; addr_off c f b)
-	| _ =>
-		if is_mem_ty e.ty => (gen c f e; 0)
-		else error_at e.pos "internal: not an lvalue"
+$ addr_off : Ctx -> F -> Expr -> <G> @Int = \c f e =
+    is e.e
+    | ENode.Local.{ id } =>
+        (
+            is Fr.slot id
+            | Slot.SFrame.{ off } => (emit (local_get f.fp); off)
+            | Slot.SInd.{ i } => (emit (local_get i); 0)
+            | _ => error_at e.pos "internal: address of a register local"
+        )
+    | ENode.Global.{ g } =>
+        if is_func e.ty => (emit (pconst c (table_of c g e.pos)); 0)
+        else (emit (pconst c (addr_of c g e.pos)); 0)
+    | ENode.Deref.{ p } => (gen c f p; 0)
+    | ENode.Field.{ x, m } => let o = addr_off c f x in o + m.offset
+    | ENode.SExpr.{ ss, x } => (sexpr_stmts c f ss; addr_off c f x)
+    | ENode.Comma.{ a, b } => (gen_void c f a; addr_off c f b)
+    | _ => if is_mem_ty e.ty => (gen c f e; 0) else error_at e.pos "internal: not an lvalue"
 
 $ addr : Ctx -> F -> Expr -> <G> {} = \c f e =
-	let o = addr_off c f e in
-	if o != 0 => emit (pconst c o ++ padd c) else {}
+    let o = addr_off c f e in if o != 0 => emit (pconst c o ++ padd c) else {}
 
-$ addr_of : Ctx -> @str -> Pos -> <Diag> @int = \c g pos =
-	is MAP.get c.addrs g | Option.Some.{ a } => a | _ => error_at pos ("undefined reference to '" ++ g ++ "'")
+$ addr_of : Ctx -> @Str -> Pos -> <Diag> @Int = \c g pos =
+    is MAP.get c.addrs g
+    | Option.Some.{ a } => a
+    | _ => error_at pos ("undefined reference to '" ++ g ++ "'")
 
-$ table_of : Ctx -> @str -> Pos -> <Diag> @int = \c g pos =
-	is MAP.get c.tidx g | Option.Some.{ a } => a | _ => error_at pos ("undefined reference to '" ++ g ++ "'")
+$ table_of : Ctx -> @Str -> Pos -> <Diag> @Int = \c g pos =
+    is MAP.get c.tidx g
+    | Option.Some.{ a } => a
+    | _ => error_at pos ("undefined reference to '" ++ g ++ "'")
 
 # Push an i32 that is nonzero exactly when the scalar is.
 $ cond : Ctx -> F -> Expr -> <G> {} = \c f e =
-	gen c f e;
-	is vt_of c.tg e.ty
-	| ValT.I64 => emit (op 80 ++ op 69)
-	| ValT.F32 => emit (f32_const (f64_to_f32 0.0) ++ op 92)
-	| ValT.F64 => emit (f64_const 0.0 ++ op 98)
-	| _ => {}
+    gen c f e;
+    is vt_of c.tg e.ty
+    | ValT.I64 => emit (op 80 ++ op 69)
+    | ValT.F32 => emit (f32_const (f64_to_f32 0.0) ++ op 92)
+    | ValT.F64 => emit (f64_const 0.0 ++ op 98)
+    | _ => {}
 
 # The same, normalized to 0 or 1.
 $ cond01 : Ctx -> F -> Expr -> <G> {} = \c f e =
-	cond c f e;
-	if is_bool_result e => {} else emit (i32_const 0 ++ op 71)
+    cond c f e; if is_bool_result e => {} else emit (i32_const 0 ++ op 71)
 
-$ is_bool_result : Expr -> @bool = \e =
-	is e.e
-	| ENode.Bin.{ o, a, b } => o == "==" || o == "!=" || o == "<" || o == ">" || o == "<=" || o == ">=" || o == "&&" || o == "||"
-	| ENode.Unary.{ o, x } => o == "!"
-	| _ => is_bool e.ty
+$ is_bool_result : Expr -> @Bool = \e =
+    is e.e
+    | ENode.Bin.{ o, a, b } =>
+        o == "=="
+            || o == "!="
+            || o == "<"
+            || o == ">"
+            || o == "<="
+            || o == ">="
+            || o == "&&"
+            || o == "||"
+    | ENode.Unary.{ o, x } => o == "!"
+    | _ => is_bool e.ty
 
 $ gen : Ctx -> F -> Expr -> <G> {} = \c f e =
-	is e.e
-	| ENode.IntC.{ v } =>
-		(is vt_of c.tg e.ty
-		 | ValT.I64 => emit (i64_const v)
-		 | ValT.F32 => emit (f32_const (C.i2f v))
-		 | ValT.F64 => emit (f64_const (C.i2d v))
-		 | _ => emit (i32_const v))
-	| ENode.FltC.{ x } => (is e.ty | Ty.Float => emit (f32_const (f64_to_f32 x)) | _ => emit (f64_const x))
-	| ENode.Local.{ id } =>
-		if is_mem_ty e.ty => addr c f e
-		else (is Fr.slot id
-			| Slot.SLocal.{ i } => emit (local_get i)
-			| _ => let o = addr_off c f e in emit (load c e.ty o))
-	| ENode.Global.{ g } =>
-		if is_mem_ty e.ty => addr c f e
-		else emit (pconst c (addr_of c g e.pos) ++ load c e.ty 0)
-	| ENode.Addr.{ x } => addr c f x
-	| ENode.Deref.{ p } =>
-		if is_mem_ty e.ty => gen c f p
-		else (gen c f p; emit (load c e.ty 0))
-	| ENode.Field.{ x, m } =>
-		if is_mem_ty e.ty => addr c f e
-		else if m.bit_width > 0 => let o = addr_off c f x in load_bits c m (o + m.offset)
-		else let o = addr_off c f e in emit (load c e.ty o)
-	| ENode.Unary.{ o, x } => unary c f o x e.ty
-	| ENode.Bin.{ o, a, b } => binary c f o a b e.ty
-	| ENode.Assign.{ l, r } => assign c f l r @true
-	| ENode.OpAssign.{ o, l, r, ct } => op_assign c f o l r ct @true
-	| ENode.PostOp.{ o, l, d } => post_op c f o l d @true
-	| ENode.Cond.{ k, a, b } =>
-		(cond c f k;
-		 emit (if is_void e.ty => if_ else if_v (vt_of c.tg e.ty));
-		 with_label Lbl.LPlain (\u =
-			(if is_void e.ty => gen_void c f a else gen c f a);
-			emit else_;
-			(if is_void e.ty => gen_void c f b else gen c f b));
-		 emit end)
-	| ENode.Comma.{ a, b } => (gen_void c f a; gen c f b)
-	| ENode.Call.{ fn, args, ft } => call c f fn args ft e.ty e.pos
-	| ENode.Cast.{ x } => cast c f x e.ty
-	| ENode.Zero.{ x, n } =>
-		(addr c f x;
-		 emit (i32_const 0 ++ pconst c (size_of c.lay x.ty) ++ memory_fill))
-	| ENode.Copy.{ a, b, n } => (addr c f a; addr c f b; emit (pconst c n ++ memory_copy))
-	| ENode.Alloca.{ n } =>
-		let p = ptr_vt c.tg in
-		let t = Fr.tmp p in
-		gen c f n;
-		emit (pconst c 15 ++ padd c ++ pconst c (0 - 16) ++ pand c ++ local_set t
-			++ global_get 0 ++ local_get t ++ psub c ++ local_tee t ++ global_set 0 ++ local_get t)
-	| ENode.VaStart.{ ap } =>
-		(is local_slot ap
-		 | Option.Some.{ i } => emit (local_get f.va ++ local_set i)
-		 | _ => let o = addr_off c f ap in emit (local_get f.va ++ store c (ptr_to t_char) o))
-	| ENode.VaArg.{ ap } =>
-		let p = ptr_vt c.tg in
-		let tp = Fr.tmp p in
-		let step = pconst c (align_to (size_of c.lay e.ty) 8) ++ padd c in
-		(is local_slot ap
-		 | Option.Some.{ i } => emit (local_get i ++ local_tee tp ++ step ++ local_set i)
-		 | _ =>
-			let ta = Fr.tmp p in
-			addr c f ap;
-			emit (local_tee ta ++ load c (ptr_to t_char) 0 ++ local_set tp
-				++ local_get ta ++ local_get tp ++ step ++ store c (ptr_to t_char) 0));
-		emit (local_get tp ++ (if is_mem_ty e.ty => "" else load c e.ty 0))
-	| ENode.SExpr.{ ss, x } => (sexpr_stmts c f ss; gen c f x)
-	| ENode.LabelAddr.{ l } =>
-		if !f.flat => Bail.unstructured "the address of a label"
-		else (is find_disp (Fr.labels {}) l 0
-			| Option.Some.{ hit } => emit (pconst c hit.1)
-			| _ => error_at e.pos ("label '" ++ l ++ "' used but not defined"))
-	| ENode.Nop => {}
+    is e.e
+    | ENode.IntC.{ v } =>
+        (
+            is vt_of c.tg e.ty
+            | ValT.I64 => emit (i64_const v)
+            | ValT.F32 => emit (f32_const (C.i2f v))
+            | ValT.F64 => emit (f64_const (C.i2d v))
+            | _ => emit (i32_const v)
+        )
+    | ENode.FltC.{ x } =>
+        (is e.ty | Ty.Float => emit (f32_const (f64_to_f32 x)) | _ => emit (f64_const x))
+    | ENode.Local.{ id } =>
+        if is_mem_ty e.ty => addr c f e
+        else
+            (
+                is Fr.slot id
+                | Slot.SLocal.{ i } => emit (local_get i)
+                | _ => let o = addr_off c f e in emit (load c e.ty o)
+            )
+    | ENode.Global.{ g } =>
+        if is_mem_ty e.ty => addr c f e else emit (pconst c (addr_of c g e.pos) ++ load c e.ty 0)
+    | ENode.Addr.{ x } => addr c f x
+    | ENode.Deref.{ p } => if is_mem_ty e.ty => gen c f p else (gen c f p; emit (load c e.ty 0))
+    | ENode.Field.{ x, m } =>
+        if is_mem_ty e.ty => addr c f e
+        else if m.bit_width > 0 => let o = addr_off c f x in load_bits c m (o + m.offset)
+        else let o = addr_off c f e in emit (load c e.ty o)
+    | ENode.Unary.{ o, x } => unary c f o x e.ty
+    | ENode.Bin.{ o, a, b } => binary c f o a b e.ty
+    | ENode.Assign.{ l, r } => assign c f l r @true
+    | ENode.OpAssign.{ o, l, r, ct } => op_assign c f o l r ct @true
+    | ENode.PostOp.{ o, l, d } => post_op c f o l d @true
+    | ENode.Cond.{ k, a, b } =>
+        (
+            cond c f k;
+            emit (if is_void e.ty => if_ else if_v (vt_of c.tg e.ty));
+            with_label Lbl.LPlain (
+                \u =
+                    (if is_void e.ty => gen_void c f a else gen c f a);
+                    emit else_;
+                    (if is_void e.ty => gen_void c f b else gen c f b)
+            );
+            emit end
+        )
+    | ENode.Comma.{ a, b } => (gen_void c f a; gen c f b)
+    | ENode.Call.{ fn, args, ft } => call c f fn args ft e.ty e.pos
+    | ENode.Cast.{ x } => cast c f x e.ty
+    | ENode.Zero.{ x, n } =>
+        (addr c f x; emit (i32_const 0 ++ pconst c (size_of c.lay x.ty) ++ memory_fill))
+    | ENode.Copy.{ a, b, n } => (addr c f a; addr c f b; emit (pconst c n ++ memory_copy))
+    | ENode.Alloca.{ n } =>
+        let p = ptr_vt c.tg in
+        let t = Fr.tmp p in
+        gen c f n;
+        emit (
+            pconst c 15
+                ++ padd c
+                ++ pconst c (0 - 16)
+                ++ pand c
+                ++ local_set t
+                ++ global_get 0
+                ++ local_get t
+                ++ psub c
+                ++ local_tee t
+                ++ global_set 0
+                ++ local_get t
+        )
+    | ENode.VaStart.{ ap } =>
+        (
+            is local_slot ap
+            | Option.Some.{ i } => emit (local_get f.va ++ local_set i)
+            | _ => let o = addr_off c f ap in emit (local_get f.va ++ store c (ptr_to t_char) o)
+        )
+    | ENode.VaArg.{ ap } =>
+        let p = ptr_vt c.tg in
+        let tp = Fr.tmp p in
+        let step = pconst c (align_to (size_of c.lay e.ty) 8) ++ padd c in
+        (
+            is local_slot ap
+            | Option.Some.{ i } => emit (local_get i ++ local_tee tp ++ step ++ local_set i)
+            | _ =>
+                let ta = Fr.tmp p in
+                addr c f ap;
+                emit (
+                    local_tee ta
+                        ++ load c (ptr_to t_char) 0
+                        ++ local_set tp
+                        ++ local_get ta
+                        ++ local_get tp
+                        ++ step
+                        ++ store c (ptr_to t_char) 0
+                )
+        );
+        emit (local_get tp ++ (if is_mem_ty e.ty => "" else load c e.ty 0))
+    | ENode.SExpr.{ ss, x } => (sexpr_stmts c f ss; gen c f x)
+    | ENode.LabelAddr.{ l } =>
+        if !f.flat => Bail.unstructured "the address of a label"
+        else
+            (
+                is find_disp (Fr.labels {}) l 0
+                | Option.Some.{ hit } => emit (pconst c hit.1)
+                | _ => error_at e.pos ("label '" ++ l ++ "' used but not defined")
+            )
+    | ENode.Nop => {}
 
 # Evaluate for effect only, leaving nothing on the stack.
 $ gen_void : Ctx -> F -> Expr -> <G> {} = \c f e =
-	is e.e
-	| ENode.Assign.{ l, r } => assign c f l r @false
-	| ENode.OpAssign.{ o, l, r, ct } => op_assign c f o l r ct @false
-	| ENode.PostOp.{ o, l, d } => post_op c f o l d @false
-	| ENode.Comma.{ a, b } => (gen_void c f a; gen_void c f b)
-	| ENode.Cast.{ x } => if is_void e.ty => gen_void c f x else (gen c f e; emit drop_op)
-	| ENode.Cond.{ k, a, b } =>
-		(cond c f k;
-		 emit if_;
-		 with_label Lbl.LPlain (\u = gen_void c f a; emit else_; gen_void c f b);
-		 emit end)
-	| ENode.SExpr.{ ss, x } => (sexpr_stmts c f ss; gen_void c f x)
-	| ENode.Nop => {}
-	| ENode.VaStart.{ ap } => gen c f e
-	| ENode.Zero.{ x, n } => gen c f e
-	| ENode.Copy.{ a, b, n } => gen c f e
-	| _ =>
-		gen c f e;
-		if is_void e.ty => {} else emit drop_op
+    is e.e
+    | ENode.Assign.{ l, r } => assign c f l r @false
+    | ENode.OpAssign.{ o, l, r, ct } => op_assign c f o l r ct @false
+    | ENode.PostOp.{ o, l, d } => post_op c f o l d @false
+    | ENode.Comma.{ a, b } => (gen_void c f a; gen_void c f b)
+    | ENode.Cast.{ x } => if is_void e.ty => gen_void c f x else (gen c f e; emit drop_op)
+    | ENode.Cond.{ k, a, b } =>
+        (
+            cond c f k;
+            emit if_;
+            with_label Lbl.LPlain (\u = gen_void c f a; emit else_; gen_void c f b);
+            emit end
+        )
+    | ENode.SExpr.{ ss, x } => (sexpr_stmts c f ss; gen_void c f x)
+    | ENode.Nop => {}
+    | ENode.VaStart.{ ap } => gen c f e
+    | ENode.Zero.{ x, n } => gen c f e
+    | ENode.Copy.{ a, b, n } => gen c f e
+    | _ => gen c f e; if is_void e.ty => {} else emit drop_op
 
-$ unary : Ctx -> F -> @str -> Expr -> Ty -> <G> {} = \c f o x t =
-	let v = vt_of c.tg t in
-	if o == "!" =>
-		(gen c f x;
-		 is vt_of c.tg x.ty
-		 | ValT.I64 => emit (op 80)
-		 | ValT.F32 => emit (f32_const (f64_to_f32 0.0) ++ op 91)
-		 | ValT.F64 => emit (f64_const 0.0 ++ op 97)
-		 | _ => emit (op 69))
-	else if o == "-" =>
-		(is v
-		 | ValT.F32 => (gen c f x; emit (op 140))
-		 | ValT.F64 => (gen c f x; emit (op 154))
-		 | ValT.I64 => (emit (i64_const 0); gen c f x; emit (op 125))
-		 | _ => (emit (i32_const 0); gen c f x; emit (op 107)))
-	else
-		(gen c f x;
-		 if is64 v => emit (i64_const (0 - 1) ++ op 133) else emit (i32_const (0 - 1) ++ op 115))
+$ unary : Ctx -> F -> @Str -> Expr -> Ty -> <G> {} = \c f o x t =
+    let v = vt_of c.tg t in
+    if o == "!" =>
+        (
+            gen c f x;
+            is vt_of c.tg x.ty
+            | ValT.I64 => emit (op 80)
+            | ValT.F32 => emit (f32_const (f64_to_f32 0.0) ++ op 91)
+            | ValT.F64 => emit (f64_const 0.0 ++ op 97)
+            | _ => emit (op 69)
+        )
+    else if o == "-" =>
+        (
+            is v
+            | ValT.F32 => (gen c f x; emit (op 140))
+            | ValT.F64 => (gen c f x; emit (op 154))
+            | ValT.I64 => (emit (i64_const 0); gen c f x; emit (op 125))
+            | _ => (emit (i32_const 0); gen c f x; emit (op 107))
+        )
+    else
+        (
+            gen c f x;
+            if is64 v => emit (i64_const (0 - 1) ++ op 133) else emit (i32_const (0 - 1) ++ op 115)
+        )
 
 # The opcode for a binary operator at a value type; `s` is signedness.
-$ arith_op : ValT -> @bool -> @str -> @int = \v s o =
-	is v
-	| ValT.I32 =>
-		(is o | "+" => 106 | "-" => 107 | "*" => 108 | "/" => (if s => 109 else 110) | "%" => (if s => 111 else 112)
-		 | "&" => 113 | "|" => 114 | "^" => 115 | "<<" => 116 | ">>" => (if s => 117 else 118)
-		 | "==" => 70 | "!=" => 71 | "<" => (if s => 72 else 73) | ">" => (if s => 74 else 75)
-		 | "<=" => (if s => 76 else 77) | ">=" => (if s => 78 else 79) | _ => 0)
-	| ValT.I64 =>
-		(is o | "+" => 124 | "-" => 125 | "*" => 126 | "/" => (if s => 127 else 128) | "%" => (if s => 129 else 130)
-		 | "&" => 131 | "|" => 132 | "^" => 133 | "<<" => 134 | ">>" => (if s => 135 else 136)
-		 | "==" => 81 | "!=" => 82 | "<" => (if s => 83 else 84) | ">" => (if s => 85 else 86)
-		 | "<=" => (if s => 87 else 88) | ">=" => (if s => 89 else 90) | _ => 0)
-	| ValT.F32 =>
-		(is o | "+" => 146 | "-" => 147 | "*" => 148 | "/" => 149
-		 | "==" => 91 | "!=" => 92 | "<" => 93 | ">" => 94 | "<=" => 95 | ">=" => 96 | _ => 0)
-	| ValT.F64 =>
-		(is o | "+" => 160 | "-" => 161 | "*" => 162 | "/" => 163
-		 | "==" => 97 | "!=" => 98 | "<" => 99 | ">" => 100 | "<=" => 101 | ">=" => 102 | _ => 0)
+$ arith_op : ValT -> @Bool -> @Str -> @Int = \v s o =
+    is v
+    | ValT.I32 =>
+        (
+            is o
+            | "+" => 106
+            | "-" => 107
+            | "*" => 108
+            | "/" => (if s => 109 else 110)
+            | "%" => (if s => 111 else 112)
+            | "&" => 113
+            | "|" => 114
+            | "^" => 115
+            | "<<" => 116
+            | ">>" => (if s => 117 else 118)
+            | "==" => 70
+            | "!=" => 71
+            | "<" => (if s => 72 else 73)
+            | ">" => (if s => 74 else 75)
+            | "<=" => (if s => 76 else 77)
+            | ">=" => (if s => 78 else 79)
+            | _ => 0
+        )
+    | ValT.I64 =>
+        (
+            is o
+            | "+" => 124
+            | "-" => 125
+            | "*" => 126
+            | "/" => (if s => 127 else 128)
+            | "%" => (if s => 129 else 130)
+            | "&" => 131
+            | "|" => 132
+            | "^" => 133
+            | "<<" => 134
+            | ">>" => (if s => 135 else 136)
+            | "==" => 81
+            | "!=" => 82
+            | "<" => (if s => 83 else 84)
+            | ">" => (if s => 85 else 86)
+            | "<=" => (if s => 87 else 88)
+            | ">=" => (if s => 89 else 90)
+            | _ => 0
+        )
+    | ValT.F32 =>
+        (
+            is o
+            | "+" => 146
+            | "-" => 147
+            | "*" => 148
+            | "/" => 149
+            | "==" => 91
+            | "!=" => 92
+            | "<" => 93
+            | ">" => 94
+            | "<=" => 95
+            | ">=" => 96
+            | _ => 0
+        )
+    | ValT.F64 =>
+        (
+            is o
+            | "+" => 160
+            | "-" => 161
+            | "*" => 162
+            | "/" => 163
+            | "==" => 97
+            | "!=" => 98
+            | "<" => 99
+            | ">" => 100
+            | "<=" => 101
+            | ">=" => 102
+            | _ => 0
+        )
 
-$ binary : Ctx -> F -> @str -> Expr -> Expr -> Ty -> <G> {} = \c f o a b t =
-	if o == "&&" =>
-		(cond c f a;
-		 emit (if_v ValT.I32);
-		 with_label Lbl.LPlain (\u = cond01 c f b; emit (else_ ++ i32_const 0));
-		 emit end)
-	else if o == "||" =>
-		(cond c f a;
-		 emit (if_v ValT.I32);
-		 with_label Lbl.LPlain (\u = emit (i32_const 1 ++ else_); cond01 c f b);
-		 emit end)
-	else
-		let cmp = o == "==" || o == "!=" || o == "<" || o == ">" || o == "<=" || o == ">=" in
-		let ot = if cmp => a.ty else t in
-		gen c f a;
-		gen c f b;
-		emit (op (arith_op (vt_of c.tg ot) (signed ot) o))
+$ binary : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> <G> {} = \c f o a b t =
+    if o == "&&" =>
+        (
+            cond c f a;
+            emit (if_v ValT.I32);
+            with_label Lbl.LPlain (\u = cond01 c f b; emit (else_ ++ i32_const 0));
+            emit end
+        )
+    else if o == "||" =>
+        (
+            cond c f a;
+            emit (if_v ValT.I32);
+            with_label Lbl.LPlain (\u = emit (i32_const 1 ++ else_); cond01 c f b);
+            emit end
+        )
+    else
+        let cmp = o == "==" || o == "!=" || o == "<" || o == ">" || o == "<=" || o == ">=" in
+        let ot = if cmp => a.ty else t in
+        gen c f a; gen c f b; emit (op (arith_op (vt_of c.tg ot) (signed ot) o))
 
 # -- assignment ------------------------------------------------------------------
 
-$ local_slot : Expr -> <Fr> Option @int = \e =
-	is e.e
-	| ENode.Local.{ id } => (is Fr.slot id | Slot.SLocal.{ i } => Option.Some.{ i } | _ => Option.None)
-	| _ => Option.None
+$ local_slot : Expr -> <Fr> Option @Int = \e =
+    is e.e
+    | ENode.Local.{ id } =>
+        (is Fr.slot id | Slot.SLocal.{ i } => Option.Some.{ i } | _ => Option.None)
+    | _ => Option.None
 
 $ bitfield : Expr -> Option Member = \e =
-	is e.e | ENode.Field.{ x, m } => if m.bit_width > 0 => Option.Some.{ m } else Option.None | _ => Option.None
+    is e.e
+    | ENode.Field.{ x, m } => if m.bit_width > 0 => Option.Some.{ m } else Option.None
+    | _ => Option.None
 
-$ assign : Ctx -> F -> Expr -> Expr -> @bool -> <G> {} = \c f l r keep =
-	is l.e
-	| ENode.Comma.{ a, b } => (gen_void c f a; assign c f b r keep)
-	| _ => assign_to c f l r keep
+$ assign : Ctx -> F -> Expr -> Expr -> @Bool -> <G> {} = \c f l r keep =
+    is l.e
+    | ENode.Comma.{ a, b } => (gen_void c f a; assign c f b r keep)
+    | _ => assign_to c f l r keep
 
-$ assign_to : Ctx -> F -> Expr -> Expr -> @bool -> <G> {} = \c f l r keep =
-	if is_agg l.ty || is_array l.ty =>
-		let p = ptr_vt c.tg in
-		let t = Fr.tmp p in
-		addr c f l;
-		emit (local_tee t);
-		gen c f r;
-		emit (pconst c (size_of c.lay l.ty) ++ memory_copy);
-		if keep => emit (local_get t) else {}
-	else is local_slot l
-		| Option.Some.{ i } => (gen c f r; emit (if keep => local_tee i else local_set i))
-		| _ =>
-			(is bitfield l
-			 | Option.Some.{ m } =>
-				let ta = Fr.tmp (ptr_vt c.tg), tv = Fr.tmp (vt_of c.tg l.ty) in
-				(is l.e | ENode.Field.{ x, mm } => addr c f x | _ => {});
-				emit (local_set ta);
-				gen c f r;
-				emit (local_set tv);
-				store_bits c m ta tv;
-				if keep => emit (local_get tv) else {}
-			 | _ =>
-				let o = addr_off c f l in
-				gen c f r;
-				if keep =>
-					let tv = Fr.tmp (vt_of c.tg l.ty) in
-					emit (local_tee tv ++ store c l.ty o ++ local_get tv)
-				else emit (store c l.ty o))
+$ assign_to : Ctx -> F -> Expr -> Expr -> @Bool -> <G> {} = \c f l r keep =
+    if is_agg l.ty || is_array l.ty =>
+        let p = ptr_vt c.tg in
+        let t = Fr.tmp p in
+        addr c f l;
+        emit (local_tee t);
+        gen c f r;
+        emit (pconst c (size_of c.lay l.ty) ++ memory_copy);
+        if keep => emit (local_get t) else {}
+    else
+        is local_slot l
+        | Option.Some.{ i } => (gen c f r; emit (if keep => local_tee i else local_set i))
+        | _ =>
+            (
+                is bitfield l
+                | Option.Some.{ m } =>
+                    let ta = Fr.tmp (ptr_vt c.tg), tv = Fr.tmp (vt_of c.tg l.ty) in
+                    (is l.e | ENode.Field.{ x, mm } => addr c f x | _ => {});
+                    emit (local_set ta);
+                    gen c f r;
+                    emit (local_set tv);
+                    store_bits c m ta tv;
+                    if keep => emit (local_get tv) else {}
+                | _ =>
+                    let o = addr_off c f l in
+                    gen c f r;
+                    if keep =>
+                        let tv = Fr.tmp (vt_of c.tg l.ty) in
+                        emit (local_tee tv ++ store c l.ty o ++ local_get tv)
+                    else emit (store c l.ty o)
+            )
 
 # Load a bit-field from the storage unit whose address is on the stack: shift
 # its bits to the top, then back down (arithmetically if it is signed), which
 # both extracts and sign-extends.
-$ load_bits : Ctx -> Member -> @int -> <G> {} = \c m o =
-	let unit = m.ty in
-	let v = vt_of c.tg unit in
-	let w = if is64 v => 64 else 32 in
-	emit (load c (unsigned_of unit) o);
-	let up = w - m.bit_off - m.bit_width,
-	    down = w - m.bit_width in
-	if is64 v => emit (i64_const up ++ op 134 ++ i64_const down ++ op (if signed unit => 135 else 136))
-	else emit (i32_const up ++ op 116 ++ i32_const down ++ op (if signed unit => 117 else 118))
+$ load_bits : Ctx -> Member -> @Int -> <G> {} = \c m o =
+    let unit = m.ty in
+    let v = vt_of c.tg unit in
+    let w = if is64 v => 64 else 32 in
+    emit (load c (unsigned_of unit) o);
+    let up = w - m.bit_off - m.bit_width, down = w - m.bit_width in
+    if is64 v =>
+        emit (i64_const up ++ op 134 ++ i64_const down ++ op (if signed unit => 135 else 136))
+    else emit (i32_const up ++ op 116 ++ i32_const down ++ op (if signed unit => 117 else 118))
 
-$ unsigned_of : Ty -> Ty = \t = is t | Ty.Int.{ k } => Ty.Int.{ IntK.{ .unsigned = @true | k } } | _ => t
+$ unsigned_of : Ty -> Ty = \t =
+    is t | Ty.Int.{ k } => Ty.Int.{ IntK.{ .unsigned = @true | k } } | _ => t
 
 # Store the value in local `tv` into the bit-field at the address in local `ta`.
-$ store_bits : Ctx -> Member -> @int -> @int -> <G> {} = \c m ta tv =
-	let unit = m.ty in
-	let v = vt_of c.tg unit in
-	let mask = shl (shl 1 m.bit_width - 1) m.bit_off in
-	let k = \x = if is64 v => i64_const x else i32_const x in
-	let o_and = if is64 v => 131 else 113,
-	    o_or = if is64 v => 132 else 114,
-	    o_shl = if is64 v => 134 else 116 in
-	emit (local_get ta
-		++ local_get ta ++ load c (unsigned_of unit) m.offset ++ k (bnot mask) ++ op o_and
-		++ local_get tv ++ k m.bit_off ++ op o_shl ++ k mask ++ op o_and
-		++ op o_or ++ store c unit m.offset)
+$ store_bits : Ctx -> Member -> @Int -> @Int -> <G> {} = \c m ta tv =
+    let unit = m.ty in
+    let v = vt_of c.tg unit in
+    let mask = shl (shl 1 m.bit_width - 1) m.bit_off in
+    let k = \x = if is64 v => i64_const x else i32_const x in
+    let o_and = if is64 v => 131 else 113,
+        o_or = if is64 v => 132 else 114,
+        o_shl = if is64 v => 134 else 116 in
+    emit (
+        local_get ta
+            ++ local_get ta
+            ++ load c (unsigned_of unit) m.offset
+            ++ k (bnot mask)
+            ++ op o_and
+            ++ local_get tv
+            ++ k m.bit_off
+            ++ op o_shl
+            ++ k mask
+            ++ op o_and
+            ++ op o_or
+            ++ store c unit m.offset
+    )
 
 # The value of a narrow integer type kept in range after arithmetic, the way
 # storing it in memory would truncate it.
 $ normalize : Ctx -> Ty -> <G> {} = \c t =
-	is t
-	| Ty.Int.{ k } =>
-		if k.rank == 0 => emit (i32_const 0 ++ op 71)
-		else if k.size == 1 => emit (if k.unsigned => i32_const 255 ++ op 113 else op 192)
-		else if k.size == 2 => emit (if k.unsigned => i32_const 65535 ++ op 113 else op 193)
-		else {}
-	| _ => {}
+    is t
+    | Ty.Int.{ k } =>
+        if k.rank == 0 => emit (i32_const 0 ++ op 71)
+        else if k.size == 1 => emit (if k.unsigned => i32_const 255 ++ op 113 else op 192)
+        else if k.size == 2 => emit (if k.unsigned => i32_const 65535 ++ op 113 else op 193)
+        else {}
+    | _ => {}
 
-$ op_assign : Ctx -> F -> @str -> Expr -> Expr -> Ty -> @bool -> <G> {} = \c f o l r ct keep =
-	is l.e
-	| ENode.Comma.{ a, b } => (gen_void c f a; op_assign c f o b r ct keep)
-	| _ => op_assign_to c f o l r ct keep
+$ op_assign : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> @Bool -> <G> {} = \c f o l r ct keep =
+    is l.e
+    | ENode.Comma.{ a, b } => (gen_void c f a; op_assign c f o b r ct keep)
+    | _ => op_assign_to c f o l r ct keep
 
-$ op_assign_to : Ctx -> F -> @str -> Expr -> Expr -> Ty -> @bool -> <G> {} = \c f o l r ct keep =
-	let lv = vt_of c.tg l.ty in
-	let combine = \u =
-		convert c l.ty ct;
-		gen c f r;
-		emit (op (arith_op (vt_of c.tg ct) (signed ct) o));
-		convert c ct l.ty in
-	is local_slot l
-	| Option.Some.{ i } =>
-		(emit (local_get i); combine {}; emit (if keep => local_tee i else local_set i))
-	| _ =>
-		let ta = Fr.tmp (ptr_vt c.tg) in
-		(is bitfield l
-		 | Option.Some.{ m } =>
-			let tv = Fr.tmp lv in
-			(is l.e | ENode.Field.{ x, mm } => addr c f x | _ => {});
-			emit (local_tee ta);
-			load_bits c m m.offset;
-			combine {};
-			emit (local_set tv);
-			store_bits c m ta tv;
-			if keep => emit (local_get tv) else {}
-		 | _ =>
-			let o = addr_off c f l in
-			emit (local_tee ta ++ local_get ta ++ load c l.ty o);
-			combine {};
-			if keep =>
-				let tv = Fr.tmp lv in
-				emit (local_tee tv ++ store c l.ty o ++ local_get tv)
-			else emit (store c l.ty o))
+$ op_assign_to : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> @Bool -> <G> {} = \c f o l r ct keep =
+    let lv = vt_of c.tg l.ty in
+    let combine = \u =
+            convert c l.ty ct;
+            gen c f r;
+            emit (op (arith_op (vt_of c.tg ct) (signed ct) o));
+            convert c ct l.ty in
+    is local_slot l
+    | Option.Some.{ i } =>
+        (emit (local_get i); combine {}; emit (if keep => local_tee i else local_set i))
+    | _ =>
+        let ta = Fr.tmp (ptr_vt c.tg) in
+        (
+            is bitfield l
+            | Option.Some.{ m } =>
+                let tv = Fr.tmp lv in
+                (is l.e | ENode.Field.{ x, mm } => addr c f x | _ => {});
+                emit (local_tee ta);
+                load_bits c m m.offset;
+                combine {};
+                emit (local_set tv);
+                store_bits c m ta tv;
+                if keep => emit (local_get tv) else {}
+            | _ =>
+                let o = addr_off c f l in
+                emit (local_tee ta ++ local_get ta ++ load c l.ty o);
+                combine {};
+                if keep =>
+                    let tv = Fr.tmp lv in emit (local_tee tv ++ store c l.ty o ++ local_get tv)
+                else emit (store c l.ty o)
+        )
 
-$ post_op : Ctx -> F -> @str -> Expr -> Expr -> @bool -> <G> {} = \c f o l d keep =
-	let lv = vt_of c.tg l.ty in
-	let step = \u =
-		gen c f d;
-		emit (op (arith_op lv (signed l.ty) o));
-		normalize c l.ty in
-	is local_slot l
-	| Option.Some.{ i } =>
-		((if keep => emit (local_get i) else {});
-		 emit (local_get i); step {}; emit (local_set i))
-	| _ =>
-		let ta = Fr.tmp (ptr_vt c.tg), tv = Fr.tmp lv in
-		(is bitfield l
-		 | Option.Some.{ m } =>
-			let tn = Fr.tmp lv in
-			(is l.e | ENode.Field.{ x, mm } => addr c f x | _ => {});
-			emit (local_tee ta);
-			load_bits c m m.offset;
-			emit (local_tee tv);
-			step {};
-			emit (local_set tn);
-			store_bits c m ta tn;
-			if keep => emit (local_get tv) else {}
-		 | _ =>
-			let o = addr_off c f l in
-			emit (local_tee ta ++ load c l.ty o ++ local_set tv ++ local_get ta ++ local_get tv);
-			step {};
-			emit (store c l.ty o);
-			if keep => emit (local_get tv) else {})
+$ post_op : Ctx -> F -> @Str -> Expr -> Expr -> @Bool -> <G> {} = \c f o l d keep =
+    let lv = vt_of c.tg l.ty in
+    let step = \u = gen c f d; emit (op (arith_op lv (signed l.ty) o)); normalize c l.ty in
+    is local_slot l
+    | Option.Some.{ i } =>
+        ((if keep => emit (local_get i) else {}); emit (local_get i); step {}; emit (local_set i))
+    | _ =>
+        let ta = Fr.tmp (ptr_vt c.tg), tv = Fr.tmp lv in
+        (
+            is bitfield l
+            | Option.Some.{ m } =>
+                let tn = Fr.tmp lv in
+                (is l.e | ENode.Field.{ x, mm } => addr c f x | _ => {});
+                emit (local_tee ta);
+                load_bits c m m.offset;
+                emit (local_tee tv);
+                step {};
+                emit (local_set tn);
+                store_bits c m ta tn;
+                if keep => emit (local_get tv) else {}
+            | _ =>
+                let o = addr_off c f l in
+                emit (
+                    local_tee ta ++ load c l.ty o ++ local_set tv ++ local_get ta ++ local_get tv
+                );
+                step {};
+                emit (store c l.ty o);
+                if keep => emit (local_get tv) else {}
+        )
 
 # -- conversions -----------------------------------------------------------------
 
 $ cast : Ctx -> F -> Expr -> Ty -> <G> {} = \c f x t =
-	if is_void t => gen_void c f x
-	else if is_bool t => cond01 c f x
-	else (gen c f x; convert c x.ty t)
+    if is_void t => gen_void c f x
+    else if is_bool t => cond01 c f x
+    else (gen c f x; convert c x.ty t)
 
 # Convert the value on the stack from C type `a` to C type `b`.
 $ convert : Ctx -> Ty -> Ty -> <G> {} = \c a b =
-	if is_mem_ty b || is_void b => {}
-	else if is_bool b && !(is_bool a) =>
-		(is vt_of c.tg a
-		 | ValT.I64 => emit (i64_const 0 ++ op 82)
-		 | ValT.F32 => emit (f32_const (f64_to_f32 0.0) ++ op 92)
-		 | ValT.F64 => emit (f64_const 0.0 ++ op 98)
-		 | _ => emit (i32_const 0 ++ op 71))
-	else
-		let va = vt_of c.tg a, vb = vt_of c.tg b,
-		    sa = signed a, sb = signed b in
-		is va
-		| ValT.F32 =>
-			(is vb
-			 | ValT.F64 => emit (op 187)
-			 | ValT.F32 => {}
-			 | ValT.I64 => emit (op_fc (if sb => 4 else 5))
-			 | _ => (emit (op_fc (if sb || narrow b => 0 else 1)); narrow_to c b))
-		| ValT.F64 =>
-			(is vb
-			 | ValT.F32 => emit (op 182)
-			 | ValT.F64 => {}
-			 | ValT.I64 => emit (op_fc (if sb => 6 else 7))
-			 | _ => (emit (op_fc (if sb || narrow b => 2 else 3)); narrow_to c b))
-		| ValT.I64 =>
-			(is vb
-			 | ValT.F32 => emit (op (if sa => 180 else 181))
-			 | ValT.F64 => emit (op (if sa => 185 else 186))
-			 | ValT.I64 => {}
-			 | _ => (emit (op 167); narrow_to c b))
-		| ValT.I32 =>
-			(is vb
-			 | ValT.F32 => emit (op (if sa => 178 else 179))
-			 | ValT.F64 => emit (op (if sa => 183 else 184))
-			 | ValT.I64 => emit (op (if sa => 172 else 173))
-			 | _ => if int_size a > int_size b || (int_size a == int_size b && signed a != signed b && int_size b < 4) => narrow_to c b else {})
+    if is_mem_ty b || is_void b => {}
+    else if is_bool b && !(is_bool a) =>
+        (
+            is vt_of c.tg a
+            | ValT.I64 => emit (i64_const 0 ++ op 82)
+            | ValT.F32 => emit (f32_const (f64_to_f32 0.0) ++ op 92)
+            | ValT.F64 => emit (f64_const 0.0 ++ op 98)
+            | _ => emit (i32_const 0 ++ op 71)
+        )
+    else
+        let va = vt_of c.tg a, vb = vt_of c.tg b, sa = signed a, sb = signed b in
+        is va
+        | ValT.F32 =>
+            (
+                is vb
+                | ValT.F64 => emit (op 187)
+                | ValT.F32 => {}
+                | ValT.I64 => emit (op_fc (if sb => 4 else 5))
+                | _ => (emit (op_fc (if sb || narrow b => 0 else 1)); narrow_to c b)
+            )
+        | ValT.F64 =>
+            (
+                is vb
+                | ValT.F32 => emit (op 182)
+                | ValT.F64 => {}
+                | ValT.I64 => emit (op_fc (if sb => 6 else 7))
+                | _ => (emit (op_fc (if sb || narrow b => 2 else 3)); narrow_to c b)
+            )
+        | ValT.I64 =>
+            (
+                is vb
+                | ValT.F32 => emit (op (if sa => 180 else 181))
+                | ValT.F64 => emit (op (if sa => 185 else 186))
+                | ValT.I64 => {}
+                | _ => (emit (op 167); narrow_to c b)
+            )
+        | ValT.I32 =>
+            (
+                is vb
+                | ValT.F32 => emit (op (if sa => 178 else 179))
+                | ValT.F64 => emit (op (if sa => 183 else 184))
+                | ValT.I64 => emit (op (if sa => 172 else 173))
+                | _ =>
+                    if int_size a > int_size b
+                        || (int_size a == int_size b && signed a != signed b && int_size b < 4) =>
+                        narrow_to c b
+                    else {}
+            )
 
-$ int_size : Ty -> @int = \t = is t | Ty.Int.{ k } => k.size | _ => 4
+$ int_size : Ty -> @Int = \t = is t | Ty.Int.{ k } => k.size | _ => 4
 
-$ narrow : Ty -> @bool = \t = is t | Ty.Int.{ k } => k.size < 4 | _ => @false
+$ narrow : Ty -> @Bool = \t = is t | Ty.Int.{ k } => k.size < 4 | _ => @false
 
 $ narrow_to : Ctx -> Ty -> <G> {} = \c t = normalize c t
 
 # -- calls -----------------------------------------------------------------------
 
-$ direct_name : Expr -> Option @str = \e =
-	is e.e
-	| ENode.Addr.{ x } => (is x.e | ENode.Global.{ g } => if is_func x.ty => Option.Some.{ g } else Option.None | _ => Option.None)
-	| _ => Option.None
+$ direct_name : Expr -> Option @Str = \e =
+    is e.e
+    | ENode.Addr.{ x } =>
+        (
+            is x.e
+            | ENode.Global.{ g } => if is_func x.ty => Option.Some.{ g } else Option.None
+            | _ => Option.None
+        )
+    | _ => Option.None
 
-$ frame_addr : Ctx -> F -> @int -> <Code> {} = \c f off = emit (local_get f.fp ++ pconst c off ++ padd c)
+$ frame_addr : Ctx -> F -> @Int -> <Code> {} = \c f off =
+    emit (local_get f.fp ++ pconst c off ++ padd c)
 
 $ call : Ctx -> F -> Expr -> List Expr -> FnTy -> Ty -> Pos -> <G> {} = \c f fn args ft rt pos =
-	let name = direct_name fn in
-	let intr = (is name | Option.Some.{ n } => intrinsic n | _ => Option.None) in
-	if (is name | Option.Some.{ n } => n == "alloca" && !(MAP.has c.fidx n) | _ => @false) =>
-		(is args
-		 | List.Cons.{ a, r } =>
-			(gen c f (mk_expr ENode.Alloca.{ mk_expr ENode.Cast.{ a } (t_size c.tg) pos } (ptr_to t_void) pos);
-			 convert c (ptr_to t_void) rt)
-		 | _ => error_at pos "alloca needs a size")
-	else is intr
-	| Option.Some.{ code } =>
-		(gen_args_plain c f args;
-		 emit code;
-		 if is_void rt && !(is_void ft.ret) => emit drop_op else {})
-	| _ =>
-		let real = (is name | Option.Some.{ n } => unwrap_or (MAP.get c.ftys n) ft | _ => ft) in
-		let sret = if is_agg real.ret => Fr.alloc {size_of c.lay real.ret, align_of c.lay real.ret} else 0 in
-		(if is_agg real.ret => frame_addr c f sret else {});
-		push_args c f args real.params real;
-		(is name
-		 | Option.Some.{ n } =>
-			(is MAP.get c.fidx n
-			 | Option.Some.{ i } => emit (call_op i)
-			 | _ => error_at pos ("undefined reference to '" ++ n ++ "'"))
-		 | _ =>
-			(gen c f fn;
-			 (if c.tg.wasm64 => emit (op 167) else {});
-			 let t = Types.type_of (sig_of c.tg real) in
-			 emit (call_indirect t)));
-		if is_agg real.ret => frame_addr c f sret
-		else if is_void real.ret => (if is_void rt => {} else emit (zero_of c rt))
-		else if is_void rt => emit drop_op
-		else convert c real.ret rt
+    let name = direct_name fn in
+    let intr = (is name | Option.Some.{ n } => intrinsic n | _ => Option.None) in
+    if (is name | Option.Some.{ n } => n == "alloca" && !(MAP.has c.fidx n) | _ => @false) =>
+        (
+            is args
+            | List.Cons.{ a, r } =>
+                (
+                    gen c f (
+                        mk_expr ENode.Alloca.{
+                            mk_expr ENode.Cast.{ a } (t_size c.tg) pos
+                        } (ptr_to t_void) pos
+                    );
+                    convert c (ptr_to t_void) rt
+                )
+            | _ => error_at pos "alloca needs a size"
+        )
+    else
+        is intr
+        | Option.Some.{ code } =>
+            (
+                gen_args_plain c f args;
+                emit code;
+                if is_void rt && !(is_void ft.ret) => emit drop_op else {}
+            )
+        | _ =>
+            let real = (is name | Option.Some.{ n } => unwrap_or (MAP.get c.ftys n) ft | _ => ft) in
+            let sret = if is_agg real.ret =>
+                    Fr.alloc { size_of c.lay real.ret, align_of c.lay real.ret }
+                else 0 in
+            (if is_agg real.ret => frame_addr c f sret else {});
+            push_args c f args real.params real;
+            (
+                is name
+                | Option.Some.{ n } =>
+                    (
+                        is MAP.get c.fidx n
+                        | Option.Some.{ i } => emit (call_op i)
+                        | _ => error_at pos ("undefined reference to '" ++ n ++ "'")
+                    )
+                | _ =>
+                    (
+                        gen c f fn;
+                        (if c.tg.wasm64 => emit (op 167) else {});
+                        let t = Types.type_of (sig_of c.tg real) in emit (call_indirect t)
+                    )
+            );
+            if is_agg real.ret => frame_addr c f sret
+            else if is_void real.ret => (if is_void rt => {} else emit (zero_of c rt))
+            else if is_void rt => emit drop_op
+            else convert c real.ret rt
 
 $ gen_args_plain : Ctx -> F -> List Expr -> <G> {} = \c f args =
-	is args | List.Cons.{ a, r } => (gen c f a; gen_args_plain c f r) | _ => {}
+    is args | List.Cons.{ a, r } => (gen c f a; gen_args_plain c f r) | _ => {}
 
 # The arguments for the parameters, each converted to the parameter's type when
 # the call had no prototype to do it; a struct is passed as the address of a
 # copy in the caller's frame. The rest go to a variadic area, one 8-byte-aligned
 # slot each, whose address is the hidden last argument.
 $ push_args : Ctx -> F -> List Expr -> List Ty -> FnTy -> <G> {} = \c f args ps ft =
-	is ps
-	| List.Cons.{ p, prest } =>
-		(is args
-		 | List.Cons.{ a, arest } =>
-			(push_one c f a p; push_args c f arest prest ft)
-		 | _ => (emit (zero_of c p); push_args c f List.Nil prest ft))
-	| _ =>
-		if ft.variadic => var_area c f args
-		else drop_extra c f args
+    is ps
+    | List.Cons.{ p, prest } =>
+        (
+            is args
+            | List.Cons.{ a, arest } => (push_one c f a p; push_args c f arest prest ft)
+            | _ => (emit (zero_of c p); push_args c f List.Nil prest ft)
+        )
+    | _ => if ft.variadic => var_area c f args else drop_extra c f args
 
-$ zero_of : Ctx -> Ty -> @str = \c t =
-	is vt_of c.tg t | ValT.I64 => i64_const 0 | ValT.F32 => f32_const (f64_to_f32 0.0) | ValT.F64 => f64_const 0.0 | _ => i32_const 0
+$ zero_of : Ctx -> Ty -> @Str = \c t =
+    is vt_of c.tg t
+    | ValT.I64 => i64_const 0
+    | ValT.F32 => f32_const (f64_to_f32 0.0)
+    | ValT.F64 => f64_const 0.0
+    | _ => i32_const 0
 
 $ drop_extra : Ctx -> F -> List Expr -> <G> {} = \c f args =
-	is args | List.Cons.{ a, r } => (gen_void c f a; drop_extra c f r) | _ => {}
+    is args | List.Cons.{ a, r } => (gen_void c f a; drop_extra c f r) | _ => {}
 
 $ push_one : Ctx -> F -> Expr -> Ty -> <G> {} = \c f a p =
-	if is_agg p =>
-		let n = size_of c.lay p in
-		let off = Fr.alloc {n, align_of c.lay p} in
-		frame_addr c f off;
-		gen c f a;
-		emit (pconst c n ++ memory_copy);
-		frame_addr c f off
-	else (gen c f a; convert c a.ty p)
+    if is_agg p =>
+        let n = size_of c.lay p in
+        let off = Fr.alloc { n, align_of c.lay p } in
+        frame_addr c f off; gen c f a; emit (pconst c n ++ memory_copy); frame_addr c f off
+    else (gen c f a; convert c a.ty p)
 
 $ var_area : Ctx -> F -> List Expr -> <G> {} = \c f args =
-	let total = LIST.foldl (\n a = n + align_to (size_of c.lay a.ty) 8) 0 args in
-	let off = Fr.alloc {(if total == 0 => 8 else total), 8} in
-	var_store c f args off;
-	frame_addr c f off
+    let total = LIST.foldl (\n a = n + align_to (size_of c.lay a.ty) 8) 0 args in
+    let off = Fr.alloc { (if total == 0 => 8 else total), 8 } in
+    var_store c f args off; frame_addr c f off
 
-$ var_store : Ctx -> F -> List Expr -> @int -> <G> {} = \c f args off =
-	is args
-	| List.Cons.{ a, r } =>
-		let n = size_of c.lay a.ty in
-		(if is_agg a.ty => (frame_addr c f off; gen c f a; emit (pconst c n ++ memory_copy))
-		 else (emit (local_get f.fp); gen c f a; emit (store c a.ty off)));
-		var_store c f r (off + align_to n 8)
-	| _ => {}
+$ var_store : Ctx -> F -> List Expr -> @Int -> <G> {} = \c f args off =
+    is args
+    | List.Cons.{ a, r } =>
+        let n = size_of c.lay a.ty in
+        (
+            if is_agg a.ty => (frame_addr c f off; gen c f a; emit (pconst c n ++ memory_copy))
+            else (emit (local_get f.fp); gen c f a; emit (store c a.ty off))
+        );
+        var_store c f r (off + align_to n 8)
+    | _ => {}
 
 # -- statements ------------------------------------------------------------------
 
 $ stmts : Ctx -> F -> List Stmt -> <G> {} = \c f ss =
-	is ss | List.Cons.{ s, r } => (stmt c f s; stmts c f r) | _ => {}
+    is ss | List.Cons.{ s, r } => (stmt c f s; stmts c f r) | _ => {}
 
 # A statement expression's statements are a block of their own.
 $ sexpr_stmts : Ctx -> F -> List Stmt -> <G> {} = \c f ss =
-	stmt c f (if f.flat => flatten_with ".S" (Stmt.Block.{ ss }) else Stmt.Block.{ ss })
+    stmt c f (if f.flat => flatten_with ".S" (Stmt.Block.{ ss }) else Stmt.Block.{ ss })
 
-$ epilogue : F -> @str = \f = local_get f.saved ++ global_set 0
+$ epilogue : F -> @Str = \f = local_get f.saved ++ global_set 0
 
 $ stmt : Ctx -> F -> Stmt -> <G> {} = \c f s =
-	is s
-	| Stmt.Do.{ e } => gen_void c f e
-	| Stmt.Block.{ ss } => if has_labels ss => dispatch c f ss else stmts c f ss
-	| Stmt.If.{ k, a, b } =>
-		(cond c f k;
-		 emit if_;
-		 with_label Lbl.LPlain (\u =
-			stmt c f a;
-			is b | Stmt.Empty => {} | _ => (emit else_; stmt c f b));
-		 emit end)
-	| Stmt.While.{ k, body } =>
-		(emit block;
-		 with_label Lbl.LBrk (\u =
-			emit loop;
-			with_label Lbl.LCont (\u2 =
-				cond c f k;
-				emit (op 69 ++ br_if 1);
-				stmt c f body;
-				emit (br 0));
-			emit end);
-		 emit end)
-	| Stmt.DoWhile.{ body, k } =>
-		(emit block;
-		 with_label Lbl.LBrk (\u =
-			emit loop;
-			with_label Lbl.LPlain (\u2 =
-				emit block;
-				with_label Lbl.LCont (\u3 = stmt c f body);
-				emit end;
-				cond c f k;
-				emit (br_if 0));
-			emit end);
-		 emit end)
-	| Stmt.For.{ init, k, step, body } =>
-		(stmt c f init;
-		 emit block;
-		 with_label Lbl.LBrk (\u =
-			emit loop;
-			with_label Lbl.LPlain (\u2 =
-				cond c f k;
-				emit (op 69 ++ br_if 1);
-				emit block;
-				with_label Lbl.LCont (\u3 = stmt c f body);
-				emit end;
-				gen_void c f step;
-				emit (br 0));
-			emit end);
-		 emit end)
-	| Stmt.Switch.{ e, body } => switch c f e body
-	| Stmt.Case.{ lo, hi, b } => Bail.unstructured "a case label nested inside another statement of its switch"
-	| Stmt.Default.{ b } => Bail.unstructured "a default label nested inside another statement of its switch"
-	| Stmt.Jump.{ e, cs, d } => jump c f e cs d
-	| Stmt.GotoPtr.{ e } =>
-		if !f.flat => Bail.unstructured "a computed goto"
-		else (is innermost_disp (Fr.labels {}) 0
-			| Option.Some.{ hit } =>
-				(gen c f e;
-				 emit ((if c.tg.wasm64 => op 167 else "") ++ local_set hit.1 ++ br hit.0))
-			| _ => error_at e.pos "computed goto in a function without labels")
-	| Stmt.Break =>
-		(is depth is_brk (Fr.labels {}) 0 | Option.Some.{ d } => emit (br d) | _ => error_at nowhere "internal: break outside loop")
-	| Stmt.Continue =>
-		(is depth is_cont (Fr.labels {}) 0 | Option.Some.{ d } => emit (br d) | _ => error_at nowhere "internal: continue outside loop")
-	| Stmt.Goto.{ l } => goto c f l
-	| Stmt.Label.{ l, b } => stmt c f b
-	| Stmt.Return.{ e } =>
-		if f.sret >= 0 =>
-			(emit (local_get f.sret);
-			 gen c f e;
-			 emit (pconst c (size_of c.lay f.ret) ++ memory_copy ++ epilogue f ++ return_))
-		else if is_void f.ret => (gen_void c f e; emit (epilogue f ++ return_))
-		else (gen c f e; emit (epilogue f ++ return_))
-	| Stmt.Empty => {}
-
+    is s
+    | Stmt.Do.{ e } => gen_void c f e
+    | Stmt.Block.{ ss } => if has_labels ss => dispatch c f ss else stmts c f ss
+    | Stmt.If.{ k, a, b } =>
+        (
+            cond c f k;
+            emit if_;
+            with_label Lbl.LPlain (
+                \u = stmt c f a; is b | Stmt.Empty => {} | _ => (emit else_; stmt c f b)
+            );
+            emit end
+        )
+    | Stmt.While.{ k, body } =>
+        (
+            emit block;
+            with_label Lbl.LBrk (
+                \u =
+                    emit loop;
+                    with_label Lbl.LCont (
+                        \u2 = cond c f k; emit (op 69 ++ br_if 1); stmt c f body; emit (br 0)
+                    );
+                    emit end
+            );
+            emit end
+        )
+    | Stmt.DoWhile.{ body, k } =>
+        (
+            emit block;
+            with_label Lbl.LBrk (
+                \u =
+                    emit loop;
+                    with_label Lbl.LPlain (
+                        \u2 =
+                            emit block;
+                            with_label Lbl.LCont (\u3 = stmt c f body);
+                            emit end;
+                            cond c f k;
+                            emit (br_if 0)
+                    );
+                    emit end
+            );
+            emit end
+        )
+    | Stmt.For.{ init, k, step, body } =>
+        (
+            stmt c f init;
+            emit block;
+            with_label Lbl.LBrk (
+                \u =
+                    emit loop;
+                    with_label Lbl.LPlain (
+                        \u2 =
+                            cond c f k;
+                            emit (op 69 ++ br_if 1);
+                            emit block;
+                            with_label Lbl.LCont (\u3 = stmt c f body);
+                            emit end;
+                            gen_void c f step;
+                            emit (br 0)
+                    );
+                    emit end
+            );
+            emit end
+        )
+    | Stmt.Switch.{ e, body } => switch c f e body
+    | Stmt.Case.{ lo, hi, b } =>
+        Bail.unstructured "a case label nested inside another statement of its switch"
+    | Stmt.Default.{ b } =>
+        Bail.unstructured "a default label nested inside another statement of its switch"
+    | Stmt.Jump.{ e, cs, d } => jump c f e cs d
+    | Stmt.GotoPtr.{ e } =>
+        if !f.flat => Bail.unstructured "a computed goto"
+        else
+            (
+                is innermost_disp (Fr.labels {}) 0
+                | Option.Some.{ hit } =>
+                    (
+                        gen c f e;
+                        emit ((if c.tg.wasm64 => op 167 else "") ++ local_set hit.1 ++ br hit.0)
+                    )
+                | _ => error_at e.pos "computed goto in a function without labels"
+            )
+    | Stmt.Break =>
+        (
+            is depth is_brk (Fr.labels {}) 0
+            | Option.Some.{ d } => emit (br d)
+            | _ => error_at nowhere "internal: break outside loop"
+        )
+    | Stmt.Continue =>
+        (
+            is depth is_cont (Fr.labels {}) 0
+            | Option.Some.{ d } => emit (br d)
+            | _ => error_at nowhere "internal: continue outside loop"
+        )
+    | Stmt.Goto.{ l } => goto c f l
+    | Stmt.Label.{ l, b } => stmt c f b
+    | Stmt.Return.{ e } =>
+        if f.sret >= 0 =>
+            (
+                emit (local_get f.sret);
+                gen c f e;
+                emit (pconst c (size_of c.lay f.ret) ++ memory_copy ++ epilogue f ++ return_)
+            )
+        else if is_void f.ret => (gen_void c f e; emit (epilogue f ++ return_))
+        else (gen c f e; emit (epilogue f ++ return_))
+    | Stmt.Empty => {}
 
 # -- switch ----------------------------------------------------------------------
 
 # A switch body's top-level items, split at its case labels into segments; each
 # segment knows which case values (or `default`) lead to it.
-$ Seg : @struct = cases : List {@int, @int}, dflt : @bool, body : List Stmt,
+$ Seg : @struct = cases : List { @Int, @Int }, dflt : @Bool, body : List Stmt,
 
-$ peel_cases : Stmt -> List {@int, @int} -> @bool -> {List {@int, @int}, @bool, Stmt} = \s cs d =
-	is s
-	| Stmt.Case.{ lo, hi, b } => peel_cases b List.Cons.{ {lo, hi}, cs } d
-	| Stmt.Default.{ b } => peel_cases b cs @true
-	| _ => {cs, d, s}
+$ peel_cases : Stmt -> List { @Int, @Int } -> @Bool -> { List { @Int, @Int }, @Bool, Stmt } = \s cs d =
+    is s
+    | Stmt.Case.{ lo, hi, b } => peel_cases b List.Cons.{ { lo, hi }, cs } d
+    | Stmt.Default.{ b } => peel_cases b cs @true
+    | _ => { cs, d, s }
 
-$ is_case : Stmt -> @bool = \s = is s | Stmt.Case.{ lo, hi, b } => @true | Stmt.Default.{ b } => @true | _ => @false
+$ is_case : Stmt -> @Bool = \s =
+    is s
+    | Stmt.Case.{ lo, hi, b } => @true
+    | Stmt.Default.{ b } => @true
+    | _ => @false
 
 $ segments : List Stmt -> Seg -> List Seg -> List Seg = \ss cur acc =
-	is ss
-	| List.Nil => LIST.reverse List.Cons.{ Seg.{ .body = LIST.reverse cur.body | cur }, acc }
-	| List.Cons.{ s, r } =>
-		if is_case s =>
-			let p = peel_cases s List.Nil @false in
-			let done = List.Cons.{ Seg.{ .body = LIST.reverse cur.body | cur }, acc } in
-			segments r Seg.{ .cases = p.0, .dflt = p.1, .body = LIST.singleton p.2 } done
-		else segments r Seg.{ .body = List.Cons.{ s, cur.body } | cur } acc
+    is ss
+    | List.Nil => LIST.reverse List.Cons.{ Seg.{ .body = LIST.reverse cur.body | cur }, acc }
+    | List.Cons.{ s, r } =>
+        if is_case s =>
+            let p = peel_cases s List.Nil @false in
+            let done = List.Cons.{ Seg.{ .body = LIST.reverse cur.body | cur }, acc } in
+            segments r Seg.{ .cases = p.0, .dflt = p.1, .body = LIST.singleton p.2 } done
+        else segments r Seg.{ .body = List.Cons.{ s, cur.body } | cur } acc
 
 $ switch : Ctx -> F -> Expr -> Stmt -> <G> {} = \c f e body =
-	let items = (is body | Stmt.Block.{ ss } => ss | _ => LIST.singleton body) in
-	let segs = LIST.to_vec (segments items Seg.{ .cases = List.Nil, .dflt = @false, .body = List.Nil } List.Nil) in
-	let n = @vec_len segs in
-	let v = vt_of c.tg e.ty in
-	let tv = Fr.tmp v in
-	gen c f e;
-	emit (local_set tv);
-	emit block;
-	with_label Lbl.LBrk (\u =
-		open_blocks n;
-		dispatch_cases c v tv segs;
-		close_segments c f segs 0);
-	emit end
+    let items = (is body | Stmt.Block.{ ss } => ss | _ => LIST.singleton body) in
+    let segs = LIST.to_vec (
+            segments items Seg.{ .cases = List.Nil, .dflt = @false, .body = List.Nil } List.Nil
+        ) in
+    let n = @vec_len segs in
+    let v = vt_of c.tg e.ty in
+    let tv = Fr.tmp v in
+    gen c f e;
+    emit (local_set tv);
+    emit block;
+    with_label Lbl.LBrk (\u = open_blocks n; dispatch_cases c v tv segs; close_segments c f segs 0);
+    emit end
 
-$ open_blocks : @int -> <G> {} = \n = if n <= 0 => {} else (emit block; Fr.push Lbl.LPlain; open_blocks (n - 1))
+$ open_blocks : @Int -> <G> {} = \n =
+    if n <= 0 => {} else (emit block; Fr.push Lbl.LPlain; open_blocks (n - 1))
 
-$ close_segments : Ctx -> F -> @vec Seg -> @int -> <G> {} = \c f segs i =
-	if i >= @vec_len segs => {}
-	else
-		(emit end;
-		 Fr.pop {};
-		 stmts c f (@vec_get segs i).body;
-		 close_segments c f segs (i + 1))
+$ close_segments : Ctx -> F -> @Vec Seg -> @Int -> <G> {} = \c f segs i =
+    if i >= @vec_len segs => {}
+    else (emit end; Fr.pop {}; stmts c f (@vec_get segs i).body; close_segments c f segs (i + 1))
 
 # Jump to the segment of the matching case: a jump table when the cases are
 # dense, a chain of comparisons otherwise. Inside the innermost block, `br j`
 # lands at the start of segment j, and `br n` past them all.
-$ dispatch_cases : Ctx -> ValT -> @int -> @vec Seg -> <G> {} = \c v tv segs =
-	let n = @vec_len segs in
-	let cases = case_list segs 0 (@vec_new {}) in
-	let dflt = default_seg segs 0 n in
-	let lo = VEC.foldl (\m x = if x.0 < m => x.0 else m) (if @vec_len cases > 0 => (@vec_get cases 0).0 else 0) cases,
-	    hi = VEC.foldl (\m x = if x.1 > m => x.1 else m) (if @vec_len cases > 0 => (@vec_get cases 0).1 else 0) cases in
-	let span = hi - lo + 1 in
-	if @vec_len cases >= 4 && span > 0 && span <= 3 * @vec_len cases + 8 =>
-		let table = VEC.map (\k = target_of cases (lo + k) dflt) (range 0 (span - 1)) in
-		let k = \x = if is64 v => i64_const x else i32_const x in
-		emit (local_get tv ++ k lo ++ op (if is64 v => 125 else 107)
-			++ (if is64 v => op 167 else "")
-			++ br_table table dflt)
-	else
-		(for cases (\(cs: {@int, @int, @int}) =
-			if cs.0 == cs.1 =>
-				emit (local_get tv ++ (if is64 v => i64_const cs.0 ++ op 81 else i32_const cs.0 ++ op 70) ++ br_if cs.2)
-			else
-				emit (local_get tv ++ (if is64 v => i64_const cs.0 ++ op 125 ++ i64_const (cs.1 - cs.0) ++ op 88
-					else i32_const cs.0 ++ op 107 ++ i32_const (cs.1 - cs.0) ++ op 77) ++ br_if cs.2));
-		 emit (br dflt))
+$ dispatch_cases : Ctx -> ValT -> @Int -> @Vec Seg -> <G> {} = \c v tv segs =
+    let n = @vec_len segs in
+    let cases = case_list segs 0 (@vec_new {}) in
+    let dflt = default_seg segs 0 n in
+    let lo = VEC.foldl (
+            \m x = if x.0 < m => x.0 else m
+        ) (if @vec_len cases > 0 => (@vec_get cases 0).0 else 0) cases,
+        hi = VEC.foldl (
+            \m x = if x.1 > m => x.1 else m
+        ) (if @vec_len cases > 0 => (@vec_get cases 0).1 else 0) cases in
+    let span = hi - lo + 1 in
+    if @vec_len cases >= 4 && span > 0 && span <= 3 * @vec_len cases + 8 =>
+        let table = VEC.map (\k = target_of cases (lo + k) dflt) (range 0 (span - 1)) in
+        let k = \x = if is64 v => i64_const x else i32_const x in
+        emit (
+            local_get tv
+                ++ k lo
+                ++ op (if is64 v => 125 else 107)
+                ++ (if is64 v => op 167 else "")
+                ++ br_table table dflt
+        )
+    else
+        (
+            for cases (
+                \(cs: { @Int, @Int, @Int }) =
+                    if cs.0 == cs.1 =>
+                        emit (
+                            local_get tv
+                                ++ (
+                                    if is64 v => i64_const cs.0 ++ op 81
+                                    else i32_const cs.0 ++ op 70
+                                )
+                                ++ br_if cs.2
+                        )
+                    else
+                        emit (
+                            local_get tv
+                                ++ (
+                                    if is64 v =>
+                                        i64_const cs.0 ++ op 125 ++ i64_const (cs.1 - cs.0) ++ op 88
+                                    else
+                                        i32_const cs.0 ++ op 107 ++ i32_const (cs.1 - cs.0) ++ op 77
+                                )
+                                ++ br_if cs.2
+                        )
+            );
+            emit (br dflt)
+        )
 
-$ case_list : @vec Seg -> @int -> @vec {@int, @int, @int} -> @vec {@int, @int, @int} = \segs i acc =
-	if i >= @vec_len segs => acc
-	else case_list segs (i + 1) (LIST.foldl (\a cs = @vec_push a {cs.0, cs.1, i}) acc (LIST.reverse (@vec_get segs i).cases))
+$ case_list : @Vec Seg -> @Int -> @Vec { @Int, @Int, @Int } -> @Vec { @Int, @Int, @Int } = \segs i acc =
+    if i >= @vec_len segs => acc
+    else
+        case_list segs (
+            i + 1
+        ) (
+            LIST.foldl (
+                \a cs = @vec_push a { cs.0, cs.1, i }
+            ) acc (LIST.reverse (@vec_get segs i).cases)
+        )
 
-$ default_seg : @vec Seg -> @int -> @int -> @int = \segs i n =
-	if i >= n => n else if (@vec_get segs i).dflt => i else default_seg segs (i + 1) n
+$ default_seg : @Vec Seg -> @Int -> @Int -> @Int = \segs i n =
+    if i >= n => n else if (@vec_get segs i).dflt => i else default_seg segs (i + 1) n
 
-$ target_of : @vec {@int, @int, @int} -> @int -> @int -> @int = \cases v dflt =
-	is VEC.find (\cs = v >= cs.0 && v <= cs.1) cases | Option.Some.{ cs } => cs.2 | _ => dflt
+$ target_of : @Vec { @Int, @Int, @Int } -> @Int -> @Int -> @Int = \cases v dflt =
+    is VEC.find (\cs = v >= cs.0 && v <= cs.1) cases | Option.Some.{ cs } => cs.2 | _ => dflt
 
 # -- goto ------------------------------------------------------------------------
 
-$ is_label : Stmt -> @bool = \s = is s | Stmt.Label.{ l, b } => @true | _ => @false
+$ is_label : Stmt -> @Bool = \s = is s | Stmt.Label.{ l, b } => @true | _ => @false
 
-$ has_labels : List Stmt -> @bool = \ss = LIST.any is_label ss
+$ has_labels : List Stmt -> @Bool = \ss = LIST.any is_label ss
 
-$ peel_labels : Stmt -> List @str -> {List @str, Stmt} = \s ls =
-	is s | Stmt.Label.{ l, b } => peel_labels b List.Cons.{ l, ls } | _ => {ls, s}
+$ peel_labels : Stmt -> List @Str -> { List @Str, Stmt } = \s ls =
+    is s | Stmt.Label.{ l, b } => peel_labels b List.Cons.{ l, ls } | _ => { ls, s }
 
-$ LSeg : @struct = names : List @str, body : List Stmt,
+$ LSeg : @struct = names : List @Str, body : List Stmt,
 
 $ label_segments : List Stmt -> LSeg -> List LSeg -> List LSeg = \ss cur acc =
-	is ss
-	| List.Nil => LIST.reverse List.Cons.{ LSeg.{ .body = LIST.reverse cur.body | cur }, acc }
-	| List.Cons.{ s, r } =>
-		if is_label s =>
-			let p = peel_labels s List.Nil in
-			label_segments r LSeg.{ .names = p.0, .body = LIST.singleton p.1 } List.Cons.{ LSeg.{ .body = LIST.reverse cur.body | cur }, acc }
-		else label_segments r LSeg.{ .body = List.Cons.{ s, cur.body } | cur } acc
+    is ss
+    | List.Nil => LIST.reverse List.Cons.{ LSeg.{ .body = LIST.reverse cur.body | cur }, acc }
+    | List.Cons.{ s, r } =>
+        if is_label s =>
+            let p = peel_labels s List.Nil in
+            label_segments r LSeg.{
+                .names = p.0,
+                .body = LIST.singleton p.1
+            } List.Cons.{ LSeg.{ .body = LIST.reverse cur.body | cur }, acc }
+        else label_segments r LSeg.{ .body = List.Cons.{ s, cur.body } | cur } acc
 
 # A block whose items carry labels runs as a dispatch loop: a `goto` stores the
 # segment it wants and branches to the loop head, which jumps into that
 # segment. Entering normally starts at segment 0.
 $ dispatch : Ctx -> F -> List Stmt -> <G> {} = \c f ss =
-	let segs = LIST.to_vec (label_segments ss LSeg.{ .names = List.Nil, .body = List.Nil } List.Nil) in
-	let n = @vec_len segs in
-	let tgt = Fr.tmp ValT.I32 in
-	emit (i32_const 0 ++ local_set tgt ++ loop);
-	with_label (Lbl.LDisp.{ seg_names segs 0 List.Nil, tgt }) (\u =
-		open_blocks n;
-		emit (local_get tgt ++ br_table (range 0 (n - 1)) (n - 1));
-		close_lsegments c f segs 0);
-	emit end
+    let segs = LIST.to_vec (
+            label_segments ss LSeg.{ .names = List.Nil, .body = List.Nil } List.Nil
+        ) in
+    let n = @vec_len segs in
+    let tgt = Fr.tmp ValT.I32 in
+    emit (i32_const 0 ++ local_set tgt ++ loop);
+    with_label (
+        Lbl.LDisp.{ seg_names segs 0 List.Nil, tgt }
+    ) (
+        \u =
+            open_blocks n;
+            emit (local_get tgt ++ br_table (range 0 (n - 1)) (n - 1));
+            close_lsegments c f segs 0
+    );
+    emit end
 
 # Each label paired with its segment number, as "name=n" strings searched by
 # `goto`.
-$ seg_names : @vec LSeg -> @int -> List @str -> List @str = \segs i acc =
-	if i >= @vec_len segs => acc
-	else seg_names segs (i + 1) (LIST.foldl (\a nm = List.Cons.{ nm ++ "=" ++ to_string i, a }) acc (@vec_get segs i).names)
+$ seg_names : @Vec LSeg -> @Int -> List @Str -> List @Str = \segs i acc =
+    if i >= @vec_len segs => acc
+    else
+        seg_names segs (
+            i + 1
+        ) (
+            LIST.foldl (
+                \a nm = List.Cons.{ nm ++ "=" ++ to_string i, a }
+            ) acc (@vec_get segs i).names
+        )
 
-$ close_lsegments : Ctx -> F -> @vec LSeg -> @int -> <G> {} = \c f segs i =
-	if i >= @vec_len segs => {}
-	else
-		(emit end;
-		 Fr.pop {};
-		 stmts c f (@vec_get segs i).body;
-		 close_lsegments c f segs (i + 1))
+$ close_lsegments : Ctx -> F -> @Vec LSeg -> @Int -> <G> {} = \c f segs i =
+    if i >= @vec_len segs => {}
+    else (emit end; Fr.pop {}; stmts c f (@vec_get segs i).body; close_lsegments c f segs (i + 1))
 
-$ goto : Ctx -> F -> @str -> <G> {} = \c f l =
-	is find_disp (Fr.labels {}) l 0
-	| Option.Some.{ hit } => emit (i32_const hit.1 ++ local_set hit.2 ++ br hit.0)
-	| _ => Bail.unstructured ("in '" ++ f.name ++ "': goto to label '" ++ l ++ "', which is not in any enclosing block")
+$ goto : Ctx -> F -> @Str -> <G> {} = \c f l =
+    is find_disp (Fr.labels {}) l 0
+    | Option.Some.{ hit } => emit (i32_const hit.1 ++ local_set hit.2 ++ br hit.0)
+    | _ =>
+        Bail.unstructured (
+            "in '"
+                ++ f.name
+                ++ "': goto to label '"
+                ++ l
+                ++ "', which is not in any enclosing block"
+        )
 
 # The nearest dispatch loop, which holds the labels of the flattened body the
 # computed goto is in (a function's, or a statement expression's).
-$ innermost_disp : List Lbl -> @int -> Option {@int, @int} = \ls i =
-	is ls
-	| List.Cons.{ h, t } =>
-		(is h | Lbl.LDisp.{ names, tgt } => Option.Some.{ {i, tgt} } | _ => innermost_disp t (i + 1))
-	| _ => Option.None
+$ innermost_disp : List Lbl -> @Int -> Option { @Int, @Int } = \ls i =
+    is ls
+    | List.Cons.{ h, t } =>
+        (
+            is h
+            | Lbl.LDisp.{ names, tgt } => Option.Some.{ { i, tgt } }
+            | _ => innermost_disp t (i + 1)
+        )
+    | _ => Option.None
 
-$ find_disp : List Lbl -> @str -> @int -> Option {@int, @int, @int} = \ls l i =
-	is ls
-	| List.Cons.{ h, t } =>
-		(is h
-		 | Lbl.LDisp.{ names, tgt } =>
-			(is LIST.find (\s = starts_with s (l ++ "=")) names
-			 | Option.Some.{ s } => Option.Some.{ {i, unwrap_or (STR.to_int (substr s (@array_len l + 1) (@array_len s))) 0, tgt} }
-			 | _ => find_disp t l (i + 1))
-		 | _ => find_disp t l (i + 1))
-	| _ => Option.None
+$ find_disp : List Lbl -> @Str -> @Int -> Option { @Int, @Int, @Int } = \ls l i =
+    is ls
+    | List.Cons.{ h, t } =>
+        (
+            is h
+            | Lbl.LDisp.{ names, tgt } =>
+                (
+                    is LIST.find (\s = starts_with s (l ++ "=")) names
+                    | Option.Some.{ s } =>
+                        Option.Some.{
+                            {
+                                i,
+                                unwrap_or (
+                                    STR.to_int (substr s (@array_len l + 1) (@array_len s))
+                                ) 0,
+                                tgt
+                            }
+                        }
+                    | _ => find_disp t l (i + 1)
+                )
+            | _ => find_disp t l (i + 1)
+        )
+    | _ => Option.None
 
 # -- the function frame ------------------------------------------------------------
 
-$ FrSt : @struct = slots : Map @int Slot, locals : @vec ValT, nparams : @int, frame : @int, labels : List Lbl,
+$ FrSt : @struct =
+    slots : Map @Int Slot,
+    locals : @Vec ValT,
+    nparams : @Int,
+    frame : @Int,
+    labels : List Lbl,
 
-$ with_frame : FrSt -> ({} -> <Types, Fr, Diag, Bail> a) -> <Types, Diag, Bail> {a, FrSt} = \st0 body =
-	let go = do let r = body {} in \s = {r, s}
-		ctl k
-		   | Fr.tmp v => \s = (k (s.nparams + @vec_len s.locals)) FrSt.{ .locals = @vec_push s.locals v | s }
-		   | Fr.slot id => \s = (k (unwrap_or (MAP.get s.slots id) (Slot.SLocal.{ 0 }))) s
-		   | Fr.set_slot q => \s = (k {}) FrSt.{ .slots = MAP.insert s.slots q.0 q.1 | s }
-		   | Fr.alloc q => \s =
-				let off = align_to s.frame (if q.1 < 1 => 1 else q.1) in
-				(k off) FrSt.{ .frame = off + q.0 | s }
-		   | Fr.push l => \s = (k {}) FrSt.{ .labels = List.Cons.{ l, s.labels } | s }
-		   | Fr.pop u => \s = (k {}) FrSt.{ .labels = LIST.tail s.labels | s }
-		   | Fr.labels u => \s = (k s.labels) s
-	in go st0
+$ with_frame : FrSt -> ({} -> <Types, Fr, Diag, Bail> a) -> <Types, Diag, Bail> { a, FrSt } = \st0 body =
+    let go = do let r = body {} in \s = { r, s }
+        ctl k
+        | Fr.tmp v =>
+            \s = (k (s.nparams + @vec_len s.locals)) FrSt.{ .locals = @vec_push s.locals v | s }
+        | Fr.slot id => \s = (k (unwrap_or (MAP.get s.slots id) (Slot.SLocal.{ 0 }))) s
+        | Fr.set_slot q => \s = (k {}) FrSt.{ .slots = MAP.insert s.slots q.0 q.1 | s }
+        | Fr.alloc q =>
+            \s =
+                let off = align_to s.frame (if q.1 < 1 => 1 else q.1) in
+                (k off) FrSt.{ .frame = off + q.0 | s }
+        | Fr.push l => \s = (k {}) FrSt.{ .labels = List.Cons.{ l, s.labels } | s }
+        | Fr.pop u => \s = (k {}) FrSt.{ .labels = LIST.tail s.labels | s }
+        | Fr.labels u => \s = (k s.labels) s in
+    go st0
 
-$ with_code : ({} -> <Code, Types, Fr, Diag, Bail> {}) -> <Types, Fr, Diag, Bail> @str = \body =
-	let go = do body {}; \acc = acc
-		ctl k | Code.emit b => \acc = (k {}) (acc ++ b)
-	in go ""
+$ with_code : ({} -> <Code, Types, Fr, Diag, Bail> {}) -> <Types, Fr, Diag, Bail> @Str = \body =
+    let go = do body {}; \acc = acc
+        ctl k | Code.emit b => \acc = (k {}) (acc ++ b) in
+    go ""
 
-$ with_types : TypeTab -> ({} -> <Types, Diag, Bail> a) -> <Diag, Bail> {a, TypeTab} = \tt0 body =
-	let go = do let r = body {} in \tt = {r, tt}
-		ctl k | Types.type_of s => \tt = let r = type_index tt s in (k r.0) r.1
-	in go tt0
+$ with_types : TypeTab -> ({} -> <Types, Diag, Bail> a) -> <Diag, Bail> { a, TypeTab } = \tt0 body =
+    let go = do let r = body {} in \tt = { r, tt }
+        ctl k | Types.type_of s => \tt = let r = type_index tt s in (k r.0) r.1 in
+    go tt0
 
-$ param_index : List @int -> @int -> Map @int @int -> Map @int @int = \ps i m =
-	is ps | List.Cons.{ id, r } => param_index r (i + 1) (MAP.insert m id i) | _ => m
+$ param_index : List @Int -> @Int -> Map @Int @Int -> Map @Int @Int = \ps i m =
+    is ps | List.Cons.{ id, r } => param_index r (i + 1) (MAP.insert m id i) | _ => m
 
 # Give every C local its slot. A parameter that must live in memory is copied
 # into its frame slot on entry; the returned code does the copies.
-$ assign_slots : Ctx -> Func -> Map @int @int -> @int -> @int -> List LVar -> @str -> <Fr, Diag, Bail> @str = \c fn pidx va fp ls acc =
-	is ls
-	| List.Nil => acc
-	| List.Cons.{ l, rest } =>
-		let next = assign_slots c fn pidx va fp rest in
-		if l.id == fn.va => (Fr.set_slot {l.id, Slot.SLocal.{ va }}; next acc)
-		else is MAP.get pidx l.id
-			| Option.Some.{ pi } =>
-				if is_agg l.ty => (Fr.set_slot {l.id, Slot.SInd.{ pi }}; next acc)
-				else if l.mem =>
-					let off = Fr.alloc {size_of c.lay l.ty, align_of c.lay l.ty} in
-					Fr.set_slot {l.id, Slot.SFrame.{ off }};
-					next (acc ++ local_get fp ++ local_get pi ++ store c l.ty off)
-				else (Fr.set_slot {l.id, Slot.SLocal.{ pi }}; next acc)
-			| _ =>
-				if l.mem || is_mem_ty l.ty =>
-					let a0 = align_of c.lay l.ty in
-					let a = if is_array l.ty && size_of c.lay l.ty >= 16 && a0 < 16 => 16 else a0 in
-					let off = Fr.alloc {size_of c.lay l.ty, (if l.align > a => l.align else a)} in
-					Fr.set_slot {l.id, Slot.SFrame.{ off }};
-					next acc
-				else
-					let i = Fr.tmp (vt_of c.tg l.ty) in
-					Fr.set_slot {l.id, Slot.SLocal.{ i }};
-					next acc
+$ assign_slots : Ctx -> Func -> Map @Int @Int -> @Int -> @Int -> List LVar -> @Str -> <Fr, Diag, Bail> @Str = \c fn pidx va fp ls acc =
+    is ls
+    | List.Nil => acc
+    | List.Cons.{ l, rest } =>
+        let next = assign_slots c fn pidx va fp rest in
+        if l.id == fn.va => (Fr.set_slot { l.id, Slot.SLocal.{ va } }; next acc)
+        else
+            is MAP.get pidx l.id
+            | Option.Some.{ pi } =>
+                if is_agg l.ty => (Fr.set_slot { l.id, Slot.SInd.{ pi } }; next acc)
+                else if l.mem =>
+                    let off = Fr.alloc { size_of c.lay l.ty, align_of c.lay l.ty } in
+                    Fr.set_slot { l.id, Slot.SFrame.{ off } };
+                    next (acc ++ local_get fp ++ local_get pi ++ store c l.ty off)
+                else (Fr.set_slot { l.id, Slot.SLocal.{ pi } }; next acc)
+            | _ =>
+                if l.mem || is_mem_ty l.ty =>
+                    let a0 = align_of c.lay l.ty in
+                    let a = if is_array l.ty && size_of c.lay l.ty >= 16 && a0 < 16 => 16 else a0 in
+                    let off = Fr.alloc { size_of c.lay l.ty, (if l.align > a => l.align else a) } in
+                    Fr.set_slot { l.id, Slot.SFrame.{ off } }; next acc
+                else
+                    let i = Fr.tmp (vt_of c.tg l.ty) in
+                    Fr.set_slot { l.id, Slot.SLocal.{ i } }; next acc
 
 # A switch whose value is evaluated once, then dispatched to labels: what a
 # flattened `switch` becomes.
-$ jump : Ctx -> F -> Expr -> List {@int, @int, @str} -> @str -> <G> {} = \c f e cs d =
-	let v = vt_of c.tg e.ty in
-	let tv = Fr.tmp v in
-	gen c f e;
-	emit (local_set tv);
-	for cs (\(cs1: {@int, @int, @str}) =
-		emit (local_get tv ++ (if is64 v => i64_const cs1.0 ++ op 125 ++ i64_const (cs1.1 - cs1.0) ++ op 88
-			else i32_const cs1.0 ++ op 107 ++ i32_const (cs1.1 - cs1.0) ++ op 77) ++ if_);
-		with_label Lbl.LPlain (\u = goto c f cs1.2);
-		emit end);
-	goto c f d
+$ jump : Ctx -> F -> Expr -> List { @Int, @Int, @Str } -> @Str -> <G> {} = \c f e cs d =
+    let v = vt_of c.tg e.ty in
+    let tv = Fr.tmp v in
+    gen c f e;
+    emit (local_set tv);
+    for cs (
+        \(cs1: { @Int, @Int, @Str }) =
+            emit (
+                local_get tv
+                    ++ (
+                        if is64 v => i64_const cs1.0 ++ op 125 ++ i64_const (cs1.1 - cs1.0) ++ op 88
+                        else i32_const cs1.0 ++ op 107 ++ i32_const (cs1.1 - cs1.0) ++ op 77
+                    )
+                    ++ if_
+            );
+            with_label Lbl.LPlain (\u = goto c f cs1.2);
+            emit end
+    );
+    goto c f d
 
 # -- flattening ----------------------------------------------------------------------
 
@@ -1048,105 +1380,113 @@ $ jump : Ctx -> F -> Expr -> List {@int, @int, @str} -> @str -> <G> {} = \c f e 
 # are queues in the handler's state, one per enclosing switch: each case label
 # met in the walk takes the next name of the innermost one.
 $ Flat : @effect =
-	fresh : {} -> @int,
-	open_cases : List @str -> {},
-	close_cases : {} -> {},
-	take_case : {} -> @str,
+    fresh : {} -> @Int,
+    open_cases : List @Str -> {},
+    close_cases : {} -> {},
+    take_case : {} -> @Str,
 
-$ FlatCx : @struct = brk : @str, cont : @str, prefix : @str,
+$ FlatCx : @struct = brk : @Str, cont : @Str, prefix : @Str,
 
-$ FlatSt : @struct = n : @int, queues : List (List @str),
+$ FlatSt : @struct = n : @Int, queues : List (List @Str),
 
 # `prefix` starts every generated label, keeping a statement expression's
 # labels apart from its function's.
-$ flatten_with : @str -> Stmt -> Stmt = \prefix s =
-	let go = do let items = flat s FlatCx.{ .brk = "", .cont = "", .prefix = prefix } List.Nil in \st = Stmt.Block.{ LIST.reverse items }
-		ctl k
-		   | Flat.fresh u => \st = (k st.n) FlatSt.{ .n = st.n + 1 | st }
-		   | Flat.open_cases q => \st = (k {}) FlatSt.{ .queues = List.Cons.{ q, st.queues } | st }
-		   | Flat.close_cases u => \st = (k {}) FlatSt.{ .queues = LIST.tail st.queues | st }
-		   | Flat.take_case u => \st =
-				(is st.queues
-				 | List.Cons.{ q, rest } =>
-					(is q
-					 | List.Cons.{ l, more } => (k l) FlatSt.{ .queues = List.Cons.{ more, rest } | st }
-					 | _ => (k "") st)
-				 | _ => (k "") st)
-	in go FlatSt.{ .n = 0, .queues = List.Nil }
+$ flatten_with : @Str -> Stmt -> Stmt = \prefix s =
+    let go = do let items = flat s FlatCx.{ .brk = "", .cont = "", .prefix = prefix } List.Nil in
+        \st = Stmt.Block.{ LIST.reverse items }
+        ctl k
+        | Flat.fresh u => \st = (k st.n) FlatSt.{ .n = st.n + 1 | st }
+        | Flat.open_cases q => \st = (k {}) FlatSt.{ .queues = List.Cons.{ q, st.queues } | st }
+        | Flat.close_cases u => \st = (k {}) FlatSt.{ .queues = LIST.tail st.queues | st }
+        | Flat.take_case u =>
+            \st =
+                (
+                    is st.queues
+                    | List.Cons.{ q, rest } =>
+                        (
+                            is q
+                            | List.Cons.{ l, more } =>
+                                (k l) FlatSt.{ .queues = List.Cons.{ more, rest } | st }
+                            | _ => (k "") st
+                        )
+                    | _ => (k "") st
+                ) in
+    go FlatSt.{ .n = 0, .queues = List.Nil }
 
-$ label_of : FlatCx -> @str -> <Flat> @str = \cx what = cx.prefix ++ what ++ "." ++ to_string (Flat.fresh {})
+$ label_of : FlatCx -> @Str -> <Flat> @Str = \cx what =
+    cx.prefix ++ what ++ "." ++ to_string (Flat.fresh {})
 
-$ mark : @str -> List Stmt -> List Stmt = \l acc = List.Cons.{ Stmt.Label.{ l, Stmt.Empty }, acc }
+$ mark : @Str -> List Stmt -> List Stmt = \l acc = List.Cons.{ Stmt.Label.{ l, Stmt.Empty }, acc }
 
-$ goto_s : @str -> List Stmt -> List Stmt = \l acc = List.Cons.{ Stmt.Goto.{ l }, acc }
+$ goto_s : @Str -> List Stmt -> List Stmt = \l acc = List.Cons.{ Stmt.Goto.{ l }, acc }
 
 $ flat_all : List Stmt -> FlatCx -> List Stmt -> <Flat> List Stmt = \ss cx acc =
-	is ss | List.Cons.{ s, r } => let a = flat s cx acc in flat_all r cx a | _ => acc
+    is ss | List.Cons.{ s, r } => let a = flat s cx acc in flat_all r cx a | _ => acc
 
 # `acc` is reversed. A switch's case labels are named in the order its cases
 # appear, which `case_labels` and the walk below agree on.
 $ flat : Stmt -> FlatCx -> List Stmt -> <Flat> List Stmt = \s cx acc =
-	is s
-	| Stmt.Block.{ ss } => flat_all ss cx acc
-	| Stmt.If.{ c, a, b } =>
-		let le = label_of cx "else", lend = label_of cx "endif" in
-		let a1 = flat a cx (List.Cons.{ Stmt.If.{ c, Stmt.Empty, Stmt.Goto.{ le } }, acc }) in
-		let b1 = flat b cx (mark le (goto_s lend a1)) in
-		mark lend b1
-	| Stmt.While.{ c, body } =>
-		let lc = label_of cx "cont", lb = label_of cx "brk" in
-		let a1 = List.Cons.{ Stmt.If.{ c, Stmt.Empty, Stmt.Goto.{ lb } }, mark lc acc } in
-		let a2 = flat body FlatCx.{ .brk = lb, .cont = lc | cx } a1 in
-		mark lb (goto_s lc a2)
-	| Stmt.DoWhile.{ body, c } =>
-		let lt = label_of cx "top", lc = label_of cx "cont", lb = label_of cx "brk" in
-		let a1 = flat body FlatCx.{ .brk = lb, .cont = lc | cx } (mark lt acc) in
-		mark lb (List.Cons.{ Stmt.If.{ c, Stmt.Goto.{ lt }, Stmt.Empty }, mark lc a1 })
-	| Stmt.For.{ init, c, step, body } =>
-		let lt = label_of cx "top", lc = label_of cx "cont", lb = label_of cx "brk" in
-		let a0 = flat init cx acc in
-		let a1 = List.Cons.{ Stmt.If.{ c, Stmt.Empty, Stmt.Goto.{ lb } }, mark lt a0 } in
-		let a2 = flat body FlatCx.{ .brk = lb, .cont = lc | cx } a1 in
-		mark lb (goto_s lt (List.Cons.{ Stmt.Do.{ step }, mark lc a2 }))
-	| Stmt.Switch.{ e, body } =>
-		let lb = label_of cx "brk" in
-		let cs = case_labels cx body List.Nil in
-		let names = LIST.map (\x = x.3) cs in
-		let dflt = (is LIST.find (\x = x.2) cs | Option.Some.{ x } => x.3 | _ => lb) in
-		let jumps = LIST.map (\x = {x.0, x.1, x.3}) (LIST.filter (\x = !x.2) cs) in
-		Flat.open_cases names;
-		let a1 = flat body FlatCx.{ .brk = lb | cx } (List.Cons.{ Stmt.Jump.{ e, jumps, dflt }, acc }) in
-		Flat.close_cases {};
-		mark lb a1
-	| Stmt.Case.{ lo, hi, b } => flat_case cx b acc
-	| Stmt.Default.{ b } => flat_case cx b acc
-	| Stmt.Break => if cx.brk == "" => List.Cons.{ s, acc } else goto_s cx.brk acc
-	| Stmt.Continue => if cx.cont == "" => List.Cons.{ s, acc } else goto_s cx.cont acc
-	| Stmt.Label.{ l, b } => flat b cx (mark l acc)
-	| _ => List.Cons.{ s, acc }
+    is s
+    | Stmt.Block.{ ss } => flat_all ss cx acc
+    | Stmt.If.{ c, a, b } =>
+        let le = label_of cx "else", lend = label_of cx "endif" in
+        let a1 = flat a cx (List.Cons.{ Stmt.If.{ c, Stmt.Empty, Stmt.Goto.{ le } }, acc }) in
+        let b1 = flat b cx (mark le (goto_s lend a1)) in mark lend b1
+    | Stmt.While.{ c, body } =>
+        let lc = label_of cx "cont", lb = label_of cx "brk" in
+        let a1 = List.Cons.{ Stmt.If.{ c, Stmt.Empty, Stmt.Goto.{ lb } }, mark lc acc } in
+        let a2 = flat body FlatCx.{ .brk = lb, .cont = lc | cx } a1 in mark lb (goto_s lc a2)
+    | Stmt.DoWhile.{ body, c } =>
+        let lt = label_of cx "top", lc = label_of cx "cont", lb = label_of cx "brk" in
+        let a1 = flat body FlatCx.{ .brk = lb, .cont = lc | cx } (mark lt acc) in
+        mark lb (List.Cons.{ Stmt.If.{ c, Stmt.Goto.{ lt }, Stmt.Empty }, mark lc a1 })
+    | Stmt.For.{ init, c, step, body } =>
+        let lt = label_of cx "top", lc = label_of cx "cont", lb = label_of cx "brk" in
+        let a0 = flat init cx acc in
+        let a1 = List.Cons.{ Stmt.If.{ c, Stmt.Empty, Stmt.Goto.{ lb } }, mark lt a0 } in
+        let a2 = flat body FlatCx.{ .brk = lb, .cont = lc | cx } a1 in
+        mark lb (goto_s lt (List.Cons.{ Stmt.Do.{ step }, mark lc a2 }))
+    | Stmt.Switch.{ e, body } =>
+        let lb = label_of cx "brk" in
+        let cs = case_labels cx body List.Nil in
+        let names = LIST.map (\x = x.3) cs in
+        let dflt = (is LIST.find (\x = x.2) cs | Option.Some.{ x } => x.3 | _ => lb) in
+        let jumps = LIST.map (\x = { x.0, x.1, x.3 }) (LIST.filter (\x = !x.2) cs) in
+        Flat.open_cases names;
+        let a1 = flat body FlatCx.{
+                .brk = lb | cx
+            } (List.Cons.{ Stmt.Jump.{ e, jumps, dflt }, acc }) in
+        Flat.close_cases {}; mark lb a1
+    | Stmt.Case.{ lo, hi, b } => flat_case cx b acc
+    | Stmt.Default.{ b } => flat_case cx b acc
+    | Stmt.Break => if cx.brk == "" => List.Cons.{ s, acc } else goto_s cx.brk acc
+    | Stmt.Continue => if cx.cont == "" => List.Cons.{ s, acc } else goto_s cx.cont acc
+    | Stmt.Label.{ l, b } => flat b cx (mark l acc)
+    | _ => List.Cons.{ s, acc }
 
 # A case label takes the next name of its switch, in the order
 # `case_labels` drew them.
 $ flat_case : FlatCx -> Stmt -> List Stmt -> <Flat> List Stmt = \cx b acc =
-	let l = Flat.take_case {} in
-	flat b cx (mark l acc)
+    let l = Flat.take_case {} in flat b cx (mark l acc)
 
 # Every case of a switch, outside nested switches, in order: the range, whether
 # it is `default`, and a fresh label.
-$ case_labels : FlatCx -> Stmt -> List {@int, @int, @bool, @str} -> <Flat> List {@int, @int, @bool, @str} = \cx s acc =
-	LIST.reverse (cases_go cx s acc)
+$ case_labels : FlatCx -> Stmt -> List { @Int, @Int, @Bool, @Str } -> <Flat> List { @Int, @Int, @Bool, @Str } = \cx s acc =
+    LIST.reverse (cases_go cx s acc)
 
-$ cases_go : FlatCx -> Stmt -> List {@int, @int, @bool, @str} -> <Flat> List {@int, @int, @bool, @str} = \cx s acc =
-	is s
-	| Stmt.Block.{ ss } => cases_list cx ss acc
-	| Stmt.If.{ c, a, b } => let a1 = cases_go cx a acc in cases_go cx b a1
-	| Stmt.While.{ c, b } => cases_go cx b acc
-	| Stmt.DoWhile.{ b, c } => cases_go cx b acc
-	| Stmt.For.{ i, c, st, b } => let a1 = cases_go cx i acc in cases_go cx b a1
-	| Stmt.Case.{ lo, hi, b } => let l = label_of cx "case" in cases_go cx b (List.Cons.{ {lo, hi, @false, l}, acc })
-	| Stmt.Default.{ b } => let l = label_of cx "default" in cases_go cx b (List.Cons.{ {0, 0, @true, l}, acc })
-	| Stmt.Label.{ l, b } => cases_go cx b acc
-	| _ => acc
+$ cases_go : FlatCx -> Stmt -> List { @Int, @Int, @Bool, @Str } -> <Flat> List { @Int, @Int, @Bool, @Str } = \cx s acc =
+    is s
+    | Stmt.Block.{ ss } => cases_list cx ss acc
+    | Stmt.If.{ c, a, b } => let a1 = cases_go cx a acc in cases_go cx b a1
+    | Stmt.While.{ c, b } => cases_go cx b acc
+    | Stmt.DoWhile.{ b, c } => cases_go cx b acc
+    | Stmt.For.{ i, c, st, b } => let a1 = cases_go cx i acc in cases_go cx b a1
+    | Stmt.Case.{ lo, hi, b } =>
+        let l = label_of cx "case" in cases_go cx b (List.Cons.{ { lo, hi, @false, l }, acc })
+    | Stmt.Default.{ b } =>
+        let l = label_of cx "default" in cases_go cx b (List.Cons.{ { 0, 0, @true, l }, acc })
+    | Stmt.Label.{ l, b } => cases_go cx b acc
+    | _ => acc
 
-$ cases_list : FlatCx -> List Stmt -> List {@int, @int, @bool, @str} -> <Flat> List {@int, @int, @bool, @str} = \cx ss acc =
-	is ss | List.Cons.{ s, r } => let a = cases_go cx s acc in cases_list cx r a | _ => acc
+$ cases_list : FlatCx -> List Stmt -> List { @Int, @Int, @Bool, @Str } -> <Flat> List { @Int, @Int, @Bool, @Str } = \cx ss acc =
+    is ss | List.Cons.{ s, r } => let a = cases_go cx s acc in cases_list cx r a | _ => acc
