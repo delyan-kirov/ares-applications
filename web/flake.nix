@@ -22,7 +22,9 @@
           # scripts. `nodejs` runs the build, the site server and the headless
           # smoke test, all TypeScript it runs directly. `typescript` (tsc)
           # type-checks the page's sources (src/) and emits the JavaScript the
-          # browser loads; nothing from npm reaches the page.
+          # browser loads; nothing from npm reaches the page. `libffi` is for
+          # the playground's native tests (`cargo test -p playground`), which
+          # build the interpreter for the host, where `@extern` needs it.
           pkgs.rustc
           pkgs.cargo
           pkgs.lld
@@ -30,9 +32,13 @@
           pkgs.nodejs
           pkgs.typescript
           pkgs.git
+          pkgs.libffi
         ];
 
         shellHook = ''
+          # Read by crates/interpreter/build.rs to link libffi for `@extern`.
+          export LIBFFI=${pkgs.libffi.out}
+          export LIBFFI_DEV=${pkgs.libffi.dev}
           echo "web playground shell. From the applications workspace root (..):"
           echo "    node web/build.ts       # build the wasm, cells and scripts, then smoke-test"
           echo "    node web/serve.ts       # serve http://localhost:8000"
