@@ -278,7 +278,7 @@ $ parse_from : Opts -> @Int -> @Int -> @Vec TU -> <Files, Diag, @IO> @Vec TU = \
     else
         let f = @vec_get o.files i in
         let pull = start (\u = with_macros initial_macros (\u2 = run_file o f)) in
-        let tu = parse_tu o.target (base + i + 1) pull in
+        let tu = parse_tu { o.target, base + i + 1, pull } in
         parse_from o (i + 1) base (@vec_push acc tu)
 
 $ main_syntax : Opts -> <@IO> @Int = \o =

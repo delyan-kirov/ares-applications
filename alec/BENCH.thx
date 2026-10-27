@@ -33,7 +33,7 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =
     let t1 = C.clock {} in
     let b = run (\u = drain_tok (start (pp path src))) in
     let t2 = C.clock {} in
-    let c = run (\u = let tu = parse_tu wasm32 1 (start (pp path src)) in @vec_len tu.funcs) in
+    let c = run (\u = let tu = parse_tu { wasm32, 1, start (pp path src) } in @vec_len tu.funcs) in
     let t3 = C.clock {} in
     println ("pull " ++ to_string a ++ ": " ++ to_string ((t1 - t0) / 1000) ++ " ms");
     println ("tok  " ++ to_string b ++ ": " ++ to_string ((t2 - t1) / 1000) ++ " ms");
