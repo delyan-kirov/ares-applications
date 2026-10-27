@@ -1,0 +1,32 @@
+# Algebraic effects · state
+#
+# Mutable-looking state with no mutation: each handler clause returns a
+# state-transforming function, and the handler threads the state through the
+# resumptions. `counter` reads with `get`, writes with `put`, and never names
+# a mutable cell.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ State : @effect = get : {} -> @Int, put : @Int -> {},
+
+$ runState : ({} -> <State> @Int) -> @Int -> @Int = \action s0 =
+	let h = do action {}
+	        ctl k | get u => \s = k s s
+	              | put n => \s = k {} n
+	              | x => \s = x
+	 in h s0
+
+$ counter : {} -> <State> @Int =
+	let
+		x = get {},
+		_ = put <| x + 1,
+		y = get {}
+	 in
+		x + y
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	HOST.print <| "counter from 10 = " ++ STR.from_int (runState counter 10);
+	0

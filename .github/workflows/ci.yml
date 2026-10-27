@@ -30,7 +30,6 @@ jobs:
         run: |
           nix develop ./web --command bash -c '
             set -e
-            cargo build -p playground --target wasm32-unknown-unknown --release
-            cp target/wasm32-unknown-unknown/release/playground.wasm web/site/playground.wasm
-            node web/smoke.mjs
+            cargo test -p playground
+            node web/build.ts
           '

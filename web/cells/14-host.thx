@@ -1,0 +1,43 @@
+# Talking to the host · WASM externs
+#
+# The compiler was ported to web assembly and since the language has an ffi
+# functionality with `@extern "WASM" "name"` we can call JavaScript functions.
+# See what happens if you make `animate` true.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+# Flip to true and re-run to start seeing the colors.
+$ animate : @Bool = @false
+
+# An effect standing for "recolor the scratchpad".
+$ ChangeColorEffect : @effect = recolor : @Str -> {},
+
+# Host imports
+$ paint  : @Str -> {}  = @extern "WASM" "change_color" ""
+$ random : @Int -> @Int = @extern "WASM" "random" ""
+$ delay  : @Int -> {}  = @extern "WASM" "delay" ""
+
+$ color : {} -> @Str =
+	"rgb(" ++ STR.from_int (random 256)
+	      ++ ", " ++ STR.from_int (random 256)
+	      ++ ", " ++ STR.from_int (random 256) ++ ")"
+
+$ withColor : ({} -> <ChangeColorEffect> {}) -> {} = \body =
+	do body {}
+	ctl k | ChangeColorEffect.recolor c => (if animate => paint c else {}) ; k {}
+
+$ spin : @Int -> <ChangeColorEffect> {} = \n =
+	if n == 0 => {}
+	else
+		let c = color {} in
+		HOST.print c ;
+		recolor c ;
+		spin (n - 1)
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	delay 150 ;
+	withColor (\u = spin 12) ;
+	0

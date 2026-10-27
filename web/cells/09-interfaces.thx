@@ -1,0 +1,31 @@
+# Interfaces resolved by type
+#
+# An interface is a `@struct` whose fields are its operations, and
+# implementing it is defining a value of that type. A function that needs one
+# declares it as a `@ctx` first parameter, which call sites do not write: the
+# compiler finds it by type. There is no overloading; one name has one type.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ IArea : @struct t = area: t -> @Int,
+
+$ Rect : @struct = w: @Int, h: @Int,
+$ impl_IArea_for_Rect : IArea Rect = .{ .area = \r = r.w * r.h }
+
+$ Square : @struct = side: @Int,
+$ impl_IArea_for_Square : IArea Square = .{ .area = \s = s.side * s.side }
+
+# `d` is the context parameter. A recursive call names it with `@ctx d`; an
+# ordinary call site writes nothing.
+$ total : @ctx IArea t -> @Vec t -> @Int = \d xs =
+	is xs
+		| [] => 0
+		| h :: rest => d.area h + total (@ctx d) rest
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	HOST.print <| "rects:   " ++ STR.from_int (total [Rect.{2, 3}, Rect.{1, 4}]);
+	HOST.print <| "squares: " ++ STR.from_int (total [Square.{3}, Square.{5}]);
+	0

@@ -1,0 +1,21 @@
+# Tuples
+#
+# `{A, B}` is an anonymous product of any arity. Read elements positionally
+# with `.0`/`.1`, and destructure with `{a, b}` patterns in `let`, lambdas and
+# `is` arms. A `let` can bind several names, comma-separated.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ swap : {a, b} -> {b, a} = \t = {t.1, t.0}
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	let
+		p = {42, "answer"},
+		q = swap p,
+	in
+		HOST.print <| "p.0        = " ++ STR.from_int p.0;
+		HOST.print <| "swapped .0 = " ++ q.0;
+		0

@@ -1,0 +1,22 @@
+# Guards and the catch-all arm
+#
+# An arm may carry a guard: `| <pat> if <cond> => ...`. When the guard fails
+# the match falls through to the next arm, and a final `| _ =>` arm catches
+# everything the others miss, here the zero case.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ sign : @Int -> @Str = \n =
+	is n
+		| m if m > 0 => "positive"
+		| m if m < 0 => "negative"
+		| _ => "zero"
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	HOST.print <| "sign  7 = " ++ sign 7;
+	HOST.print <| "sign -3 = " ++ sign (0 - 3);
+	HOST.print <| "sign  0 = " ++ sign 0;
+	0

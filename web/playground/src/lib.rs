@@ -7,36 +7,23 @@
 //! in-memory copy of the standard library, and returns the program's output (or
 //! a rendered diagnostic). The `@extern` FFI is stubbed on wasm (no host libc),
 //! so pure programs run fully and a foreign call reports a clear message.
+//!
+//! [`thx_lsp`] is the language server (`thrax lsp`) over the same calls: the
+//! page passes it one JSON-RPC message at a time and reads back what it sent.
 
 use frontend::lowering::data::Program as LoweredProgram;
 use frontend::{Ast, Item, Program};
 
-/// The bundled standard library: module name to source text, one entry per
-/// `library/*.thx`, plus the playground-only `HOST`. Embedded at build time so
-/// the wasm module needs no filesystem. A new `library/*.thx` must be added
-/// here too; the tests below enforce it.
-const MODULES: &[(&str, &str)] = &[
-    ("C", include_str!("../../../../library/C.thx")),
-    ("CORE", include_str!("../../../../library/CORE.thx")),
-    ("CPX", include_str!("../../../../library/CPX.thx")),
-    ("DERIVE", include_str!("../../../../library/DERIVE.thx")),
-    ("IO", include_str!("../../../../library/IO.thx")),
-    ("LA", include_str!("../../../../library/LA.thx")),
-    ("MAP", include_str!("../../../../library/MAP.thx")),
-    ("MATH", include_str!("../../../../library/MATH.thx")),
-    ("OPT", include_str!("../../../../library/OPT.thx")),
-    ("PATH", include_str!("../../../../library/PATH.thx")),
-    ("RANDOM", include_str!("../../../../library/RANDOM.thx")),
-    ("RESULT", include_str!("../../../../library/RESULT.thx")),
-    ("SET", include_str!("../../../../library/SET.thx")),
-    ("STR", include_str!("../../../../library/STR.thx")),
-    ("VEC", include_str!("../../../../library/VEC.thx")),
-    // Playground-only: routes I/O to JavaScript host imports (no libc on wasm).
-    ("HOST", include_str!("host.thx")),
-];
+/// The playground-only module: routes I/O to JavaScript host imports (no libc
+/// on wasm). Everything else comes from the standard library the compiler
+/// carries ([`thrax::stdlib::MODULES`]), so the two can never drift apart.
+const HOST: &str = include_str!("host.thx");
 
 fn stdlib_source(name: &str) -> Option<&'static str> {
-    MODULES.iter().find(|(n, _)| *n == name).map(|(_, src)| *src)
+    if name == "HOST" {
+        return Some(HOST);
+    }
+    thrax::stdlib::source(name)
 }
 
 /// The modules a parsed program imports (`$ with MOD`).
@@ -89,7 +76,7 @@ struct Loaded<'a> {
 
 /// Parse the user source and, transitively, every standard-library module it
 /// imports, into one arena. Mirrors the driver's `load_core`, but every
-/// dependency comes from [`MODULES`] rather than from disk.
+/// dependency comes from [`stdlib_source`] rather than from disk.
 ///
 /// A module is parsed exactly once: its imports are read off the AST, not off a
 /// throwaway re-parse of its text.
@@ -315,6 +302,13 @@ pub extern "C" fn thx_alloc(n: usize) -> *mut u8 {
     ptr
 }
 
+/// Release a buffer [`thx_alloc`] returned, once the call that read it is done.
+#[no_mangle]
+pub extern "C" fn thx_free(ptr: *mut u8, n: usize) {
+    // SAFETY: `ptr` came from `thx_alloc(n)`, which leaked exactly this Vec.
+    unsafe { drop(Vec::from_raw_parts(ptr, 0, n.max(1))) }
+}
+
 /// The result of the most recent [`thx_eval`], kept alive for the host to read
 /// via [`thx_out_ptr`]/[`thx_out_len`]. Single-threaded (wasm), so a plain
 /// static is sound.
@@ -327,12 +321,7 @@ static mut OUTPUT: Vec<u8> = Vec::new();
 pub extern "C" fn thx_compile(ptr: *const u8, len: usize, mode: i32) -> usize {
     let src = unsafe { std::slice::from_raw_parts(ptr, len) };
     let source = String::from_utf8_lossy(src).into_owned();
-    let out = compile(&source, mode).into_bytes();
-    let n = out.len();
-    unsafe {
-        *std::ptr::addr_of_mut!(OUTPUT) = out;
-    }
-    n
+    stage(compile(&source, mode).into_bytes())
 }
 
 /// The offset of the staged output in linear memory.
@@ -347,51 +336,90 @@ pub extern "C" fn thx_out_len() -> usize {
     unsafe { (*std::ptr::addr_of!(OUTPUT)).len() }
 }
 
+// -- the language server ---------------------------------------------------
+
+/// Where the page's documents live. The browser has no filesystem, so these
+/// paths are names only; `HOST` sits beside the cells so `$ with HOST` resolves
+/// to it the way a sibling file would.
+const LSP_ROOT: &str = "/playground";
+
+static mut LSP: Option<thrax::lsp::server::Server> = None;
+
+fn lsp() -> &'static mut thrax::lsp::server::Server {
+    // SAFETY: wasm is single-threaded and every caller is a top-level export,
+    // so no two references are ever live at once.
+    let slot = unsafe { &mut *std::ptr::addr_of_mut!(LSP) };
+    slot.get_or_insert_with(|| {
+        let mut server = thrax::lsp::server::Server::queued();
+        server.provide(std::path::PathBuf::from(format!("{LSP_ROOT}/HOST.thx")), HOST.to_string());
+        server
+    })
+}
+
+/// Stage what the server sent as one JSON array.
+fn stage_outbox() -> usize {
+    let sent = utilities::Json::Arr(lsp().take_outbox());
+    stage(sent.to_string().into_bytes())
+}
+
+fn stage(out: Vec<u8>) -> usize {
+    let n = out.len();
+    unsafe {
+        *std::ptr::addr_of_mut!(OUTPUT) = out;
+    }
+    n
+}
+
+fn input(ptr: *const u8, len: usize) -> String {
+    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// Hand the server one JSON-RPC message (no `Content-Length` framing) and stage
+/// every message it sent in response, a reply included, as a JSON array.
+#[no_mangle]
+pub extern "C" fn thx_lsp(ptr: *const u8, len: usize) -> usize {
+    let msg = utilities::Json::parse(&input(ptr, len)).unwrap_or(utilities::Json::Null);
+    let _ = lsp().handle(msg);
+    stage_outbox()
+}
+
+/// Run the server's deferred work (debounced checks, held-back errors, error
+/// ranking) and stage what it sent, as [`thx_lsp`] does.
+#[no_mangle]
+pub extern "C" fn thx_lsp_tick() -> usize {
+    lsp().tick();
+    stage_outbox()
+}
+
+/// Milliseconds until [`thx_lsp_tick`] has work, or -1 when it has none.
+#[no_mangle]
+pub extern "C" fn thx_lsp_wake() -> f64 {
+    match lsp().wake_in() {
+        Some(d) => d.as_secs_f64() * 1000.0,
+        None => -1.0,
+    }
+}
+
+/// Semantic tokens (the LSP's encoding) for a buffer that is not open, so the
+/// page can color every cell without checking each one.
+#[no_mangle]
+pub extern "C" fn thx_highlight(ptr: *const u8, len: usize) -> usize {
+    stage(thrax::lsp::server::highlight(&input(ptr, len)).to_string().into_bytes())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{run_source, MODULES};
+    use super::run_source;
+    use utilities::Json;
 
-    // The playground embeds the standard library rather than reading it, so a
-    // module added to `library/` is invisible here until it is listed. Catches
-    // the drift that makes `$ with NEW` report "cannot find module".
-    #[test]
-    fn embedded_modules_match_the_library_directory() {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../library");
-        let mut on_disk: Vec<String> = std::fs::read_dir(dir)
-            .expect("read library/")
-            .flatten()
-            .map(|entry| entry.path())
-            .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("thx"))
-            .filter_map(|p| p.file_stem().and_then(|s| s.to_str()).map(String::from))
-            .collect();
-        on_disk.sort();
-        // HOST is the playground's own, with no file in `library/`.
-        let mut embedded: Vec<String> = MODULES
-            .iter()
-            .map(|(n, _)| n.to_string())
-            .filter(|n| n != "HOST")
-            .collect();
-        embedded.sort();
-        assert_eq!(
-            embedded, on_disk,
-            "a new library/*.thx must be added to MODULES"
-        );
-    }
-
-    // Catches a mis-paired `include_str!` among sixteen near-identical lines.
-    #[test]
-    fn embedded_sources_declare_their_own_module_name() {
-        for (name, src) in MODULES {
-            assert_eq!(src.lines().next(), Some(format!("$ @mod {name}").as_str()));
-        }
-    }
-
-    // Every bundled module has to type-check in the playground's own module
-    // graph, which differs from the driver's: `IO` and friends are reached
-    // without a filesystem, and `C` is stubbed by the JS host.
+    // Every module a cell can import has to type-check in the playground's own
+    // module graph, which differs from the driver's: `IO` and friends are
+    // reached without a filesystem, and `C` is stubbed by the JS host.
     #[test]
     fn every_bundled_module_is_importable() {
-        for (name, _) in MODULES {
+        let names = thrax::stdlib::MODULES.iter().map(|(n, _)| *n).chain(["HOST"]);
+        for name in names {
             let src = format!(
                 "$ @mod MAIN\n$ with {name}\n\
                  $ @main : @Vec @Str -> <@IO> @Int = \\args = 0\n"
@@ -399,6 +427,60 @@ mod tests {
             let out = run_source(&src);
             assert_eq!(out, "exit 0", "`$ with {name}` does not compile:\n{out}");
         }
+    }
+
+    fn send(server: &mut thrax::lsp::server::Server, msg: &str) -> Vec<Json> {
+        server.handle(Json::parse(msg).expect("valid JSON"));
+        server.take_outbox()
+    }
+
+    // The page's language server: a cell importing the playground-only `HOST`
+    // resolves it with no file behind it, reports a type error, and answers a
+    // hover, all through the queued server the wasm exports drive.
+    #[test]
+    fn language_server_checks_a_cell() {
+        let server = super::lsp();
+        let uri = "file:///playground/cell.thx";
+        let src = "$ @mod MAIN\n$ with HOST\n$ n : @Int = 1\n$ @main : @Vec @Str -> <@IO> @Int = \\args = HOST.print \"x\"; n + \"y\"\n";
+        send(server, r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
+        let open = Json::obj([
+            ("jsonrpc", Json::str("2.0")),
+            ("method", Json::str("textDocument/didOpen")),
+            (
+                "params",
+                Json::obj([(
+                    "textDocument",
+                    Json::obj([("uri", Json::str(uri)), ("version", Json::int(1)), ("text", Json::str(src))]),
+                )]),
+            ),
+        ]);
+        send(server, &open.to_string());
+        server.tick();
+        let sent = server.take_outbox();
+        let diags = sent
+            .iter()
+            .find(|m| m.get("method").as_str() == Some("textDocument/publishDiagnostics"))
+            .expect("diagnostics published")
+            .get("params")
+            .get("diagnostics")
+            .clone();
+        let messages: Vec<String> =
+            diags.as_arr().iter().map(|d| d.get("message").as_str().unwrap_or("").to_string()).collect();
+        assert!(!messages.iter().any(|m| m.contains("HOST")), "HOST did not resolve: {messages:?}");
+        assert!(!messages.is_empty(), "the type error was not reported");
+
+        let hover = format!(
+            r#"{{"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{{"textDocument":{{"uri":"{uri}"}},"position":{{"line":2,"character":2}}}}}}"#
+        );
+        let reply = send(server, &hover);
+        let shown = reply[0].get("result").get("contents").get("value").as_str().unwrap_or("").to_string();
+        assert!(shown.contains("n : @Int"), "{shown}");
+    }
+
+    #[test]
+    fn highlights_without_opening() {
+        let tokens = thrax::lsp::server::highlight("$ x : @Int = 1 # one\n");
+        assert!(!tokens.get("data").as_arr().is_empty());
     }
 
     #[test]

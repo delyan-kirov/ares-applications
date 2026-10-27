@@ -1,0 +1,18 @@
+# Pipes and sequencing
+#
+# `x |> f` and `f <| x` are just application at the lowest precedence, so
+# pipelines read in order. `;` runs the left side for effect, then yields the
+# right.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ inc : @Int -> @Int = \x = x + 1
+$ dbl : @Int -> @Int = \x = x + x
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	let r = 5 |> inc |> dbl in
+	HOST.print <| "5 |> inc |> dbl = " ++ STR.from_int r;
+	0

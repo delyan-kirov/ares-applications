@@ -1,0 +1,26 @@
+# Algebraic effects · generators
+#
+# Thrax's headline feature. An operation like `yield` is performed by calling
+# it; a handler `do <body> ctl k | op a => e` intercepts it, where `k` is the
+# resumable continuation. Resuming `k` and adding the results turns a
+# generator into a sum, and the value arm `| _ => 0` handles the body
+# finishing. No iterator protocol, just a handler.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ Yield : @effect = yield : @Int -> {},
+
+$ sumGen : ({} -> <Yield> {}) -> @Int = \gen =
+	do gen {}
+	ctl k | Yield.yield v => v + k {}
+	      | _ => 0
+
+$ gen3 : {} -> <Yield> {} =
+	Yield.yield 10 ; Yield.yield 20 ; Yield.yield 12 ; {}
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	HOST.print <| "sum of yields = " ++ STR.from_int (sumGen gen3);
+	0

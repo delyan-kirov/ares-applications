@@ -1,9 +1,9 @@
 # Cargo build output
 /target
 
-# `build wasm` output (regenerated); web/site/index.html and playground.wasm are tracked.
-/web/site/thrax.js
-/web/site/thrax.wasm
+# web/build.ts output; web/site/index.html and playground.wasm are tracked.
+/web/site/*.js
+/web/site/cells.json
 
 .*
 thrax-out

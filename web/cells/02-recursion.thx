@@ -1,0 +1,19 @@
+# Functions and recursion
+#
+# Functions are values: `\n = ...` is a lambda, written under a separate type
+# signature. `if` is an expression, and recursion is the loop. (`<` is
+# less-than; bare `<` is reserved for effect rows.)
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ fib : @Int -> @Int = \n =
+	if n < 2 => n
+	else fib (n - 1) + fib (n - 2)
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	HOST.print <| "fib 10 = " ++ STR.from_int (fib 10);
+	HOST.print <| "fib 20 = " ++ STR.from_int (fib 20);
+	0

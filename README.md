@@ -30,12 +30,14 @@ self-contained.
   wasm64. Every stage runs on algebraic effects: the preprocessor is a
   coroutine that the parser pulls tokens from, and code generation falls back
   to flattening a function when a jump does not fit structured control flow.
-- **[web](web/)** -- the browser playground: the compiler itself built to
-  `wasm32-unknown-unknown` and driven from hand-written JS, so every example on
-  the page is compiled and run client-side. `site/playground.wasm` is checked in,
-  so rebuild it with `node web/build.mjs` after any change to `crates/` or
-  `library/`; otherwise the site keeps running whatever compiler it was last
-  built from.
+- **[web](web/)**: the browser playground. The compiler and its language
+  server built to `wasm32-unknown-unknown` and driven from a small TypeScript
+  page with no dependencies, so every example is compiled, run and checked as
+  you type, client-side. The examples are Thrax files in `web/cells/`. Build
+  with `node web/build.ts` (in the `web/` dev shell) after any change to
+  `crates/`, `library/` or `web/`: it rebuilds the checked-in
+  `site/playground.wasm`, emits the page's JavaScript with `tsc`, and runs the
+  smoke test.
 
 ## Adding an app as a submodule
 

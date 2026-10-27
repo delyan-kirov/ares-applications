@@ -1,0 +1,16 @@
+# Composing types with `with`
+#
+# You can copy a type's fields or variants into another with `with`.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ Point : @struct = x: @Int, y: @Int,
+$ Point3 : @struct = with Point, z: @Int,
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	let p = Point3.{ .x = 1, .y = 2, .z = 3 } in
+	HOST.print <| "x + y + z = " ++ STR.from_int (p.x + p.y + p.z);
+	0

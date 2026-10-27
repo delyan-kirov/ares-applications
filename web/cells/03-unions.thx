@@ -1,0 +1,25 @@
+# Sum types and pattern matching
+#
+# A `@union` is a sum type; each variant can carry a payload. `is` tries arms
+# top-to-bottom and binds the payload with `Tag.{..}`. A catch-all is just an
+# arm whose pattern matches anything, `| _ => ...`. You can drop it when the
+# arms already cover every variant, as here.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ Shape : @union =
+	Circle: @Int,
+	Rect: {@Int, @Int},
+
+$ area : Shape -> @Int = \s =
+	is s
+		| Shape.Circle.{r} => 3 * r * r
+		| Shape.Rect.{w, h} => w * h
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+	HOST.print <| "circle r=2: " ++ STR.from_int (area Shape.Circle.{2});
+	HOST.print <| "rect 3x4:   " ++ STR.from_int (area Shape.Rect.{3, 4});
+	0
