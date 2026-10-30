@@ -11,7 +11,7 @@
 //! [`thx_lsp`] is the language server (`thrax lsp`) over the same calls: the
 //! page passes it one JSON-RPC message at a time and reads back what it sent.
 
-use frontend::lowering::data::Program as LoweredProgram;
+use frontend::core::CoreProgram as LoweredProgram;
 use frontend::{Ast, Item, Program};
 
 /// The playground-only module: routes I/O to JavaScript host imports (no libc
@@ -270,12 +270,11 @@ fn pipeline(user_src: &str) -> Result<Vec<LoweredProgram>, String> {
     let resolved = frontend::collect_resolved(&checkers);
 
     // Lower every module (root first so its names win the unqualified fallback).
-    let decls = frontend::Decls::collect(&ast, &programs);
     let mut lower_order: Vec<usize> = (0..programs.len()).collect();
     lower_order.sort_by_key(|&i| i != root);
     let lowered: Vec<LoweredProgram> = lower_order
         .iter()
-        .map(|&i| frontend::lower_program(&ast, &programs[i], &decls, &resolved))
+        .map(|&i| frontend::desugar_program(&ast, &programs[i], &resolved))
         .collect();
 
     if !lowered[0].globals.iter().any(|(n, _)| n == frontend::ENTRY) {
