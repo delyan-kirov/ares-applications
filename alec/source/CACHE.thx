@@ -40,7 +40,7 @@ $ magic : @Str = "alec-tu 3\n"
 # A checksum of everything under alec's home that the parsed library depends
 # on, as `cksum` prints it.
 $ stamp : @Str -> <@IO> @Str = \home =
-    capture ("cd '" ++ home ++ "' && cksum *.thx libc/*.c libc/*.h include/*.h 2>/dev/null")
+    capture ("cd '" ++ home ++ "' && cksum *.thx source/*.thx libc/*.c libc/*.h include/*.h 2>/dev/null")
 
 # Write `units` (each library file's name and unit) under `stamp`; false when
 # the file cannot be written. A table of the units' names and byte lengths

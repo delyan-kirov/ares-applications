@@ -62,7 +62,7 @@ about half a second natively.
 
 ## The design: effects all the way down
 
-Every stage is written against algebraic effects, and `DRIVER.thx` is the one
+Every stage is written against algebraic effects, and `source/DRIVER.thx` is the one
 place that decides what those effects mean. Nothing threads state by hand.
 
 **Lexing** (`LEX`) is a pure function from source text to a lazy `List Token`.
@@ -219,7 +219,7 @@ parsing about 120; on the interpreter, several times that.
 
 The C library is therefore parsed once, not per compile. Each target's parsed
 library units are kept in `libc/wasm32.cache` and `libc/wasm64.cache`
-(`CACHE.thx`), stamped with a checksum of the library sources, alec's headers
+(`source/CACHE.thx`), stamped with a checksum of the library sources, alec's headers
 and alec's own `.thx` files. A compile whose stamp does not match parses the
 library afresh and rewrites the cache; `--index-libc` rebuilds both. Reading
 a unit back skips its function bodies, which are decoded only for the
@@ -231,22 +231,23 @@ the command line's `-I`, `-D` or `-U`.
 
 | | |
 | --- | --- |
+| `BUILD.thx` | puts `source/` on the module search for every entry point |
 | `MAIN.thx` | the command-line entry |
-| `DRIVER.thx` | options and the handlers: files, macros, diagnostics, library loading |
-| `LEX.thx` | the preprocessing-token lexer |
-| `LIT.thx` | integer, float, character and string literal decoding |
-| `PP.thx` | the preprocessor |
-| `PARSE.thx` | the parser and type checker, with its handlers and the pipe |
-| `TYPE.thx`, `AST.thx` | C types and layout; the typed tree |
-| `GEN.thx` | code generation, including the flattening fallback |
-| `LINK.thx` | linking, layout, imports |
-| `CACHE.thx` | the parsed C library, saved and read back |
-| `SHELL.thx` | `--shell` |
-| `WAT.thx` | a module as text, for `--dump-wasm` and `:wasm` |
-| `WASM.thx` | the binary format |
-| `CFG.thx` | targets and predefined macros |
-| `DIAG.thx` | the diagnostics effect |
-| `DUMP.thx` | `--dump-ast`, `--dump-tokens` |
+| `source/DRIVER.thx` | options and the handlers: files, macros, diagnostics, library loading |
+| `source/LEX.thx` | the preprocessing-token lexer |
+| `source/LIT.thx` | integer, float, character and string literal decoding |
+| `source/PP.thx` | the preprocessor |
+| `source/PARSE.thx` | the parser and type checker, with its handlers and the pipe |
+| `source/TYPE.thx`, `source/AST.thx` | C types and layout; the typed tree |
+| `source/GEN.thx` | code generation, including the flattening fallback |
+| `source/LINK.thx` | linking, layout, imports |
+| `source/CACHE.thx` | the parsed C library, saved and read back |
+| `source/SHELL.thx` | `--shell` |
+| `source/WAT.thx` | a module as text, for `--dump-wasm` and `:wasm` |
+| `source/WASM.thx` | the binary format |
+| `source/CFG.thx` | targets and predefined macros |
+| `source/DIAG.thx` | the diagnostics effect |
+| `source/DUMP.thx` | `--dump-ast`, `--dump-tokens` |
 | `TEST.thx` | the differential test runner |
 | `BENCH.thx` | phase timings |
 | `run.mjs` | the node host |

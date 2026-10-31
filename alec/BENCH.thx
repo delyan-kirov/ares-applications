@@ -19,33 +19,34 @@ $ walk_go : Pull -> @Int -> <Files, Diag> @Int = \p n =
     is p | Pull.More.{ t, rest } => walk_go (rest {}) (n + 1) | _ => n
 
 $ pp : @Str -> @Str -> {} -> <Files, Out, Diag> {} = \path src u =
-    with_macros initial_macros (
-        \u3 =
+    with_macros
+        initial_macros <| \u3 =
             preprocess "<built-in>" (lex "<built-in>" (predefined wasm32));
             preprocess path (lex path src)
-    )
-
-$ @main : @Vec @Str -> <@IO> @Int = \args =
-    let path = @vec_get args 1 in
-    let src = unwrap_or (read_file path) "" in
-    let t0 = C.clock {} in
-    let a = run (\u = walk_pull (start (pp path src))) in
-    let t1 = C.clock {} in
-    let b = run (\u = drain_tok (start (pp path src))) in
-    let t2 = C.clock {} in
-    let c = run (\u = let tu = parse_tu { wasm32, 1, start (pp path src) } in @vec_len tu.funcs) in
-    let t3 = C.clock {} in
-    println ("pull " ++ to_string a ++ ": " ++ to_string ((t1 - t0) / 1000) ++ " ms");
-    println ("tok  " ++ to_string b ++ ": " ++ to_string ((t2 - t1) / 1000) ++ " ms");
-    println ("parse " ++ to_string c ++ " funcs: " ++ to_string ((t3 - t2) / 1000) ++ " ms");
-    0
 
 $ run : ({} -> <Files, Diag, @IO> @Int) -> <@IO> @Int = \body =
     do (
         do body {}
         ctl k
-        | Files.include r => k Loaded.Missing
+        | Files.include r  => k Loaded.Missing
         | Files.has_file r => k @false
-        | Files.once p => k {}
+        | Files.once p     => k {}
     )
     ctl k | Diag.fail e => (println (render "error" e); 0) | Diag.warn e => k {}
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =
+    let
+        path = @vec_get args 1,
+        src  = unwrap_or (read_file path) "",
+        t0   = C.clock {},
+        a    = run (\u = walk_pull (start (pp path src))),
+        t1   = C.clock {},
+        b    = run (\u = drain_tok (start (pp path src))),
+        t2   = C.clock {},
+        c    = run (\u = let tu = parse_tu { wasm32, 1, start (pp path src) } in @vec_len tu.funcs),
+        t3   = C.clock {}
+    in
+        println ("pull " ++ to_string a ++ ": " ++ to_string ((t1 - t0) / 1000) ++ " ms");
+        println ("tok  " ++ to_string b ++ ": " ++ to_string ((t2 - t1) / 1000) ++ " ms");
+        println ("parse " ++ to_string c ++ " funcs: " ++ to_string ((t3 - t2) / 1000) ++ " ms");
+        0
