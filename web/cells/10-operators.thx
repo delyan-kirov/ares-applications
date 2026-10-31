@@ -1,8 +1,7 @@
 # Operators are ordinary functions
 #
-# Nothing is special about `+`: it is a CORE function over the `IAdd`
-# interface, so a type joins it by defining an instance. The same holds for
-# `-`, `*`, `==`, `<` and the rest.
+# Most operators are extendable by defining their interface
+# for a custom type.
 
 $ @mod MAIN
 
@@ -12,7 +11,8 @@ $ with HOST
 $ Money : @struct =
     cents: @Int,
 
-$ impl_IAdd_for_Money : IAdd Money = .{ .add = \a b = Money.{ .cents = a.cents + b.cents } }
+$ impl_IAdd_for_Money : IAdd Money = 
+   .{ .add = \a b = Money.{ .cents = a.cents + b.cents } }
 
 $ show : Money -> @Str = \m =
     "$?(m.cents / 100).?(m.cents % 100)"

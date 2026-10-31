@@ -1,9 +1,8 @@
-# Interfaces resolved by type
+# Context
 #
-# An interface is a `@struct` whose fields are its operations, and
-# implementing it is defining a value of that type. A function that needs one
-# declares it as a `@ctx` first parameter, which call sites do not write: the
-# compiler finds it by type. There is no overloading; one name has one type.
+# An implicit context parameter can be declared using `@ctx`.
+# This parameter will be implicitly applied to the function
+# using the "closest" available symbol with a type that matches.
 
 $ @mod MAIN
 

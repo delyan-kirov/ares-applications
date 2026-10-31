@@ -1,8 +1,4 @@
 # Functions and recursion
-#
-# Functions are values: `\n = ...` is a lambda, written under a separate type
-# signature. `if` is an expression, and recursion is the loop. (`<` is
-# less-than; bare `<` is reserved for effect rows.)
 
 $ @mod MAIN
 

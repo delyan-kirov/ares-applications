@@ -1,9 +1,7 @@
-# Algebraic effects · exceptions
+# Algebraic effects as exceptions
 #
 # The same machine gives you exceptions: a handler that simply ignores `k`
-# never resumes. `throw`'s result type is polymorphic (`a`) because it never
-# returns to the call site. `Exn` is handled inside `safeDiv`, so `safeDiv` is
-# pure. Its type carries no effect.
+# never resumes. 
 
 $ @mod MAIN
 

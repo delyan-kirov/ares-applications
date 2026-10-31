@@ -1,9 +1,6 @@
-# Algebraic effects · state
+# Algebraic effects as state machines
 #
-# Mutable-looking state with no mutation: each handler clause returns a
-# state-transforming function, and the handler threads the state through the
-# resumptions. `counter` reads with `get`, writes with `put`, and never names
-# a mutable cell.
+# Mutable-looking state with no mutation
 
 $ @mod MAIN
 

@@ -1,8 +1,7 @@
 # Tuples
 #
-# `{A, B}` is an anonymous product of any arity. Read elements positionally
-# with `.0`/`.1`, and destructure with `{a, b}` patterns in `let`, lambdas and
-# `is` arms. A `let` can bind several names, comma-separated.
+# `{A, B}` is a tuple, which is just a record with
+# fields `0`, `1`, etc.
 
 $ @mod MAIN
 

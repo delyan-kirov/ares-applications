@@ -9,7 +9,8 @@ $ @mod MAIN
 #       a stack of layers, each a color and a set of figures. A layer covers a
 #       point when the point lies inside an odd number of its figures (the
 #       even-odd rule), so every edge in the picture is an exact boundary and
-#       nothing overlaps. The same layers are written as vector SVG and
+#       nothing overlaps. A missing background or layer color is transparency:
+#       a colorless layer erases what is under it. The same layers are written as vector SVG and
 #       rendered to a raster that ffmpeg scales down to the PNG sizes browsers
 #       ask for. Run from web/, optionally naming a design (default `site`):
 #           thrax build FAVICON.thx && thrax-out/FAVICON [site|pinwheel]
@@ -32,17 +33,16 @@ $ Figure : @union =
     Tri: { a: Point, b: Point, c: Point },
 
 $ Layer : @struct =
-    color: Rgb,
+    color: Option Rgb,
     figures: @Vec Figure,
 
 $ Design : @struct =
-    background: Rgb,
+    background: Option Rgb,
     layers: @Vec Layer,
 
 $ navy : Rgb = Rgb.{ .r = 0, .g = 0, .b = 128 }
 $ gold : Rgb = Rgb.{ .r = 245, .g = 197, .b = 66 }
-$ midnight : Rgb = Rgb.{ .r = 11, .g = 20, .b = 48 }
-$ champagne : Rgb = Rgb.{ .r = 226, .g = 212, .b = 173 }
+$ bright_navy : Rgb = Rgb.{ .r = 30, .g = 64, .b = 175 }
 
 # ---- geometry ----
 
@@ -78,17 +78,17 @@ $ wedges : @Vec Figure =
 # Pure even-odd over all the figures: the wedges alternate, and flip again
 # inside the incircle, which makes a pinwheel.
 $ pinwheel : Design = Design.{
-    .background = navy,
-    .layers = [Layer.{ gold, append [circumcircle, triangle, incircle] wedges }],
+    .background = Option.Some.{ navy },
+    .layers = [Layer.{ Option.Some.{ gold }, append [circumcircle, triangle, incircle] wedges }],
 }
 
-# The site's icon: the same wedges without the pinwheel, the incircle left
-# empty by a layer of background on top.
+# The site's icon: the same wedges without the pinwheel on a transparent
+# ground, the incircle erased.
 $ site : Design = Design.{
-    .background = midnight,
+    .background = Option.None,
     .layers = [
-        Layer.{ champagne, append [circumcircle, triangle] wedges },
-        Layer.{ midnight, [incircle] },
+        Layer.{ Option.Some.{ bright_navy }, append [circumcircle, triangle] wedges },
+        Layer.{ Option.None, [incircle] },
     ],
 }
 
@@ -108,15 +108,31 @@ $ subpath : Figure -> @Str = \f =
         "M?(x - r) ?(y)a?(r) ?(r) 0 1 0 ?(2.0 * r) 0a?(r) ?(r) 0 1 0 ?(0.0 - 2.0 * r) 0Z"
     | Figure.Tri.{ a, b, c } => "M?(a.0) ?(a.1)L?(b.0) ?(b.1)L?(c.0) ?(c.1)Z"
 
-# One path per layer, in order, so later layers paint over earlier ones.
-$ svg_layer : Layer -> @Str = \l =
-    let path = fold (\acc f = acc ++ subpath f) "" l.figures in
-    "<path fill-rule=\"evenodd\" fill=\"?(css l.color)\" d=\"?(path)\"/>\n"
+# One path per layer, in order, so later layers paint over earlier ones. An
+# eraser wraps everything drawn so far in a mask that is black on its figures,
+# so the accumulator carries a count to keep mask ids distinct.
+$ svg_layer : { @Str, @Int } -> Layer -> { @Str, @Int } = \acc l =
+    let path = fold (\p f = p ++ subpath f) "" l.figures in
+    is l.color
+    | Option.Some.{ c } =>
+        { acc.0 ++ "<path fill-rule=\"evenodd\" fill=\"?(css c)\" d=\"?(path)\"/>\n", acc.1 }
+    | Option.None =>
+        let id = "erase?(acc.1)" in
+        {
+            "<mask id=\"?(id)\"><rect width=\"1\" height=\"1\" fill=\"#fff\"/>"
+                ++ "<path fill-rule=\"evenodd\" d=\"?(path)\"/></mask>\n"
+                ++ "<g mask=\"url(#?(id))\">\n" ++ acc.0 ++ "</g>\n",
+            acc.1 + 1,
+        }
+
+$ svg_background : Option Rgb -> @Str = \b =
+    is b
+    | Option.Some.{ c } => "<rect width=\"1\" height=\"1\" fill=\"?(css c)\"/>\n"
+    | Option.None       => ""
 
 $ svg : Design -> @Str = \d =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1 1\">\n"
-        ++ "<rect width=\"1\" height=\"1\" fill=\"?(css d.background)\"/>\n"
-        ++ fold (\acc l = acc ++ svg_layer l) "" d.layers
+        ++ (fold svg_layer { svg_background d.background, 0 } d.layers).0
         ++ "</svg>\n"
 
 # ---- raster: the even-odd rule, point by point ----
@@ -142,33 +158,49 @@ $ inside : Point -> Figure -> @Bool = \p f =
 $ covers : Point -> Layer -> @Bool = \p l =
     (fold (\n f = if inside p f => n + 1 else n) 0 l.figures) % 2 == 1
 
-$ color_at : Design -> Point -> Rgb = \d p =
+$ color_at : Design -> Point -> Option Rgb = \d p =
     fold (\c l = if covers p l => l.color else c) d.background d.layers
+
+# ffmpeg averages color channels without weighting them by alpha, so the color
+# hidden in a clear pixel bleeds into the edge next to it. Clear pixels take
+# the first color painted, which keeps a one-color icon's edges clean.
+$ matte : Design -> Rgb = \d =
+    let first = fold (\m l = if is_some m => m else l.color) d.background d.layers in
+    unwrap_or first Rgb.{ .r = 0, .g = 0, .b = 0 }
 
 $ push_rgb : @Str -> Rgb -> @Str = \acc c = @array_push (@array_push (@array_push acc c.r) c.g) c.b
 
-# One row of the image as RGB bytes. Rows are built separately and joined once,
+$ push_rgba : Rgb -> @Str -> Option Rgb -> @Str = \m acc o =
+    is o
+    | Option.Some.{ c } => @array_push (push_rgb acc c) 255
+    | Option.None       => @array_push (push_rgb acc m) 0
+
+# One row of the image as RGBA bytes. Rows are built separately and joined once,
 # since appending to a single growing string copies it on every byte.
-$ ppm_row : Design -> @Int -> @Int -> @Str = \d n row =
+$ pam_row : Design -> @Int -> @Int -> @Str = \d n row =
     let
         pixel = 1.0 / real_of_int n,
+        m     = matte d,
         y     = (real_of_int row + 0.5) * pixel,
         go =
             \col acc =
                 if col == n =>
                     acc
                 else
-                    go (col + 1) (push_rgb acc (color_at d { (real_of_int col + 0.5) * pixel, y })),
+                    go (col + 1) (push_rgba m acc (color_at d { (real_of_int col + 0.5) * pixel, y })),
     in
         go 0 ""
 
-# A binary PPM (P6): a tiny text header, then RGB bytes row by row. ffmpeg
+# A PAM (P7): a tiny text header, then RGBA bytes row by row. ffmpeg
 # reads it directly, so no image library is needed. Each pixel is one hard
 # sample; the anti-aliasing comes from ffmpeg averaging many of them when it
 # scales down.
-$ ppm : Design -> @Int -> @Str = \d n =
-    let go = \row rows = if row == n => rows else go (row + 1) (@vec_push rows (ppm_row d n row)) in
-    "P6\n?(n) ?(n)\n255\n" ++ STR.join "" (go 0 (@vec_new {}))
+$ pam : Design -> @Int -> @Str = \d n =
+    let
+        go     = \row rows = if row == n => rows else go (row + 1) (@vec_push rows (pam_row d n row)),
+        header = "P7\nWIDTH ?(n)\nHEIGHT ?(n)\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n",
+    in
+        header ++ STR.join "" (go 0 (@vec_new {}))
 
 # ---- output ----
 
@@ -188,9 +220,9 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =
     | Option.Some.{ d } => render d
 
 $ render : Design -> <@IO> @Int = \d =
-    let master = "site/favicon-master.ppm" in
+    let master = "site/favicon-master.pam" in
     write_file "site/favicon.svg" (svg d);
-    write_file master (ppm d 720);
+    write_file master (pam d 720);
     let
         failed =
             ffmpeg master 32 "site/favicon.png" + ffmpeg master 180 "site/apple-touch-icon.png",

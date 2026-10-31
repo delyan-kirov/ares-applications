@@ -4,6 +4,9 @@
 # web/build.ts output; web/site/index.html and playground.wasm are tracked.
 /web/site/*.js
 /web/site/cells.json
+/web/site/favicon.svg
+/web/site/favicon.png
+/web/site/apple-touch-icon.png
 
 .*
 thrax-out

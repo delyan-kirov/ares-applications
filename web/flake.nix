@@ -25,6 +25,7 @@
           # browser loads; nothing from npm reaches the page. `libffi` is for
           # the playground's native tests (`cargo test -p playground`), which
           # build the interpreter for the host, where `@extern` needs it.
+          # `ffmpeg` scales the icon FAVICON.thx renders down to its PNG sizes.
           pkgs.rustc
           pkgs.cargo
           pkgs.lld
@@ -33,6 +34,7 @@
           pkgs.typescript
           pkgs.git
           pkgs.libffi
+          pkgs.ffmpeg-headless
         ];
 
         shellHook = ''

@@ -1,8 +1,7 @@
-# Guards and the catch-all arm
+# Pattern guards
 #
-# An arm may carry a guard: `| <pat> if <cond> => ...`. When the guard fails
-# the match falls through to the next arm, and a final `| _ =>` arm catches
-# everything the others miss, here the zero case.
+# Match over a sum type using `with`. Additionally boolean guards
+# are supported using `if` after the pattern.
 
 $ @mod MAIN
 
