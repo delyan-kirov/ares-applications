@@ -11,11 +11,13 @@ $ with STR
 $ with HOST
 
 $ sum : @Vec @Int -> @Int = \xs =
-	is xs
-		| [] => 0
-		| h :: t => h + sum t
+    is xs
+    | []     => 0
+    | h :: t => h + sum t
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =
-	let xs = [1, 2, 3, 4, 5] in
-	HOST.print <| "sum [1..5] = " ++ STR.from_int (sum xs);
-	0
+    let
+        xs = [1, 2, 3, 4, 5]
+    in
+        print "sum [1..5] = ?(sum xs)";
+        0

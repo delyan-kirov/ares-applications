@@ -21,23 +21,24 @@ $ random : @Int -> @Int = @extern "WASM" "random" ""
 $ delay  : @Int -> {}  = @extern "WASM" "delay" ""
 
 $ color : {} -> @Str =
-	"rgb(" ++ STR.from_int (random 256)
-	      ++ ", " ++ STR.from_int (random 256)
-	      ++ ", " ++ STR.from_int (random 256) ++ ")"
+    "rgb(?(random 256), ?(random 256), ?(random 256))"
 
 $ withColor : ({} -> <ChangeColorEffect> {}) -> {} = \body =
-	do body {}
-	ctl k | ChangeColorEffect.recolor c => (if animate => paint c else {}) ; k {}
+    do body {}
+    ctl k
+    | ChangeColorEffect.recolor c => (if animate => paint c else {}); k {}
 
 $ spin : @Int -> <ChangeColorEffect> {} = \n =
-	if n == 0 => {}
-	else
-		let c = color {} in
-		HOST.print c ;
-		recolor c ;
-		spin (n - 1)
+    if n == 0 => {}
+    else
+        let
+            c = color {}
+        in
+            print c;
+            recolor c;
+            spin (n - 1)
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =
-	delay 150 ;
-	withColor (\u = spin 12) ;
-	0
+    delay 150;
+    withColor (\_ = spin 12);
+    0

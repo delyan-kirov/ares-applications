@@ -13,6 +13,8 @@ $ inc : @Int -> @Int = \x = x + 1
 $ dbl : @Int -> @Int = \x = x + x
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =
-	let r = 5 |> inc |> dbl in
-	HOST.print <| "5 |> inc |> dbl = " ++ STR.from_int r;
-	0
+    let
+        r = 5 |> inc |> dbl
+    in
+        print "5 |> inc |> dbl = ?(r)";
+        0

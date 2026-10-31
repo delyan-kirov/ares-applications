@@ -9,14 +9,17 @@ $ @mod MAIN
 $ with STR
 $ with HOST
 
-$ Money : @struct = cents: @Int,
+$ Money : @struct =
+    cents: @Int,
 
 $ impl_IAdd_for_Money : IAdd Money = .{ .add = \a b = Money.{ .cents = a.cents + b.cents } }
 
 $ show : Money -> @Str = \m =
-	"$" ++ STR.from_int (m.cents / 100) ++ "." ++ STR.from_int (m.cents % 100)
+    "$?(m.cents / 100).?(m.cents % 100)"
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =
-	let paid = Money.{ .cents = 150 } + Money.{ .cents = 99 } in
-	HOST.print <| "1.50 + 0.99 = " ++ show paid;
-	0
+    let
+        paid = Money.{ .cents = 150 } + Money.{ .cents = 99 }
+    in
+        print "1.50 + 0.99 = ?(show paid)";
+        0

@@ -1,15 +1,13 @@
 # Hello, Thrax
-#
-# A program is a list of typed definitions. `@main` is the entry point, the
-# one name the compiler knows: it takes the argument vector and returns the
-# exit code. `HOST.print` prints a line; `;` runs one expression for its
-# effect, then the next.
+# 
+# A program is a list of declarations starting with `$`
+# Your program will start from the special function `@main`
 
 $ @mod MAIN
 
 $ with HOST
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =
-	HOST.print "hello, Thrax";
-	HOST.print "every definition has a type, and @main returns the exit code";
+	print "hello, Thrax";
+	print "every definition has a type, and @main returns the exit code";
 	0
