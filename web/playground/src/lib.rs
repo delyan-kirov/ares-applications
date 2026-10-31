@@ -12,132 +12,22 @@
 //! page passes it one JSON-RPC message at a time and reads back what it sent.
 
 use frontend::core::CoreProgram as LoweredProgram;
-use frontend::{Ast, Item, Program};
 
 /// The playground-only module: routes I/O to JavaScript host imports (no libc
 /// on wasm). Everything else comes from the standard library the compiler
 /// carries ([`thrax::stdlib::MODULES`]), so the two can never drift apart.
 const HOST: &str = include_str!("host.thx");
 
-fn stdlib_source(name: &str) -> Option<&'static str> {
+/// A module's diagnostic path and source. The browser has no filesystem, so
+/// these are `HOST` and the embedded standard library.
+fn fetch(name: &str) -> Result<(String, String), String> {
     if name == "HOST" {
-        return Some(HOST);
+        return Ok(("HOST.thx".to_string(), HOST.to_string()));
     }
-    thrax::stdlib::source(name)
-}
-
-/// The modules a parsed program imports (`$ with MOD`).
-fn imports_of(ast: &Ast, program: &Program) -> Vec<String> {
-    ast.slice(program.items)
-        .iter()
-        .filter_map(|item| match item {
-            Item::Import { module, .. } => Some(
-                ast.slice(*module)
-                    .iter()
-                    .map(|&part| ast.text(part))
-                    .collect::<Vec<_>>()
-                    .join("."),
-            ),
-            _ => None,
-        })
-        .collect()
-}
-
-/// Postorder DFS: a module appears after every module it imports.
-fn topological_order(graph: &[Vec<usize>]) -> Vec<usize> {
-    fn visit(v: usize, graph: &[Vec<usize>], seen: &mut [bool], order: &mut Vec<usize>) {
-        if seen[v] {
-            return;
-        }
-        seen[v] = true;
-        for &w in &graph[v] {
-            visit(w, graph, seen, order);
-        }
-        order.push(v);
+    match thrax::stdlib::source(name) {
+        Some(src) => Ok((thrax::stdlib::path(name), src.to_string())),
+        None => Err(format!("cannot find module `{name}`")),
     }
-    let mut seen = vec![false; graph.len()];
-    let mut order = Vec::with_capacity(graph.len());
-    for v in 0..graph.len() {
-        visit(v, graph, &mut seen, &mut order);
-    }
-    order
-}
-
-/// Every module of a compilation, parsed into one shared arena.
-struct Loaded<'a> {
-    ast: Ast,
-    /// Per module, parallel to `programs`: its name and source text. The source
-    /// is what a diagnostic renders against.
-    sources: Vec<(String, &'a str)>,
-    programs: Vec<Program>,
-    index: std::collections::HashMap<String, usize>,
-    root: usize,
-}
-
-/// Parse the user source and, transitively, every standard-library module it
-/// imports, into one arena. Mirrors the driver's `load_core`, but every
-/// dependency comes from [`stdlib_source`] rather than from disk.
-///
-/// A module is parsed exactly once: its imports are read off the AST, not off a
-/// throwaway re-parse of its text.
-fn load(user_src: &str) -> Result<Loaded<'_>, String> {
-    let mut ast = Ast::new();
-    let mut sources: Vec<(String, &str)> = Vec::new();
-    let mut programs: Vec<Program> = Vec::new();
-    let mut index: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-
-    // The root module names itself (`$ @mod NAME`); a source too broken to parse
-    // has no name to report a diagnostic against, so it borrows the usual one.
-    let root_program = match frontend::parse_into(ast, user_src) {
-        Ok((next, p)) => {
-            ast = next;
-            p
-        }
-        Err(diag) => return Err(diag.render(user_src, "MAIN")),
-    };
-    let root_name = ast.text(root_program.module).to_string();
-    let mut pending = imports_of(&ast, &root_program);
-    index.insert(root_name.clone(), 0);
-    sources.push((root_name, user_src));
-    programs.push(root_program);
-
-    // `CORE` is implicitly imported into every module (its `to_string`, its
-    // instances, the operators) and `C` is the auto-injected libc namespace,
-    // reachable qualified with no import. Both are always part of the program.
-    pending.push("CORE".to_string());
-    pending.push("C".to_string());
-
-    while let Some(name) = pending.pop() {
-        if index.contains_key(&name) {
-            continue;
-        }
-        let Some(src) = stdlib_source(&name) else {
-            return Err(format!("cannot find module `{name}`"));
-        };
-        let program = match frontend::parse_into(ast, src) {
-            Ok((next, p)) => {
-                ast = next;
-                p
-            }
-            Err(diag) => return Err(diag.render(src, &name)),
-        };
-        for imp in imports_of(&ast, &program) {
-            if !index.contains_key(&imp) {
-                pending.push(imp);
-            }
-        }
-        index.insert(name.clone(), programs.len());
-        sources.push((name, src));
-        programs.push(program);
-    }
-
-    Ok(Loaded {
-        ast,
-        sources,
-        programs,
-        index,
-        root: 0,
-    })
 }
 
 /// What to produce from a source, matching the site's mode selector.
@@ -205,88 +95,10 @@ fn dump_ast(user_src: &str) -> Result<String, String> {
     }
 }
 
-/// The pipeline up to (not including) execution: load, parse, check, and lower
-/// every module against the in-memory standard library. Returns the lowered
-/// modules, root first.
+/// Load, check and lower `user_src` and every module it imports, root first,
+/// through the same pipeline as the native compiler.
 fn pipeline(user_src: &str) -> Result<Vec<LoweredProgram>, String> {
-    let Loaded {
-        ast,
-        sources,
-        programs,
-        index,
-        root,
-    } = load(user_src)?;
-
-    // Dependency graph (edges point at imports).
-    let mut graph = vec![Vec::new(); programs.len()];
-    for (i, program) in programs.iter().enumerate() {
-        for name in imports_of(&ast, program) {
-            if let Some(&j) = index.get(&name) {
-                graph[i].push(j);
-            }
-        }
-    }
-
-    // Type-check in dependency order, `C` and `CORE` first: `C` qualified-only
-    // (`C.sqrt`), `CORE` bare (its `to_string` and its instances), injected
-    // into every other module. Mirrors the driver.
-    let c_idx = index.get("C").copied();
-    let core_idx = index.get("CORE").copied();
-    let mut order = topological_order(&graph);
-    for &pre in [core_idx, c_idx].iter().flatten() {
-        order.retain(|&i| i != pre);
-        order.insert(0, pre);
-    }
-    // One type store for the whole compilation: a `Type` is a handle into it, so
-    // a type crossing a module boundary has to address the same store.
-    let types = std::rc::Rc::new(frontend::Types::new());
-    let mut checkers: Vec<Option<frontend::Checker>> = (0..programs.len()).map(|_| None).collect();
-    for i in order {
-        let mut checker = frontend::Checker::new(&ast, types.clone());
-        if let Some(c) = c_idx {
-            if c != i && Some(i) != core_idx {
-                checker.import_qualified(checkers[c].as_ref().expect("C checked first"));
-            }
-        }
-        if let Some(core) = core_idx {
-            if core != i && Some(i) != c_idx {
-                checker.import_from(checkers[core].as_ref().expect("CORE checked first"));
-            }
-        }
-        for &dep in &graph[i] {
-            checker.import_from(checkers[dep].as_ref().expect("dependency checked first"));
-        }
-        match checker.check_program(&programs[i]) {
-            Ok(_) => checkers[i] = Some(checker),
-            Err(diag) => {
-                let (name, src) = &sources[i];
-                return Err(diag.render(src, name));
-            }
-        }
-    }
-    let checkers: Vec<frontend::Checker> =
-        checkers.into_iter().map(|c| c.expect("all checked")).collect();
-
-    let resolved = frontend::collect_resolved(&checkers);
-
-    // Lower every module (root first so its names win the unqualified fallback).
-    let mut lower_order: Vec<usize> = (0..programs.len()).collect();
-    lower_order.sort_by_key(|&i| i != root);
-    let lowered: Vec<LoweredProgram> = lower_order
-        .iter()
-        .map(|&i| frontend::desugar_program(&ast, &programs[i], &resolved))
-        .collect();
-
-    if !lowered[0].globals.iter().any(|(n, _)| n == frontend::ENTRY) {
-        return Err(format!(
-            "module `{}` has no `$ {} : {}` to run",
-            sources[root].0,
-            frontend::ENTRY,
-            frontend::ENTRY_SIG
-        ));
-    }
-
-    Ok(lowered)
+    thrax::driver::compile_program(user_src, &fetch)
 }
 
 // -- the wasm C-ABI seam ----------------------------------------------------
@@ -412,9 +224,9 @@ mod tests {
     use super::run_source;
     use utilities::Json;
 
-    // Every module a cell can import has to type-check in the playground's own
-    // module graph, which differs from the driver's: `IO` and friends are
-    // reached without a filesystem, and `C` is stubbed by the JS host.
+    // Every module a cell can import has to type-check with no filesystem behind
+    // it: `IO` and friends come from the embedded stdlib, and `C` is stubbed by
+    // the JS host.
     #[test]
     fn every_bundled_module_is_importable() {
         let names = thrax::stdlib::MODULES.iter().map(|(n, _)| *n).chain(["HOST"]);
@@ -494,6 +306,15 @@ mod tests {
                    $ with STR\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args =\n\
                    \tif STR.from_int 123 == \"123\" => 0 else 1\n";
+        assert_eq!(run_source(src), "exit 0");
+    }
+
+    #[test]
+    fn imports_under_an_alias() {
+        let src = "$ @mod MAIN\n\
+                   $ with S = STR\n\
+                   $ @main : @Vec @Str -> <@IO> @Int = \\args =\n\
+                   \tif S.from_int 123 == \"123\" => 0 else 1\n";
         assert_eq!(run_source(src), "exit 0");
     }
 
