@@ -30,6 +30,10 @@ self-contained.
   wasm64. Every stage runs on algebraic effects: the preprocessor is a
   coroutine that the parser pulls tokens from, and code generation falls back
   to flattening a function when a jump does not fit structured control flow.
+- **[zalmoxis](zalmoxis/)**: a line counter in the manner of tokei: code,
+  comments and blanks per language, with tokei's rules and its walk
+  (gitignore, hidden files). The tree is walked and counted in parallel, and
+  on ordinary repositories it runs within about 1.3x of tokei.
 - **[web](web/)**: the browser playground. The compiler and its language
   server built to `wasm32-unknown-unknown` and driven from a small TypeScript
   page with no dependencies, so every example is compiled, run and checked as

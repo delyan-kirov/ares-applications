@@ -1,0 +1,147 @@
+$ @mod TEST
+
+#-
+ - \file TEST.thx
+ - \info zalmoxis's checks, run at compile time: `thrax check TEST.thx` is the
+ -       test run. The line counts are the ones tokei gives for the same text.
+ -#
+
+$ with STR
+$ with VEC
+$ with COUNT
+$ with LANGS
+$ with WALK
+
+# The counts of `text` read as the language of a file named `name`, as
+# { code, comments, blanks }.
+$ counts : { name: @Str, text: @Str } -> { @Int, @Int, @Int } =
+    let
+        l = @vec_get LANGS.table.langs (detect LANGS.table name),
+        c =
+            COUNT.count (COUNT.syntax { l.line, l.docs, l.blocks, l.nested, l.quotes, l.prose })
+                text,
+    in
+        { c.code, c.comments, c.blanks }
+
+$ same : { @Int, @Int, @Int } -> { @Int, @Int, @Int } -> @Bool = \a b =
+    a.0 == b.0 && a.1 == b.1 && a.2 == b.2
+
+# ---- line classes ----
+
+# A blank line inside a block comment is a comment; a string is code, and so
+# is a comment opener inside one; code before a comment makes the line code.
+$ c_text : @Str =
+    "/* a\n\n   b */\nint x; // c\n// d\n  \n\"/* not */\" x\n\"a\nb\" c\n/* x */ int y;\nint z; /* q\n */\n"
+
+$ @e <| assert (same (counts { "a.c", c_text }) { 6, 5, 1 }) "C: comment, string and blank rules"
+
+# Rust block comments nest; doc comments are comments, but an empty one is blank.
+$ rust_text : @Str =
+    "fn main() {\n    /* outer /* inner */ still */\n    let s = \"//\";\n}\n/// doc\n///\n//! inner\n"
+
+$ @e <| assert (same (counts { "b.rs", rust_text }) { 3, 3, 1 }) "Rust: nesting and doc comments"
+
+# A docstring is a string, so its lines are code.
+$ py_text : @Str = "# c\nx = 1 # c\n\"\"\"\ndoc\n\"\"\"\ns = \"\"\"a\nb\"\"\"\n\n"
+
+$ @e <| assert (same (counts { "c.py", py_text }) { 6, 1, 1 }) "Python: docstrings are code"
+
+# A line that starts inside a block comment is a comment, code after the close
+# notwithstanding.
+$ @e
+    <| assert (same (counts { "d.c", "/* a\n */ int y;\n" }) { 0, 2, 0 })
+        "C: a line opening in a comment"
+
+# A backslash escapes the next byte outside a string too: the quote of `'"'`
+# opens no string, so the blank line after it is blank.
+$ @e
+    <| assert (same (counts { "e.c", "c = '\\\"'; x;\n\n" }) { 1, 0, 1 })
+        "C: an escaped quote opens no string"
+
+# A string left open at the end of a line keeps the next lines code.
+$ @e
+    <| assert (same (counts { "f.c", "s = \"a\\\n\nb\";\n" }) { 3, 0, 0 })
+        "C: a string across lines"
+
+# A byte-order mark is not part of the first line; a last line needs no newline.
+$ @e
+    <| assert (same (counts { "g.c", "\xef\xbb\xbf\nx;" }) { 1, 0, 1 })
+        "C: byte-order mark and last line"
+
+# Markdown is prose: every non-blank line is a comment.
+$ @e <| assert (same (counts { "h.md", "# Title\n\ntext `code`\n" }) { 0, 2, 1 }) "Markdown: prose"
+
+# Thrax: `#` lines and nesting `#- -#` blocks.
+$ @e
+    <| assert (same (counts { "i.thx", "#- a #- b -# c -#\n$ x : @Int = 1 # one\n\n" }) { 1, 1, 1 })
+        "Thrax: comments"
+
+# ---- detection ----
+
+$ lang_of : @Str -> @Str = \name =
+    let i = detect LANGS.table name in if i < 0 => "" else (@vec_get LANGS.table.langs i).name
+
+$ @e <| assert (lang_of "main.rs" == "Rust") "detect: by extension"
+
+$ @e <| assert (lang_of "LIB.H" == "C Header") "detect: extensions compare lowercase"
+
+$ @e <| assert (lang_of "Makefile" == "Makefile") "detect: by exact name"
+
+$ @e <| assert (lang_of "notes.unknown" == "") "detect: an unknown extension"
+
+$ @e <| assert (lang_of ".bashrc" == "") "detect: a dotfile has no extension"
+
+$ shebang_of : @Str -> @Str = \body =
+    let i = detect_shebang LANGS.table body in
+    if i < 0 => "" else (@vec_get LANGS.table.langs i).name
+
+$ @e <| assert (shebang_of "#!/bin/sh\necho" == "Shell") "detect: a #! line"
+
+$ @e <| assert (shebang_of "#! /usr/bin/env  python3\n" == "Python") "detect: #! through env"
+
+# ---- ignore rules ----
+
+$ @e <| assert (glob "*.c" "a.c" && !(glob "*.c" "a.h")) "glob: star"
+
+$ @e <| assert (!(glob "a*" "a/b")) "glob: a star stays within a segment"
+
+$ @e
+    <| assert (glob "a/**/b" "a/x/y/b" && glob "a/**/b" "a/b")
+        "glob: double star, zero or more directories"
+
+$ @e
+    <| assert (glob "[Bb]in" "Bin" && glob "[!a-c]x" "dx" && !(glob "[!a-c]x" "bx")) "glob: classes"
+
+$ @e <| assert (glob "?.c" "a.c" && !(glob "?.c" "ab.c")) "glob: question mark"
+
+$ rules : @Vec Rule =
+    parse_rules "r/" "# comment\n\ntarget\n*.o\n!keep.o\n/top/\ndoc/*.md\n[Tt]mp*\n"
+
+$ @e <| assert (@vec_len rules == 6) "rules: comments and blank lines hold none"
+
+$ ignored : @Str -> @Str -> @Bool -> @Bool = \path name dir =
+    is verdict rules path name dir | Verdict.Ignored => @true | _ => @false
+
+$ @e <| assert (ignored "r/x/target" "target" @true) "rules: a name at any depth"
+
+$ @e
+    <| assert (ignored "r/a.o" "a.o" @false && !(ignored "r/keep.o" "keep.o" @false))
+        "rules: a later negation wins"
+
+$ @e
+    <| assert (ignored "r/top" "top" @true && !(ignored "r/top" "top" @false))
+        "rules: trailing slash is directories only"
+
+$ @e <| assert (!(ignored "r/x/top" "top" @true)) "rules: a leading slash anchors"
+
+$ @e
+    <| assert (ignored "r/doc/a.md" "a.md" @false && !(ignored "r/doc/x/a.md" "a.md" @false))
+        "rules: an inner slash anchors"
+
+$ @e <| assert (ignored "r/Tmp1" "Tmp1" @true) "rules: a class and a star"
+
+$ @e <| assert (skipped [] "r/.hidden" ".hidden" @false) "walk: hidden entries are skipped"
+
+$ @e
+    <| assert (!(skipped (parse_rules "r/" "!/.github/") "r/.github" ".github" @true))
+        "walk: a whitelist beats hidden"
