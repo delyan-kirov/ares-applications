@@ -146,13 +146,11 @@ $ cross : Point -> Point -> Point -> Real = \p q s =>
 # round its corners are listed.
 $ inside : Point -> Figure -> @Bool = \p f =>
     f |> \
-    | Figure.Disc.{ x, y, r } => (p.0 - x) * (p.0 - x) + (p.1 - y) * (p.1 - y) < r * r
-    | Figure.Tri.{ a, b, c } =>
-        let
-            u = cross a b p,
-            v = cross b c p,
-            w = cross c a p,
-        in
+        | Figure.Disc.{ x, y, r } => (p.0 - x) * (p.0 - x) + (p.1 - y) * (p.1 - y) < r * r
+        | Figure.Tri.{ a, b, c } =>
+            let u = cross a b p in
+            let v = cross b c p in
+            let w = cross c a p in
             if u > 0.0 && v > 0.0 && w > 0.0 => @true else u < 0.0 && v < 0.0 && w < 0.0
 
 $ covers : Point -> Layer -> @Bool = \p l =>
@@ -178,29 +176,28 @@ $ push_rgba : Rgb -> @Str -> Option Rgb -> @Str = \m acc o =>
 # One row of the image as RGBA bytes. Rows are built separately and joined once,
 # since appending to a single growing string copies it on every byte.
 $ pam_row : Design -> @Int -> @Int -> @Str = \d n row =>
-    let
-        pixel = 1.0 / real_of_int n,
-        m     = matte d,
-        y     = (real_of_int row + 0.5) * pixel,
-        go =
-            \col acc =>
-                if col == n =>
-                    acc
-                else
-                    go (col + 1) (push_rgba m acc (color_at d { (real_of_int col + 0.5) * pixel, y })),
+    let pixel = 1.0 / real_of_int n in
+    let m = matte d in
+    let y = (real_of_int row + 0.5) * pixel in
+    let go =
+        \col acc =>
+            if col == n =>
+                acc
+            else
+                go (col + 1) (push_rgba m acc (color_at d { (real_of_int col + 0.5) * pixel, y }))
     in
-        go 0 ""
+    go 0 ""
 
 # A PAM (P7): a tiny text header, then RGBA bytes row by row. ffmpeg
 # reads it directly, so no image library is needed. Each pixel is one hard
 # sample; the anti-aliasing comes from ffmpeg averaging many of them when it
 # scales down.
 $ pam : Design -> @Int -> @Str = \d n =>
-    let
-        go     = \row rows => if row == n => rows else go (row + 1) (@vec_push rows (pam_row d n row)),
-        header = "P7\nWIDTH ?(n)\nHEIGHT ?(n)\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n",
+    let go =
+        \row rows => if row == n => rows else go (row + 1) (@vec_push rows (pam_row d n row))
     in
-        header ++ STR.join "" (go 0 (@vec_new {}))
+    let header = "P7\nWIDTH ?(n)\nHEIGHT ?(n)\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n" in
+    header ++ STR.join "" (go 0 (@vec_new {}))
 
 # ---- output ----
 
@@ -223,12 +220,11 @@ $ render : Design -> <@IO> @Int = \d =>
     let master = "site/favicon-master.pam" in
     write_file "site/favicon.svg" (svg d);
     write_file master (pam d 720);
-    let
-        failed =
-            ffmpeg master 32 "site/favicon.png" + ffmpeg master 180 "site/apple-touch-icon.png",
+    let failed =
+        ffmpeg master 32 "site/favicon.png" + ffmpeg master 180 "site/apple-touch-icon.png"
     in
-        remove_file master;
-        if failed == 0 =>
-            println "wrote site/favicon.svg, site/favicon.png, site/apple-touch-icon.png"; 0
-        else
-            eprintln "ffmpeg failed"; 1
+    remove_file master;
+    if failed == 0 =>
+        println "wrote site/favicon.svg, site/favicon.png, site/apple-touch-icon.png"; 0
+    else
+        eprintln "ffmpeg failed"; 1

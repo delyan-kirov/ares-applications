@@ -93,9 +93,12 @@ $ row_y : @Int -> @Int32 = \i => top + px i * row_stride
 # The list row under (mx, my), if any. The gap below a row belongs to no row.
 $ row_at : @Int32 -> @Int32 -> @Int -> Option @Int = \mx my rows =>
     let r : @Int = @cast ((my - top) / row_stride) in
-    if mx < pad || mx >= pad + btn_w || my < top => Option.None,
-    r < rows && (my - top) % row_stride < btn_h => Option.Some.{ r },
-    else Option.None
+    if mx < pad || mx >= pad + btn_w || my < top =>
+        Option.None
+    else if r < rows && (my - top) % row_stride < btn_h =>
+        Option.Some.{ r }
+    else
+        Option.None
 
 # -- the model ---------------------------------------------------------------
 # The app scan is a coroutine (see `scan_apps`). While it runs, the model holds
@@ -141,7 +144,7 @@ $ refilter : Model -> Model = \m => Model.{ .visible = matching m.apps m.query |
 
 # How many list rows are on screen.
 $ rows : Model -> @Int = \m =>
-    let n = @vec_len m.visible in if not m.typed => 0, n < rows_fit => n else rows_fit
+    let n = @vec_len m.visible in if not m.typed => 0 else if n < rows_fit => n else rows_fit
 
 # -- app discovery -----------------------------------------------------------
 # Collect the `.desktop` file paths in every XDG `applications` directory and let
@@ -190,10 +193,14 @@ $ is_byte : @Int -> @Bool = \c => if c < 0 => @false else c <= 255
 # One line from a stream, without its '\n'; `None` once the stream has ended.
 $ read_line : @Int -> @Str -> <@IO> Option @Str = \f acc =>
     let c = C.fgetc f in
-    if c == 10 => Option.Some.{ acc },
-    is_byte c => read_line f (@array_push acc c),
-    STR.is_empty acc => Option.None,
-    else Option.Some.{ acc }
+    if c == 10 =>
+        Option.Some.{ acc }
+    else if is_byte c =>
+        read_line f (@array_push acc c)
+    else if STR.is_empty acc =>
+        Option.None
+    else
+        Option.Some.{ acc }
 
 $ parse_app : @Str -> Option App = \line =>
     split line "\t" |> \
@@ -234,8 +241,8 @@ $ scanning : ({} -> <Feed, Ui, @IO> {}) -> <Ui, @IO> Scan = \body =>
         Scan.Done
 
 # The scan before its first slice. A failed `popen` (0) finds nothing.
-$ start_scan : @Int -> Scan = \f =>
-    Scan.Paused.{ \go => scanning <| \_ => if f == 0 => {}, go => scan_apps f else (pclose f; {}) }
+$ start_scan : @Int -> Scan = \f => Scan.Paused.{\go =>
+    scanning <| \_ => if f == 0 => {} else if go => scan_apps f else (pclose f; {})}
 
 # Resume the scan with `go`, then store wherever it stopped next.
 $ resume_scan : @Bool -> <Ui, @IO> {} = \go =>
@@ -254,7 +261,12 @@ $ stop_scan : {} -> <Ui, @IO> {} = \_ => resume_scan @false
 # each printable ASCII code crosses the width boundary with `@cast`.
 $ read_chars : @Str -> @Str = \q =>
     let c = getCharPressed {} in
-    if c == 0 => q, c >= 32 && c < 127 => read_chars (q ++ from_byte (@cast c)), else read_chars q
+    if c == 0 =>
+        q
+    else if c >= 32 && c < 127 =>
+        read_chars (q ++ from_byte (@cast c))
+    else
+        read_chars q
 
 $ drop_last : @Str -> @Str = \s => if STR.len s > 0 => substr s 0 (STR.len s - 1) else s
 
@@ -267,28 +279,30 @@ $ key_step : I32 -> @Bool = \k => pressed k || isKeyPressedRepeat k == 1
 # Typed chars, backspace, and escape (which clears the query and any output).
 # Any change to the query resets the scroll and drops the output.
 $ edit_step : {} -> <Ui> {} = \_ =>
-    let m = Ui.model {},
-        q1 = read_chars m.query,
-        q2 = if key_step key_backspace => drop_last q1 else q1,
-        typed = if STR.is_empty q2 => m.typed else @true in
-    if pressed key_escape => Ui.set (refilter Model.{ .query = "", .output = "", .off = 0 | m }),
-    q2 == m.query => {},
-    else Ui.set (refilter Model.{ .query = q2, .output = "", .off = 0, .typed = typed | m })
+    let m = Ui.model {} in
+    let q1 = read_chars m.query in
+    let q2 = if key_step key_backspace => drop_last q1 else q1 in
+    let typed = if STR.is_empty q2 => m.typed else @true in
+    if pressed key_escape =>
+        Ui.set (refilter Model.{ .query = "", .output = "", .off = 0 | m })
+    else if q2 == m.query =>
+        {}
+    else
+        Ui.set (refilter Model.{ .query = q2, .output = "", .off = 0, .typed = typed | m })
 
 # This frame's scroll intent in list rows: mouse wheel (a notch is one row),
 # arrow keys by one row, page keys by a whole page. Positive scrolls DOWN.
 $ scroll_delta : {} -> @Int = \_ =>
-    let wheel : @Int = @cast (0 - f2i32 (getMouseWheelMove {})),
-        keys = (if key_step key_down => 1 else 0) - (if key_step key_up => 1 else 0),
-        pages = (
-            if key_step key_page_down => rows_fit else 0
-        ) - (if key_step key_page_up => rows_fit else 0) in
+    let wheel : @Int = @cast (0 - f2i32 (getMouseWheelMove {})) in
+    let keys = (if key_step key_down => 1 else 0) - (if key_step key_up => 1 else 0) in
+    let pages = (if key_step key_page_down => rows_fit else 0)
+        - (if key_step key_page_up => rows_fit else 0) in
     wheel + keys + pages
 
 # Clamp `off` into [0, n - rows_fit]: never past the last full page, never below 0.
 $ clamp_off : @Int -> @Int -> @Int = \off n =>
     let last = if n > rows_fit => n - rows_fit else 0 in
-    if off < 0 => 0, off > last => last else off
+    if off < 0 => 0 else if off > last => last else off
 
 $ scroll_step : {} -> <Ui> {} = \_ =>
     let d = scroll_delta {} in
@@ -325,11 +339,13 @@ $ timed_out : @Int -> @Bool = \status => (status / 256) % 256 == 124
 # message instead of partial output. The command runs inside its own `sh -c` so
 # `timeout` covers the whole pipeline, not just the first word.
 $ run_capture : @Str -> <@IO> @Str = \cmd =>
-    let wrapped = "timeout -k 1 " ++ cmd_timeout ++ " sh -c " ++ shell_quote cmd ++ " 2>&1",
-        f = popen { wrapped, "r" } in
-    if f == 0 => ""
+    let wrapped = "timeout -k 1 " ++ cmd_timeout ++ " sh -c " ++ shell_quote cmd ++ " 2>&1" in
+    let f = popen { wrapped, "r" } in
+    if f == 0 =>
+        ""
     else
-        let body = drain f 2000 "", status = pclose f in
+        let body = drain f 2000 "" in
+        let status = pclose f in
         if timed_out status => "command timed out" else body
 
 # Hand the query to the web browser as a search, spaces percent-escaped as `+`.
@@ -408,14 +424,22 @@ $ widest : Font -> @Str -> @Int32 = \font s =>
 # below `base_h`; with output it grows to the longest line and every line, both
 # capped against the screen. raylib is only asked when the size changes.
 $ resize_step : Font -> <Ui> {} = \font =>
-    let m = Ui.model {},
-        w = if STR.is_empty m.output => base_w
-        else min_i32 1200 (max_i32 base_w (widest font m.output + 2 * pad)),
-        h = if STR.is_empty m.output => max_i32 base_h (list_height (rows m))
-        else min_i32 800 (top + px (@vec_len (split m.output "\n")) * line_h + pad) in
-    when (
-        w != m.win_w || h != m.win_h
-    ) <| \_ => setWindowSize { .p0 = w, .p1 = h }; Ui.set Model.{ .win_w = w, .win_h = h | m }
+    let m = Ui.model {} in
+    let w =
+        if STR.is_empty m.output =>
+            base_w
+        else
+            min_i32 1200 (max_i32 base_w (widest font m.output + 2 * pad))
+    in
+    let h =
+        if STR.is_empty m.output =>
+            max_i32 base_h (list_height (rows m))
+        else
+            min_i32 800 (top + px (@vec_len (split m.output "\n")) * line_h + pad)
+    in
+    when
+        (w != m.win_w || h != m.win_h) <| \_ =>
+            setWindowSize { .p0 = w, .p1 = h }; Ui.set Model.{ .win_w = w, .win_h = h | m }
 
 # A hovered row is a filled rounded ("oval") box; an idle row is just its label
 # fenced by two thin divider lines (top and bottom edges).
@@ -448,12 +472,12 @@ $ draw_row : Font -> App -> @Int32 -> @Bool -> {} = \font a y hover =>
     text font a.label (pad + 16) (y + 14) ui_fs text_col
 
 $ draw_list : Font -> Model -> {} = \font m =>
-    let n = rows m, hover = row_at (getMouseX {}) (getMouseY {}) n in
-    for (
-        range 0 (n - 1)
-    ) <| \i =>
-        let hovered = hover |> \ | Option.Some.{ r } => r == i | _ => @false in
-        draw_row font (@vec_get m.visible (m.off + i)) (row_y i) hovered
+    let n = rows m in
+    let hover = row_at (getMouseX {}) (getMouseY {}) n in
+    for
+        (range 0 (n - 1)) <| \i =>
+            let hovered = hover |> \ | Option.Some.{ r } => r == i | _ => @false in
+            draw_row font (@vec_get m.visible (m.off + i)) (row_y i) hovered
 
 $ draw_step : Font -> <Ui, @IO> {} = \font =>
     resize_step font;
@@ -484,15 +508,16 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =>
     let font = loadFontEx { .p0 = "bin/font.ttf", .p1 = font_atlas, .p2 = C.null, .p3 = 0 } in
     setTextureFilter { .p0 = font.texture, .p1 = texture_filter_bilinear };
     let m0 = Model.{
-            .apps = [],
-            .scan = start_scan scan,
-            .query = "",
-            .visible = [],
-            .output = "",
-            .off = 0,
-            .typed = @false,
-            .win_w = base_w,
-            .win_h = base_h,
-        } in
-    defer closeWindow {}, unloadFont font in
+        .apps = [],
+        .scan = start_scan scan,
+        .query = "",
+        .visible = [],
+        .output = "",
+        .off = 0,
+        .typed = @false,
+        .win_w = base_w,
+        .win_h = base_h,
+    } in
+    defer closeWindow {} in
+    defer unloadFont font in
     (with_model m0 <| \_ => defer stop_scan {} in for forever <| \_ => frame font); 0

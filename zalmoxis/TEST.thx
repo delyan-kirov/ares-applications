@@ -15,13 +15,11 @@ $ with WALK
 # The counts of `text` read as the language of a file named `name`, as
 # { code, comments, blanks }.
 $ counts : { name: @Str, text: @Str } -> { @Int, @Int, @Int } =
-    let
-        l = @vec_get LANGS.table.langs (detect LANGS.table name),
-        c =
-            COUNT.count (COUNT.syntax { l.line, l.docs, l.blocks, l.nested, l.quotes, l.prose })
-                text,
+    let l = @vec_get LANGS.table.langs (detect LANGS.table name) in
+    let c =
+        COUNT.count (COUNT.syntax { l.line, l.docs, l.blocks, l.nested, l.quotes, l.prose }) text
     in
-        { c.code, c.comments, c.blanks }
+    { c.code, c.comments, c.blanks }
 
 $ same : { @Int, @Int, @Int } -> { @Int, @Int, @Int } -> @Bool = \a b =>
     a.0 == b.0 && a.1 == b.1 && a.2 == b.2

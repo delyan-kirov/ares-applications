@@ -88,7 +88,8 @@ update the model; `break` (CORE's `Loop` effect) ends the loop, and `defer` clos
 the window however it ends:
 
 ```
-defer closeWindow {}, unloadFont font in
+defer closeWindow {} in
+defer unloadFont font in
 (with_model m0 <| \u =>
 	defer stop_scan {} in
 	for forever <| \_ => frame font)

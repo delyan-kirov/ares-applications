@@ -36,19 +36,16 @@ $ Args : @struct =
     bad: @Str,
 
 $ @main : @Vec @Str -> <@IO> @Int = \argv =>
-    let
-        a = parse_args argv 1
-            Args.{ .roots = [], .excludes = [], .files = @false, .help = @false, .bad = "" }
-    in
-        if
-            a.help                => print usage; 0,
-            !(STR.is_empty a.bad) => eprintln ("zalmoxis: " ++ a.bad); eprint usage; 2,
-            else
-                let
-                    roots = if @vec_len a.roots == 0 => ["."] else a.roots,
-                    tally = count_all { roots, a.excludes, a.files },
-                in
-                    print (render tally a.files); 0
+    let a = parse_args argv 1
+        Args.{ .roots = [], .excludes = [], .files = @false, .help = @false, .bad = "" } in
+    if a.help =>
+        print usage; 0
+    else if !(STR.is_empty a.bad) =>
+        eprintln ("zalmoxis: " ++ a.bad); eprint usage; 2
+    else
+        let roots = if @vec_len a.roots == 0 => ["."] else a.roots in
+        let tally = count_all { roots, a.excludes, a.files } in
+        print (render tally a.files); 0
 
 $ parse_args : @Vec @Str -> @Int -> Args -> Args = \argv i a =>
     if i >= @vec_len argv =>
@@ -107,16 +104,14 @@ $ big_file : @Int = 131072
 
 # Every file is read and counted by the walker task that finds it.
 $ count_all : { roots: @Vec @Str, excludes: @Vec @Str, keep: @Bool } -> <@IO> Tally =
-    let
-        w    = Walker.{
-            .init = \_ => Counter.{ .tally = empty {}, keep, .big = [] },
-            .visit = visit,
-            .merge = \a b =>
-                Counter.{ .tally = merge a.tally b.tally, keep, .big = append a.big b.big },
-        },
-        done = WALK.fold { roots, excludes, w },
-    in
-        foldl (\t f => merge t (PAR.get f)) done.tally done.big
+    let w = Walker.{
+        .init = \_ => Counter.{ .tally = empty {}, keep, .big = [] },
+        .visit = visit,
+        .merge = \a b =>
+            Counter.{ .tally = merge a.tally b.tally, keep, .big = append a.big b.big },
+    } in
+    let done = WALK.fold { roots, excludes, w } in
+    foldl (\t f => merge t (PAR.get f)) done.tally done.big
 
 $ empty : {} -> Tally = \_ => Tally.{ .stats = [], .per = [] }
 
@@ -130,15 +125,12 @@ $ visit_one : Counter -> Found -> <@IO> Counter = \c f =>
     read_file f.path |> \
         | Option.Some.{ body } =>
             let syn = @vec_get syntaxes f.lang in
-            if
-                @array_len body >= big_file =>
-                    let
-                        keep = c.keep,
-                        task = spawn (\_ => count_body (empty {}) keep f syn body)
-                    in
-                        Counter.{ .big = @vec_push c.big task | c },
-                else
-                    Counter.{ .tally = count_body c.tally c.keep f syn body | c }
+            if @array_len body >= big_file =>
+                let keep = c.keep in
+                let task = spawn (\_ => count_body (empty {}) keep f syn body) in
+                Counter.{ .big = @vec_push c.big task | c }
+            else
+                Counter.{ .tally = count_body c.tally c.keep f syn body | c }
         | _ => c
 
 $ syntax_of : Lang -> Syntax = \l =>
@@ -147,23 +139,21 @@ $ syntax_of : Lang -> Syntax = \l =>
 # The tally's fields are read out first, so the tally is gone and its vectors
 # are uniquely held when they are updated, in place.
 $ count_body : Tally -> @Bool -> Found -> Syntax -> @Str -> Tally = \t keep f syn body =>
-    let
-        c     = COUNT.count syn body,
-        stats = t.stats,
-        per   = t.per
-    in
-        Tally.{
-            .stats = add_stat stats
-                LangStat.{
-                    .lang = f.lang,
-                    .files = 1,
-                    .lines = c.code + c.comments + c.blanks,
-                    .code = c.code,
-                    .comments = c.comments,
-                    .blanks = c.blanks,
-                },
-            .per = if keep => @vec_push per PerFile.{ f.path, f.lang, c } else per,
-        }
+    let c = COUNT.count syn body in
+    let stats = t.stats in
+    let per = t.per in
+    Tally.{
+        .stats = add_stat stats
+            LangStat.{
+                .lang = f.lang,
+                .files = 1,
+                .lines = c.code + c.comments + c.blanks,
+                .code = c.code,
+                .comments = c.comments,
+                .blanks = c.blanks,
+            },
+        .per = if keep => @vec_push per PerFile.{ f.path, f.lang, c } else per,
+    }
 
 $ add_stat : @Vec LangStat -> LangStat -> @Vec LangStat = \stats x => add_stat_at stats x 0
 
@@ -212,23 +202,14 @@ $ rule_line : @Str = " " ++ repeat "─" 77 ++ "\n"
 $ heavy_line : @Str = " " ++ repeat "━" 77 ++ "\n"
 
 $ render : Tally -> @Bool -> @Str = \t files =>
-    let
-        rs   = rows t.stats,
-        sum =
-            foldl (\s r => add_rows s r.0)
-                (
-                    Row.{
-                        .name = "Total",
-                        .files = 0,
-                        .lines = 0,
-                        .code = 0,
-                        .comments = 0,
-                        .blanks = 0
-                    }
-                ) rs,
-        body = foldl (\out r => out ++ (if files => language_block t.per r else line r.0)) "" rs,
+    let rs = rows t.stats in
+    let sum =
+        foldl (\s r => add_rows s r.0)
+            (Row.{ .name = "Total", .files = 0, .lines = 0, .code = 0, .comments = 0, .blanks = 0 })
+            rs
     in
-        heavy_line ++ header ++ rule_line ++ body ++ rule_line ++ line sum ++ heavy_line
+    let body = foldl (\out r => out ++ (if files => language_block t.per r else line r.0)) "" rs in
+    heavy_line ++ header ++ rule_line ++ body ++ rule_line ++ line sum ++ heavy_line
 
 $ add_rows : Row -> Row -> Row = \s r => Row.{
     .name = s.name,

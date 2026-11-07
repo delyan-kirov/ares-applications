@@ -512,9 +512,9 @@ $ r_tu : @Str -> Target -> @Int -> { TU, @Int } = \s target i =>
     let ps = r_list r_proto s gs.1 in
     let ags = r_list r_agg_entry s ps.1 in
     let frs = r_list r_fn_refs s ags.1 in
-    let protos = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_str ps.0,
-        aggs = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_int ags.0,
-        refs = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_str frs.0 in
+    let protos = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_str ps.0 in
+    let aggs = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_int ags.0 in
+    let refs = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_str frs.0 in
     {
         TU.{
             .funcs = fs.0,

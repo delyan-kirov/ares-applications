@@ -75,53 +75,71 @@ $ Opts : @struct =
     quiet : @Bool,
 
 $ parse_args : @Vec @Str -> @Int -> Opts -> Result Opts @Str = \a i o =>
-    if i >= @vec_len a => Result.Ok.{ o }
+    if i >= @vec_len a =>
+        Result.Ok.{ o }
     else
-        let s = @vec_get a i, next = if i + 1 < @vec_len a => @vec_get a (i + 1) else "" in
-        if s == "-h" || s == "--help" => Result.Ok.{ Opts.{ .mode = Mode.Help | o } }
+        let s = @vec_get a i in
+        let next = if i + 1 < @vec_len a => @vec_get a (i + 1) else "" in
+        if s == "-h" || s == "--help" =>
+            Result.Ok.{ Opts.{ .mode = Mode.Help | o } }
         else if s == "--target=wasm32" || s == "-m32" =>
             parse_args a (i + 1) Opts.{ .target = wasm32 | o }
         else if s == "--target=wasm64" || s == "-m64" =>
             parse_args a (i + 1) Opts.{ .target = wasm64 | o }
         else if s == "--target" || s == "-target" =>
             (
-                if next == "wasm32" => parse_args a (i + 2) Opts.{ .target = wasm32 | o }
-                else if next == "wasm64" => parse_args a (i + 2) Opts.{ .target = wasm64 | o }
-                else Result.Err.{ "unknown target `" ++ next ++ "` (expected wasm32 or wasm64)" }
+                if next == "wasm32" =>
+                    parse_args a (i + 2) Opts.{ .target = wasm32 | o }
+                else if next == "wasm64" =>
+                    parse_args a (i + 2) Opts.{ .target = wasm64 | o }
+                else
+                    Result.Err.{ "unknown target `" ++ next ++ "` (expected wasm32 or wasm64)" }
             )
         else if starts_with s "--target=" =>
             Result.Err.{
                 "unknown target `" ++ substr s 9 (STR.len s) ++ "` (expected wasm32 or wasm64)"
             }
-        else if s == "-E" => parse_args a (i + 1) Opts.{ .mode = Mode.Preprocess | o }
-        else if s == "-fsyntax-only" => parse_args a (i + 1) Opts.{ .mode = Mode.Syntax | o }
-        else if s == "-v" => parse_args a (i + 1) Opts.{ .verbose = @true | o }
-        else if s == "-w" => parse_args a (i + 1) Opts.{ .quiet = @true | o }
-        else if s == "--index-libc" => Result.Ok.{ Opts.{ .mode = Mode.Index | o } }
+        else if s == "-E" =>
+            parse_args a (i + 1) Opts.{ .mode = Mode.Preprocess | o }
+        else if s == "-fsyntax-only" =>
+            parse_args a (i + 1) Opts.{ .mode = Mode.Syntax | o }
+        else if s == "-v" =>
+            parse_args a (i + 1) Opts.{ .verbose = @true | o }
+        else if s == "-w" =>
+            parse_args a (i + 1) Opts.{ .quiet = @true | o }
+        else if s == "--index-libc" =>
+            Result.Ok.{ Opts.{ .mode = Mode.Index | o } }
         else if s == "--dump-ast" =>
             parse_args a (i + 1) Opts.{ .dump = @true, .mode = Mode.Syntax | o }
         else if s == "--dump-tokens" =>
             parse_args a (i + 1) Opts.{ .mode = Mode.Tokens.{ @false } | o }
         else if s == "--dump-tokens=pp" =>
             parse_args a (i + 1) Opts.{ .mode = Mode.Tokens.{ @true } | o }
-        else if s == "--dump-wasm" => parse_args a (i + 1) Opts.{ .mode = Mode.Wasm | o }
-        else if s == "--shell" => parse_args a (i + 1) Opts.{ .mode = Mode.Shell | o }
-        else if s == "-nostdlib" => parse_args a (i + 1) Opts.{ .stdlib = @false | o }
-        else if s == "-o" => parse_args a (i + 2) Opts.{ .out = next | o }
-        else if s == "-I" => parse_args a (i + 2) Opts.{ .incs = @vec_push o.incs next | o }
+        else if s == "--dump-wasm" =>
+            parse_args a (i + 1) Opts.{ .mode = Mode.Wasm | o }
+        else if s == "--shell" =>
+            parse_args a (i + 1) Opts.{ .mode = Mode.Shell | o }
+        else if s == "-nostdlib" =>
+            parse_args a (i + 1) Opts.{ .stdlib = @false | o }
+        else if s == "-o" =>
+            parse_args a (i + 2) Opts.{ .out = next | o }
+        else if s == "-I" =>
+            parse_args a (i + 2) Opts.{ .incs = @vec_push o.incs next | o }
         else if starts_with s "-I" =>
             parse_args a (i + 1) Opts.{ .incs = @vec_push o.incs (substr s 2 (STR.len s)) | o }
-        else if s == "-D" => parse_args a (i + 2) Opts.{ .defs = o.defs ++ define_line next | o }
+        else if s == "-D" =>
+            parse_args a (i + 2) Opts.{ .defs = o.defs ++ define_line next | o }
         else if starts_with s "-D" =>
             parse_args a (i + 1) Opts.{ .defs = o.defs ++ define_line (substr s 2 (STR.len s)) | o }
         else if s == "-U" =>
             parse_args a (i + 2) Opts.{ .defs = o.defs ++ "#undef " ++ next ++ "\n" | o }
         else if starts_with s "-U" =>
-            parse_args a (
-                i + 1
-            ) Opts.{ .defs = o.defs ++ "#undef " ++ substr s 2 (STR.len s) ++ "\n" | o }
-        else if starts_with s "-" && s != "-" => Result.Err.{ "unknown option `" ++ s ++ "`" }
-        else parse_args a (i + 1) Opts.{ .files = @vec_push o.files s | o }
+            parse_args a (i + 1)
+                Opts.{ .defs = o.defs ++ "#undef " ++ substr s 2 (STR.len s) ++ "\n" | o }
+        else if starts_with s "-" && s != "-" =>
+            Result.Err.{ "unknown option `" ++ s ++ "`" }
+        else
+            parse_args a (i + 1) Opts.{ .files = @vec_push o.files s | o }
 
 # `-D NAME=VALUE` is `#define NAME VALUE`; a bare `-D NAME` defines it as 1.
 $ define_line : @Str -> @Str = \s =>
@@ -423,19 +441,24 @@ $ pair_up : @Vec @Str -> @Vec TU -> @Int -> @Vec { @Str, TU } -> @Vec { @Str, TU
 # Parse the library for both targets, cache it, and write the index: every
 # library file's exported names, one `name file` line each.
 $ main_index : Opts -> <@IO> @Int = \o =>
-    with_diag o <| \u =>
-        let st = CACHE.stamp o.home,
-            o32 = Opts.{ .target = wasm32 | o },
-            o64 = Opts.{ .target = wasm64 | o } in
-        let u32 = parse_library o32 in
-        let u64 = parse_library o64 in
-        let saved = CACHE.save (cache_path o32) st u32 && CACHE.save (cache_path o64) st u64 in
-        let text = VEC.foldl (
-                \a u => VEC.foldl (\b n => b ++ n ++ " " ++ u.0 ++ "\n") a (exports u.1)
-            ) "" u32 in
-        if !saved => (eprintln "alec: error: cannot write the library cache"; 1)
-        else if write_file (libc_dir o ++ "/INDEX") text => 0
-        else (eprintln "alec: error: cannot write the library index"; 1)
+    with_diag
+        o <| \u =>
+            let st = CACHE.stamp o.home in
+            let o32 = Opts.{ .target = wasm32 | o } in
+            let o64 = Opts.{ .target = wasm64 | o } in
+            let u32 = parse_library o32 in
+            let u64 = parse_library o64 in
+            let saved = CACHE.save (cache_path o32) st u32 && CACHE.save (cache_path o64) st u64 in
+            let text =
+                VEC.foldl (\a u => VEC.foldl (\b n => b ++ n ++ " " ++ u.0 ++ "\n") a (exports u.1))
+                    "" u32
+            in
+            if !saved =>
+                (eprintln "alec: error: cannot write the library cache"; 1)
+            else if write_file (libc_dir o ++ "/INDEX") text =>
+                0
+            else
+                (eprintln "alec: error: cannot write the library index"; 1)
 
 $ file_state : Opts -> FileState = \o =>
     FileState.{ .once = SET.new_str, .incs = o.incs, .sys = o.home ++ "/include" }

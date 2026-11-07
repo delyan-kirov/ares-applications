@@ -114,35 +114,47 @@ $ read_all : @Int -> @Str -> <@IO> @Str = \f acc =>
 # state: 0 normal, 1 line-comment (to newline), 2 block-comment (to `*/`).
 # at_ls: at line start (through leading spaces), for detecting `#` lines.
 $ clean_loop : @Str -> @Int -> @Int -> @Str -> @Int -> @Int -> @Str = \s i n out state at_ls =>
-    if i >= n => out
+    if i >= n =>
+        out
     else
-        let c = @array_get s i, c2 = if (i + 1) < n => @array_get s (i + 1) else 0 in
+        let c = @array_get s i in
+        let c2 = if (i + 1) < n => @array_get s (i + 1) else 0 in
         state |> \
-        | 1 =>
-            if c == 10 => clean_loop s (i + 1) n (@array_push out 10) 0 1
-            else clean_loop s (i + 1) n out 1 at_ls
-        | 2 =>
-            if c == 42 =>
-                (
-                    if c2 == 47 => clean_loop s (i + 2) n out 0 0
-                    else clean_loop s (i + 1) n out 2 at_ls
-                )
-            else clean_loop s (i + 1) n out 2 at_ls
-        | _ =>
-            if c == 47 =>
-                (
-                    if c2 == 47 => clean_loop s (i + 2) n out 1 at_ls
-                    else if c2 == 42 => clean_loop s (i + 2) n out 2 at_ls
-                    else clean_loop s (i + 1) n (@array_push out c) 0 0
-                )
-            else if c == 35 =>
-                (
-                    if at_ls == 1 => clean_loop s (i + 1) n out 1 0
-                    else clean_loop s (i + 1) n (@array_push out c) 0 0
-                )
-            else
-                let nls = if c == 10 => 1 else if is_space c == 1 => at_ls else 0 in
-                clean_loop s (i + 1) n (@array_push out c) 0 nls
+            | 1 =>
+                if c == 10 =>
+                    clean_loop s (i + 1) n (@array_push out 10) 0 1
+                else
+                    clean_loop s (i + 1) n out 1 at_ls
+            | 2 =>
+                if c == 42 =>
+                    (
+                        if c2 == 47 =>
+                            clean_loop s (i + 2) n out 0 0
+                        else
+                            clean_loop s (i + 1) n out 2 at_ls
+                    )
+                else
+                    clean_loop s (i + 1) n out 2 at_ls
+            | _ =>
+                if c == 47 =>
+                    (
+                        if c2 == 47 =>
+                            clean_loop s (i + 2) n out 1 at_ls
+                        else if c2 == 42 =>
+                            clean_loop s (i + 2) n out 2 at_ls
+                        else
+                            clean_loop s (i + 1) n (@array_push out c) 0 0
+                    )
+                else if c == 35 =>
+                    (
+                        if at_ls == 1 =>
+                            clean_loop s (i + 1) n out 1 0
+                        else
+                            clean_loop s (i + 1) n (@array_push out c) 0 0
+                    )
+                else
+                    let nls = if c == 10 => 1 else if is_space c == 1 => at_ls else 0 in
+                    clean_loop s (i + 1) n (@array_push out c) 0 nls
 $ clean : @Str -> @Str = \s => clean_loop s 0 (@array_len s) "" 0 1
 
 # -- tokenize ----------------------------------------------------------------
@@ -253,7 +265,9 @@ $ map_base : @Str -> @Int -> @Str = \b uns =>
     else b
 # A single `char *` is a @Str; any other pointer (incl `char **`) is a @Ptr.
 $ c_type_of : @Vec @Str -> @Str = \toks =>
-    let stars = count_tok toks "*", uns = has_tok toks "unsigned", base = base_type toks in
+    let stars = count_tok toks "*" in
+    let uns = has_tok toks "unsigned" in
+    let base = base_type toks in
     if stars == 1 && base == "char" => "@Str" else if stars >= 1 => "@Ptr" else map_base base uns
 
 # The Thrax types `c_type_of` produces that are always available (need no decl).
@@ -293,9 +307,12 @@ $ enum_consts : @Vec @Str -> @Int -> @Str -> @Str = \toks nextval out =>
                 else enum_consts t (nextval + 1) (out ++ enum_line h nextval)
             | _ => enum_consts t (nextval + 1) (out ++ enum_line h nextval)
 $ emit_enum : @Vec @Str -> @Str = \toks =>
-    let name = last1 toks, body = take_until (drop_until toks s_lbrace) s_rbrace in
-    if is_upper_start name == 0 => "# skipped enum " ++ name ++ " (name is not a Thrax type)\n"
-    else "$ " ++ name ++ " : @alias = @Int32\n" ++ enum_consts body 0 ""
+    let name = last1 toks in
+    let body = take_until (drop_until toks s_lbrace) s_rbrace in
+    if is_upper_start name == 0 =>
+        "# skipped enum " ++ name ++ " (name is not a Thrax type)\n"
+    else
+        "$ " ++ name ++ " : @alias = @Int32\n" ++ enum_consts body 0 ""
 
 # -- emit: struct / union ----------------------------------------------------
 $ field_ok : @Vec @Str -> @Int = \g => g |> \ | [] => 0 | _ => if has_tok g "[" == 1 => 0 else 1
@@ -309,26 +326,29 @@ $ fields_ok : @Vec (@Vec @Str) -> @Int = \gs =>
 # In a C-repr struct field any pointer is `@Ptr` (unlike a function signature,
 # `char *` is not `@Str` here: `@Str` is not a C-layout-representable field type).
 $ decl_str : @Str -> @Int -> @Vec @Str -> @Str = \base uns sub =>
-    let stars = count_tok sub "*",
-        name = last1 sub,
-        ty = if stars >= 1 => "@Ptr" else map_base base uns in
+    let stars = count_tok sub "*" in
+    let name = last1 sub in
+    let ty = if stars >= 1 => "@Ptr" else map_base base uns in
     name ++ ": " ++ ty ++ ", "
 $ decls_str : @Vec (@Vec @Str) -> @Str -> @Int -> @Str = \subs base uns =>
     subs |> \ | [] => "" | s :: r => decl_str base uns s ++ decls_str r base uns
 $ group_str : @Vec @Str -> @Str = \h =>
-    let base = base_type h, uns = has_tok h "unsigned" in decls_str (split_on h ",") base uns
+    let base = base_type h in let uns = has_tok h "unsigned" in decls_str (split_on h ",") base uns
 $ fields_str : @Vec (@Vec @Str) -> @Str = \gs =>
     gs |> \ | [] => "" | h :: r => h |> \ | [] => fields_str r | _ => group_str h ++ fields_str r
 $ emit_record : @Vec @Str -> @Str -> @Str = \toks kw =>
     let name = last1 toks in
     if is_upper_start name == 0 =>
         "# skipped " ++ kw ++ " " ++ name ++ " (name is not a Thrax type)\n"
-    else if has_tok toks s_lbrace == 0 => "$ " ++ name ++ " : @alias = @Ptr\n"
+    else if has_tok toks s_lbrace == 0 =>
+        "$ " ++ name ++ " : @alias = @Ptr\n"
     else
-        let body = take_until (drop_until toks s_lbrace) s_rbrace, fields = split_on body ";" in
+        let body = take_until (drop_until toks s_lbrace) s_rbrace in
+        let fields = split_on body ";" in
         if fields_ok fields == 1 =>
             "$ " ++ name ++ " : @" ++ kw ++ " @extern \"C\" = " ++ fields_str fields ++ "\n"
-        else "# skipped " ++ kw ++ " " ++ name ++ " (array or bit-field member)\n"
+        else
+            "# skipped " ++ kw ++ " " ++ name ++ " (array or bit-field member)\n"
 
 # -- emit: function prototype ------------------------------------------------
 $ keep_types : @Vec (@Vec @Str) -> @Vec @Str = \ps =>
@@ -364,16 +384,17 @@ $ refs_ok : @Vec @Str -> @Vec @Str -> @Int = \tys known =>
         else if has_tok known t == 1 => refs_ok r known
         else 0
 $ emit_func : @Vec @Str -> @Str -> @Vec @Str -> @Str = \toks lib known =>
-    let before = take_until toks "(",
-        params = take_until (drop_until toks "(") ")",
-        name = last1 before,
-        fname = lower_first name,
-        ret = c_type_of (init1 before),
-        groups = split_on params ",",
-        sig = build_sig groups ret in
+    let before = take_until toks "(" in
+    let params = take_until (drop_until toks "(") ")" in
+    let name = last1 before in
+    let fname = lower_first name in
+    let ret = c_type_of (init1 before) in
+    let groups = split_on params "," in
+    let sig = build_sig groups ret in
     if refs_ok (ret :: keep_types groups) known == 0 =>
         "# skipped fn " ++ fname ++ " (uses an unrepresentable type)\n"
-    else "$ " ++ fname ++ " : " ++ sig ++ " = @extern \"C\" \"" ++ name ++ "\" \"" ++ lib ++ "\"\n"
+    else
+        "$ " ++ fname ++ " : " ++ sig ++ " = @extern \"C\" \"" ++ name ++ "\" \"" ++ lib ++ "\"\n"
 
 # The token right after the first occurrence of `t` (for a function-pointer name
 # `(*Name)`, the token after `*`), or "" if there is none.
@@ -413,10 +434,13 @@ $ emit_decl : @Vec @Str -> @Str -> @Vec @Str -> @Str = \toks lib known =>
 # dispatch so a type is "known" exactly when its binding is actually emitted.
 $ record_tyname : @Vec @Str -> @Str = \toks =>
     let name = last1 toks in
-    if is_upper_start name == 0 => ""
-    else if has_tok toks s_lbrace == 0 => name
+    if is_upper_start name == 0 =>
+        ""
+    else if has_tok toks s_lbrace == 0 =>
+        name
     else
-        let body = take_until (drop_until toks s_lbrace) s_rbrace, fields = split_on body ";" in
+        let body = take_until (drop_until toks s_lbrace) s_rbrace in
+        let fields = split_on body ";" in
         if fields_ok fields == 1 => name else ""
 $ decl_tyname : @Vec @Str -> @Str = \toks =>
     toks |> \
@@ -458,22 +482,27 @@ $ headers : @Vec @Str -> @Vec @Str = \args =>
 # run over several headers is not aborted by one bad path.
 $ gen_file : @Str -> @Str -> <@IO> @Str = \path lib =>
     let f = C.fopen { path, "r" } in
-    if f == 0 => "# cbindgen: cannot open " ++ path ++ "\n"
+    if f == 0 =>
+        "# cbindgen: cannot open " ++ path ++ "\n"
     else
-        let text = read_all f "",
-            _ = C.fclose f,
-            decls = declarations (
-                strip_noise (drop_linkage (drop_strings (tokenize (clean text))))
-            ),
-            known = collect_types decls [] in
+        let text = read_all f "" in
+        let _ = C.fclose f in
+        let decls =
+            declarations (strip_noise (drop_linkage (drop_strings (tokenize (clean text))))) in
+        let known = collect_types decls [] in
         gen decls lib known ""
 $ gen_all : @Vec @Str -> @Str -> @Str -> <@IO> @Str = \paths lib out =>
     paths |> \ | [] => out | p :: r => gen_all r lib (out ++ gen_file p lib)
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
-    let lib = getenv_or "LIB" "lib.so",
-        modname = getenv_or "MOD" "BINDINGS",
-        bindings = "$ @mod " ++ modname ++ "\n\n" ++ gen_all (headers args) lib "",
-        outp = C.getenv "OUT" in
-    if @array_len outp == 0 => let _ = C.write { 1, bindings, @array_len bindings } in 0
-    else let of = C.fopen { outp, "w" }, _ = C.fputs { bindings, of }, _ = C.fclose of in 0
+    let lib = getenv_or "LIB" "lib.so" in
+    let modname = getenv_or "MOD" "BINDINGS" in
+    let bindings = "$ @mod " ++ modname ++ "\n\n" ++ gen_all (headers args) lib "" in
+    let outp = C.getenv "OUT" in
+    if @array_len outp == 0 =>
+        let _ = C.write { 1, bindings, @array_len bindings } in 0
+    else
+        let of = C.fopen { outp, "w" } in
+        let _ = C.fputs { bindings, of } in
+        let _ = C.fclose of in
+        0

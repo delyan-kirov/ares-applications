@@ -141,8 +141,10 @@ $ go : @Str -> @Str -> @Int -> @Int -> @Int -> @Bool -> @Bool -> List Token = \f
             )
         | k => token file s i c k line ls bol space
 
-$ token : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Bool -> List Token = \file s i c k line ls bol space =>
-    let p = Pos.{ .file = file, .line = line, .col = i - ls + 1 }, r = scan s i c k in
+$ token : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Bool
+    -> List Token = \file s i c k line ls bol space =>
+    let p = Pos.{ .file = file, .line = line, .col = i - ls + 1 } in
+    let r = scan s i c k in
     List.Cons.{
         Token.{
             .kind = r.kind,
@@ -205,11 +207,13 @@ $ ident_end : @Str -> @Int -> @Int = \s i =>
     if i >= @array_len s => i else cls (@array_get s i) |> \ | 3 | 4 => ident_end s (i + 1) | _ => i
 
 $ scan_ident : @Str -> @Int -> Scanned = \s i =>
-    let e = ident_end s (i + 1), q = peek s e in
+    let e = ident_end s (i + 1) in
+    let q = peek s e in
     let word = @array_slice s i e in
     if (q == 34 || q == 39) && (word == "L" || word == "u" || word == "U" || word == "u8") =>
         scan_quoted s i e q (if q == 34 => Kind.Str else Kind.Chr)
-    else Scanned.{ .kind = Kind.Ident, .text = word, .end = e }
+    else
+        Scanned.{ .kind = Kind.Ident, .text = word, .end = e }
 
 $ scan_number : @Str -> @Int -> Scanned = \s i =>
     let e = number_end s (i + 1) in
@@ -256,24 +260,30 @@ $ quoted_end : @Str -> @Int -> @Int -> @Int = \s i quote =>
 # The length of the punctuator at `i` (maximal munch), or 0. `c` is its first
 # byte; the bytes after it decide among the punctuators that share it.
 $ punct_len : @Str -> @Int -> @Int -> @Int = \s i c =>
-    let d = peek s (i + 1), e = peek s (i + 2) in
+    let d = peek s (i + 1) in
+    let e = peek s (i + 2) in
     c |> \
-    | 60 => if d == 60 => (if e == 61 => 3 else 2) else if d == 61 || d == 58 || d == 37 => 2 else 1
-    | 62 => if d == 62 => (if e == 61 => 3 else 2) else if d == 61 => 2 else 1
-    | 46 => if d == 46 && e == 46 => 3 else 1
-    | 37 =>
-        if d == 58 && e == 37 && peek s (i + 3) == 58 => 4
-        else if d == 61 || d == 62 || d == 58 => 2
-        else 1
-    | 45 => if d == 62 || d == 45 || d == 61 => 2 else 1
-    | 43 => if d == 43 || d == 61 => 2 else 1
-    | 38 => if d == 38 || d == 61 => 2 else 1
-    | 124 => if d == 124 || d == 61 => 2 else 1
-    | 61 | 33 | 42 | 47 | 94 => if d == 61 => 2 else 1
-    | 35 => if d == 35 => 2 else 1
-    | 58 => if d == 62 => 2 else 1
-    | 91 | 93 | 40 | 41 | 123 | 125 | 126 | 63 | 59 | 44 => 1
-    | _ => 0
+        | 60                     =>
+            if d == 60 => (if e == 61 => 3 else 2) else if d == 61 || d == 58 || d == 37 => 2 else 1
+        | 62                     =>
+            if d == 62 => (if e == 61 => 3 else 2) else if d == 61 => 2 else 1
+        | 46                     => if d == 46 && e == 46 => 3 else 1
+        | 37 =>
+            if d == 58 && e == 37 && peek s (i + 3) == 58 =>
+                4
+            else if d == 61 || d == 62 || d == 58 =>
+                2
+            else
+                1
+        | 45                     => if d == 62 || d == 45 || d == 61 => 2 else 1
+        | 43                     => if d == 43 || d == 61 => 2 else 1
+        | 38                     => if d == 38 || d == 61 => 2 else 1
+        | 124                    => if d == 124 || d == 61 => 2 else 1
+        | 61 | 33 | 42 | 47 | 94 => if d == 61 => 2 else 1
+        | 35                     => if d == 35 => 2 else 1
+        | 58                     => if d == 62 => 2 else 1
+        | 91 | 93 | 40 | 41 | 123 | 125 | 126 | 63 | 59 | 44 => 1
+        | _                      => 0
 
 $ digraph : @Str -> @Str = \p =>
     p |> \

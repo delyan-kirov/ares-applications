@@ -179,13 +179,17 @@ $ name_entries : @Vec @Str -> @Int -> @Vec @Str -> @Vec @Str = \ns i acc =>
     else name_entries ns (i + 1) (@vec_push acc (uleb i ++ vec_bytes (@vec_get ns i)))
 
 $ uleb_go : @Int -> @Str -> @Str = \v acc =>
-    let b = band v 127, rest = shr_u v 7 in
+    let b = band v 127 in
+    let rest = shr_u v 7 in
     if rest == 0 => @array_push acc b else uleb_go rest (@array_push acc (b + 128))
 
 $ sleb_go : @Int -> @Str -> @Str = \v acc =>
-    let b = band v 127, rest = shr_s v 7 in
-    if (rest == 0 && band b 64 == 0) || (rest == 0 - 1 && band b 64 != 0) => @array_push acc b
-    else sleb_go rest (@array_push acc (b + 128))
+    let b = band v 127 in
+    let rest = shr_s v 7 in
+    if (rest == 0 && band b 64 == 0) || (rest == 0 - 1 && band b 64 != 0) =>
+        @array_push acc b
+    else
+        sleb_go rest (@array_push acc (b + 128))
 
 $ sig_bytes : Sig -> @Str = \s =>
     byte 96

@@ -35,20 +35,19 @@ $ is_float_text : @Str -> @Bool = \s =>
 
 $ int_lit : @Str -> Option IntLit = \text =>
     let s = strip_seps text 0 "" in
-    let hex = starts_with s "0x" || starts_with s "0X",
-        bin = starts_with s "0b" || starts_with s "0B" in
-    let base = if hex => 16
-        else if bin => 2
-        else if starts_with s "0" && @array_len s > 1 => 8
-        else 10,
-        from = if hex || bin => 2 else 0 in
+    let hex = starts_with s "0x" || starts_with s "0X" in
+    let bin = starts_with s "0b" || starts_with s "0B" in
+    let base =
+        if hex => 16 else if bin => 2 else if starts_with s "0" && @array_len s > 1 => 8 else 10
+    in
+    let from = if hex || bin => 2 else 0 in
     let end = digits_end s from base in
-    if end == from && !(base == 8) => Option.None
+    if end == from && !(base == 8) =>
+        Option.None
     else
         let v = digits_value s from end base 0 @false in
         suffix (to_lower (@array_slice s end (@array_len s))) |> \
-        | Option.Some.{ sx } =>
-            Option.Some.{
+            | Option.Some.{ sx } => Option.Some.{
                 IntLit.{
                     .value = v.0,
                     .unsigned = sx.0,
@@ -57,16 +56,19 @@ $ int_lit : @Str -> Option IntLit = \text =>
                     .overflow = v.1
                 }
             }
-        | _ => Option.None
+            | _                  => Option.None
 
 $ float_lit : @Str -> Option FloatLit = \text =>
-    let s = strip_seps text 0 "", n = @array_len s in
+    let s = strip_seps text 0 "" in
+    let n = @array_len s in
     let last = if n > 0 => @array_get s (n - 1) else 0 in
     let hex = starts_with s "0x" || starts_with s "0X" in
     let kind = if last == 102 || last == 70 => 1 else if last == 108 || last == 76 => 2 else 0 in
     let body = if kind == 0 => s else @array_slice s 0 (n - 1) in
-    if valid_float body hex => Option.Some.{ FloatLit.{ .value = from_string body, .kind = kind } }
-    else Option.None
+    if valid_float body hex =>
+        Option.Some.{ FloatLit.{ .value = from_string body, .kind = kind } }
+    else
+        Option.None
 
 # The value of a character constant, as the `int` (or `wchar_t`, `char16_t`,
 # `char32_t`) it denotes. A plain `'x'` is a `char`, which is signed here, so a
@@ -125,10 +127,13 @@ $ digits_end : @Str -> @Int -> @Int -> @Int = \s i base =>
     if i < @array_len s && digit_val (@array_get s i) < base => digits_end s (i + 1) base else i
 
 # The value modulo 2^64, and whether it overflowed 64 bits.
-$ digits_value : @Str -> @Int -> @Int -> @Int -> @Nat -> @Bool -> { @Int, @Bool } = \s i end base acc ov =>
-    if i >= end => (let r : @Int = @cast acc in { r, ov })
+$ digits_value : @Str -> @Int -> @Int -> @Int -> @Nat -> @Bool
+    -> { @Int, @Bool } = \s i end base acc ov =>
+    if i >= end =>
+        (let r : @Int = @cast acc in { r, ov })
     else
-        let b : @Nat = @cast base, d : @Nat = @cast (digit_val (@array_get s i)) in
+        let b : @Nat = @cast base in
+        let d : @Nat = @cast (digit_val (@array_get s i)) in
         let next = acc * b + d in
         digits_value s (i + 1) end base next (ov || (acc > 0 && next / b < acc))
 
@@ -194,9 +199,10 @@ $ put_cp : @Vec @Int -> @Int -> @Int -> @Vec @Int = \acc cp w =>
 # One UTF-8 sequence at `i`: the code point and the offset after it. A malformed
 # byte stands for itself.
 $ utf8 : @Str -> @Int -> { @Int, @Int } = \s i =>
-    let c = @array_get s i,
-        n = if c >= 240 => 3 else if c >= 224 => 2 else if c >= 192 => 1 else 0 in
-    if n == 0 || i + n >= @array_len s => { c, i + 1 }
+    let c = @array_get s i in
+    let n = if c >= 240 => 3 else if c >= 224 => 2 else if c >= 192 => 1 else 0 in
+    if n == 0 || i + n >= @array_len s =>
+        { c, i + 1 }
     else
         let lead = if n == 3 => band c 7 else if n == 2 => band c 15 else band c 31 in
         { utf8_more s (i + 1) n lead, i + 1 + n }

@@ -76,27 +76,30 @@ $ expected_of : Suite -> @Str -> <@IO> @Str = \su t =>
     if su.status => e else e ++ "exit=0\n"
 
 $ regen : @Str -> <@IO> {} = \t =>
-    let src = "tests/run/" ++ t ++ ".c", bin = scratch ++ "/" ++ t ++ ".gcc" in
-    let cc = C.system (
-            "gcc -std=gnu11 -w -O0 -o " ++ sh_quote bin ++ " " ++ sh_quote src ++ " -lm"
-        ) in
-    if cc != 0 => eprintln ("  " ++ t ++ ": gcc could not compile it")
+    let src = "tests/run/" ++ t ++ ".c" in
+    let bin = scratch ++ "/" ++ t ++ ".gcc" in
+    let cc =
+        C.system ("gcc -std=gnu11 -w -O0 -o " ++ sh_quote bin ++ " " ++ sh_quote src ++ " -lm") in
+    if cc != 0 =>
+        eprintln ("  " ++ t ++ ": gcc could not compile it")
     else
         let r = capture (t ++ ".gcc") (sh_quote bin) ("tests/run/" ++ t ++ ".input") in
         write_file ("tests/run/" ++ t ++ ".expected") r; println ("  recorded " ++ t)
 
 $ run_one : Suite -> Opts -> @Vec TU -> @Str -> <Files, @IO> Outcome = \su o lib t =>
-    let src = source_of su t, wasm = scratch ++ "/" ++ t ++ "." ++ o.target.name ++ ".wasm" in
+    let src = source_of su t in
+    let wasm = scratch ++ "/" ++ t ++ "." ++ o.target.name ++ ".wasm" in
     build o lib src |> \
-    | Result.Err.{ msg } => Outcome.Fail.{ msg }
-    | Result.Ok.{ bytes } =>
-        write_file wasm bytes;
-        let got = capture (
-                t ++ "." ++ o.target.name
-            ) ("node run.mjs " ++ sh_quote wasm) (su.dir ++ "/" ++ t ++ ".input") in
-        let want = expected_of su t in
-        if got == want => Outcome.Pass
-        else Outcome.Fail.{ "output differs\n--- expected\n" ++ want ++ "--- got\n" ++ got }
+        | Result.Err.{ msg } => Outcome.Fail.{ msg }
+        | Result.Ok.{ bytes } =>
+            write_file wasm bytes;
+            let got = capture (t ++ "." ++ o.target.name) ("node run.mjs " ++ sh_quote wasm)
+                (su.dir ++ "/" ++ t ++ ".input") in
+            let want = expected_of su t in
+            if got == want =>
+                Outcome.Pass
+            else
+                Outcome.Fail.{ "output differs\n--- expected\n" ++ want ++ "--- got\n" ++ got }
 
 $ run_target : Suite -> Opts -> @Vec @Str -> <@IO> { Set @Str, @Int } = \su o tests =>
     let r = do (

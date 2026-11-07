@@ -180,10 +180,11 @@ $ MemberDecl : @struct = name : @Str, ty : Ty, width : @Int, align : @Int,
 
 # `packed` lays members out at byte alignment; `min_align` (from an
 # `aligned(N)` attribute, else 0) raises the aggregate's alignment.
-$ layout_struct : Layout -> @Str -> @Bool -> @Bool -> @Int -> @Vec MemberDecl -> Agg = \lay tag union packed min_align ds =>
+$ layout_struct : Layout -> @Str -> @Bool -> @Bool -> @Int -> @Vec MemberDecl
+    -> Agg = \lay tag union packed min_align ds =>
     let r = place lay union packed ds 0 0 0 1 (@vec_new {}) in
-    let align = if r.2 < min_align => min_align else r.2,
-        bytes = (if union => r.1 else (r.0 + 7) / 8) in
+    let align = if r.2 < min_align => min_align else r.2 in
+    let bytes = (if union => r.1 else (r.0 + 7) / 8) in
     Agg.{
         .tag = tag,
         .union = union,
@@ -216,15 +217,22 @@ $ common : Ty -> Ty -> Ty = \a b =>
             if (a |> \ | Ty.Double => @true | _ => @false)
                 || (b |> \ | Ty.Double => @true | _ => @false) =>
                 t_double
-            else t_float
+            else
+                t_float
         )
     else
-        let x = int_kind (promote a), y = int_kind (promote b) in
-        if x.size != y.size => (if x.size > y.size => Ty.Int.{ x } else Ty.Int.{ y })
-        else if x.unsigned => Ty.Int.{ x }
-        else if y.unsigned => Ty.Int.{ y }
-        else if x.rank >= y.rank => Ty.Int.{ x }
-        else Ty.Int.{ y }
+        let x = int_kind (promote a) in
+        let y = int_kind (promote b) in
+        if x.size != y.size =>
+            (if x.size > y.size => Ty.Int.{ x } else Ty.Int.{ y })
+        else if x.unsigned =>
+            Ty.Int.{ x }
+        else if y.unsigned =>
+            Ty.Int.{ y }
+        else if x.rank >= y.rank =>
+            Ty.Int.{ x }
+        else
+            Ty.Int.{ y }
 
 # Type compatibility, loosely: what an assignment or redeclaration checks.
 $ same_ty : Layout -> Ty -> Ty -> @Bool = \lay a b =>
@@ -310,50 +318,49 @@ $ flexible_last : @Vec MemberDecl -> @Bool = \ds =>
 
 # `bits` is the running struct size in bits, `ubytes` the largest union member,
 # `align` the largest alignment so far.
-$ place : Layout -> @Bool -> @Bool -> @Vec MemberDecl -> @Int -> @Int -> @Int -> @Int -> @Vec Member -> { @Int, @Int, @Int, @Vec Member } = \lay union packed ds i bits ubytes align acc =>
-    if i >= @vec_len ds => { bits, ubytes, align, acc }
+$ place : Layout -> @Bool -> @Bool -> @Vec MemberDecl -> @Int -> @Int -> @Int -> @Int -> @Vec Member
+    -> { @Int, @Int, @Int, @Vec Member } = \lay union packed ds i bits ubytes align acc =>
+    if i >= @vec_len ds =>
+        { bits, ubytes, align, acc }
     else
         let d = @vec_get ds i in
-        let sz = size_of lay d.ty,
-            al = if packed => 1
-            else if d.align > align_of lay d.ty => d.align
-            else align_of lay d.ty in
+        let sz = size_of lay d.ty in
+        let al =
+            if packed => 1 else if d.align > align_of lay d.ty => d.align else align_of lay d.ty
+        in
         let at = if union => 0 else bits in
         if d.width >= 0 =>
             let unit = sz * 8 in
             if d.width == 0 =>
-                place lay union packed ds (
-                    i + 1
-                ) (if union => bits else align_to at unit) ubytes align acc
+                place lay union packed ds (i + 1) (if union => bits else align_to at unit) ubytes
+                    align acc
             else
-                let start = if (at / unit) != ((at + d.width - 1) / unit) => align_to at unit
-                    else at in
+                let start =
+                    if (at / unit) != ((at + d.width - 1) / unit) => align_to at unit else at
+                in
                 let off = (start / 8 / sz) * sz in
                 let m = Member.{
-                        .name = d.name,
-                        .ty = d.ty,
-                        .offset = off,
-                        .bit_off = start - off * 8,
-                        .bit_width = d.width
-                    } in
-                place lay union packed ds (
-                    i + 1
-                ) (
-                    if union => bits else start + d.width
-                ) (max_i ubytes sz) (max_i align al) (@vec_push acc m)
+                    .name = d.name,
+                    .ty = d.ty,
+                    .offset = off,
+                    .bit_off = start - off * 8,
+                    .bit_width = d.width
+                } in
+                place lay union packed ds (i + 1) (if union => bits else start + d.width)
+                    (max_i ubytes sz) (max_i align al) (@vec_push acc m)
         else
             let start = align_to at (al * 8) in
             let off = start / 8 in
-            let acc2 = @vec_push acc Member.{
+            let acc2 = @vec_push acc
+                Member.{
                     .name = d.name,
                     .ty = d.ty,
                     .offset = off,
                     .bit_off = 0,
                     .bit_width = 0
                 } in
-            place lay union packed ds (
-                i + 1
-            ) (if union => bits else start + sz * 8) (max_i ubytes sz) (max_i align al) acc2
+            place lay union packed ds (i + 1) (if union => bits else start + sz * 8)
+                (max_i ubytes sz) (max_i align al) acc2
 
 $ max_i : @Int -> @Int -> @Int = \a b => if a > b => a else b
 

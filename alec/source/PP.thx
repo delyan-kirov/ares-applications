@@ -449,23 +449,26 @@ $ angled : List Token -> @Str -> Token -> <Diag> @Str = \l acc d =>
 $ do_line : Token -> List Token -> List Token -> <Expand> List Token = \d args after =>
     let ex = expand_all args in
     ex |> \
-    | List.Cons.{ n, r } =>
-        (
+        | List.Cons.{ n, r } => (
             int_lit n.text |> \
-            | Option.Some.{ v } =>
-                if !(is_num n) => error_at n.pos "#line directive requires a simple digit sequence"
-                else
-                    let delta = v.value - (d.pos.line + 1),
-                        file = (
+                | Option.Some.{ v } =>
+                    if !(is_num n) =>
+                        error_at n.pos "#line directive requires a simple digit sequence"
+                    else
+                        let delta = v.value - (d.pos.line + 1) in
+                        let file = (
                             r |> \
-                            | List.Cons.{ f, r2 } =>
-                                if is_str f => @array_slice f.text 1 (@array_len f.text - 1) else ""
-                            | _ => ""
+                                | List.Cons.{ f, r2 } =>
+                                    if is_str f =>
+                                        @array_slice f.text 1 (@array_len f.text - 1)
+                                    else
+                                        ""
+                                | _                   => ""
                         ) in
-                    LIST.map (relocate delta file) after
-            | _ => error_at n.pos "#line directive requires a simple digit sequence"
+                        LIST.map (relocate delta file) after
+                | _ => error_at n.pos "#line directive requires a simple digit sequence"
         )
-    | _ => error_at d.pos "#line directive requires a simple digit sequence"
+        | _                  => error_at d.pos "#line directive requires a simple digit sequence"
 
 $ relocate : @Int -> @Str -> Token -> Token = \delta file t =>
     Token.{
@@ -583,48 +586,58 @@ $ args_go : Macro -> Token -> List Token -> @Int -> List Token -> List (List Tok
     | _ => error_at tok.pos ("unterminated argument list invoking macro \"" ++ m.name ++ "\"")
 
 $ bind_args : Macro -> Token -> List (List Token) -> <Diag> List Arg = \m tok all =>
-    let np = @vec_len m.params, got = LIST.length all in
+    let np = @vec_len m.params in
+    let got = LIST.length all in
     let lone_empty = got == 1 && LIST.is_empty (unwrap_or (LIST.head all) List.Nil) in
     if np == 0 && m.va == "" =>
         (
-            if lone_empty => List.Nil
+            if lone_empty =>
+                List.Nil
             else
-                error_at tok.pos (
-                    "macro \""
-                        ++ m.name
-                        ++ "\" passed "
-                        ++ to_string got
-                        ++ " arguments, but takes just 0"
-                )
+                error_at tok.pos
+                    (
+                        "macro \""
+                            ++ m.name
+                            ++ "\" passed "
+                            ++ to_string got
+                            ++ " arguments, but takes just 0"
+                    )
         )
     else if m.va == "" && got != np =>
-        error_at tok.pos (
-            "macro \""
-                ++ m.name
-                ++ "\" "
-                ++ (
-                    if got < np =>
-                        "requires "
-                            ++ to_string np
-                            ++ " arguments, but only "
-                            ++ to_string got
-                            ++ " given"
-                    else "passed " ++ to_string got ++ " arguments, but takes just " ++ to_string np
-                )
-        )
+        error_at tok.pos
+            (
+                "macro \""
+                    ++ m.name
+                    ++ "\" "
+                    ++ (
+                        if got < np =>
+                            "requires "
+                                ++ to_string np
+                                ++ " arguments, but only "
+                                ++ to_string got
+                                ++ " given"
+                        else
+                            "passed "
+                                ++ to_string got
+                                ++ " arguments, but takes just "
+                                ++ to_string np
+                    )
+            )
     else if m.va != "" && got < np && !(np == 1 && got == 1) =>
-        error_at tok.pos (
-            "macro \""
-                ++ m.name
-                ++ "\" requires at least "
-                ++ to_string np
-                ++ " arguments, but only "
-                ++ to_string got
-                ++ " given"
-        )
+        error_at tok.pos
+            (
+                "macro \""
+                    ++ m.name
+                    ++ "\" requires at least "
+                    ++ to_string np
+                    ++ " arguments, but only "
+                    ++ to_string got
+                    ++ " given"
+            )
     else
-        let padded = if m.va != "" && got == np => LIST.append all (LIST.singleton List.Nil)
-            else all in
+        let padded =
+            if m.va != "" && got == np => LIST.append all (LIST.singleton List.Nil) else all
+        in
         name_args m 0 padded
 
 $ name_args : Macro -> @Int -> List (List Token) -> List Arg = \m i l =>
@@ -983,33 +996,54 @@ $ unary : Token -> @Bool -> <IfEval> Val = \d live =>
         )
     | _ => error_at d.pos "#if with no expression"
 
-$ ult : @Int -> @Int -> @Bool = \a b => let x : @Nat = @cast a, y : @Nat = @cast b in x < y
+$ ult : @Int -> @Int -> @Bool = \a b => let x : @Nat = @cast a in let y : @Nat = @cast b in x < y
 
 $ apply : Token -> Val -> Val -> @Bool -> <Diag> Val = \t a b live =>
-    let op = t.text, u = a.u || b.u in
-    let mk = \v => Val.{ .v = v, .u = u },
-        flag = \c => Val.{ .v = (if c => 1 else 0), .u = @false } in
-    if op == "+" => mk (a.v + b.v)
-    else if op == "-" => mk (a.v - b.v)
-    else if op == "*" => mk (a.v * b.v)
+    let op = t.text in
+    let u = a.u || b.u in
+    let mk = \v => Val.{ .v = v, .u = u } in
+    let flag = \c => Val.{ .v = (if c => 1 else 0), .u = @false } in
+    if op == "+" =>
+        mk (a.v + b.v)
+    else if op == "-" =>
+        mk (a.v - b.v)
+    else if op == "*" =>
+        mk (a.v * b.v)
     else if op == "/" || op == "%" =>
         (
-            if b.v == 0 => (if live => error_at t.pos "division by zero in #if" else mk 0)
+            if b.v == 0 =>
+                (if live => error_at t.pos "division by zero in #if" else mk 0)
             else if u =>
-                let x : @Nat = @cast a.v, y : @Nat = @cast b.v in
-                let r : @Int = @cast (if op == "/" => x / y else x % y) in mk r
-            else mk (if op == "/" => a.v / b.v else a.v % b.v)
+                let x : @Nat = @cast a.v in
+                let y : @Nat = @cast b.v in
+                let r : @Int = @cast (if op == "/" => x / y else x % y) in
+                mk r
+            else
+                mk (if op == "/" => a.v / b.v else a.v % b.v)
         )
-    else if op == "<<" => Val.{ .v = shl a.v b.v, .u = a.u }
-    else if op == ">>" => Val.{ .v = (if a.u => shr_u a.v b.v else shr_s a.v b.v), .u = a.u }
-    else if op == "<" => flag (if u => ult a.v b.v else a.v < b.v)
-    else if op == ">" => flag (if u => ult b.v a.v else b.v < a.v)
-    else if op == "<=" => flag (!(if u => ult b.v a.v else b.v < a.v))
-    else if op == ">=" => flag (!(if u => ult a.v b.v else a.v < b.v))
-    else if op == "==" => flag (a.v == b.v)
-    else if op == "!=" => flag (a.v != b.v)
-    else if op == "&" => mk (band a.v b.v)
-    else if op == "|" => mk (bor a.v b.v)
-    else if op == "^" => mk (bxor a.v b.v)
-    else if op == "&&" => flag (a.v != 0 && b.v != 0)
-    else flag (a.v != 0 || b.v != 0)
+    else if op == "<<" =>
+        Val.{ .v = shl a.v b.v, .u = a.u }
+    else if op == ">>" =>
+        Val.{ .v = (if a.u => shr_u a.v b.v else shr_s a.v b.v), .u = a.u }
+    else if op == "<" =>
+        flag (if u => ult a.v b.v else a.v < b.v)
+    else if op == ">" =>
+        flag (if u => ult b.v a.v else b.v < a.v)
+    else if op == "<=" =>
+        flag (!(if u => ult b.v a.v else b.v < a.v))
+    else if op == ">=" =>
+        flag (!(if u => ult a.v b.v else a.v < b.v))
+    else if op == "==" =>
+        flag (a.v == b.v)
+    else if op == "!=" =>
+        flag (a.v != b.v)
+    else if op == "&" =>
+        mk (band a.v b.v)
+    else if op == "|" =>
+        mk (bor a.v b.v)
+    else if op == "^" =>
+        mk (bxor a.v b.v)
+    else if op == "&&" =>
+        flag (a.v != 0 && b.v != 0)
+    else
+        flag (a.v != 0 || b.v != 0)
