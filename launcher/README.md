@@ -84,14 +84,14 @@ $ Ui : @effect = model : {} -> Model, set : Model -> {},
 
 `with_model` handles it by passing the model along, and the frame loop is CORE's
 `for` over the infinite `forever` stream. Each frame is a few steps that read and
-update the model; `break` (CORE's `Loop` effect) ends the loop, and `defer` closes
+update the model; `break` (CORE's `Loop` effect) ends the loop, and `@finale` closes
 the window however it ends:
 
 ```
-defer closeWindow {} in
-defer unloadFont font in
+@finale (\_ => closeWindow {}) <| \_ =>
+@finale (\_ => unloadFont font) <| \_ =>
 (with_model m0 <| \u =>
-	defer stop_scan {} in
+	@finale stop_scan <| \_ =>
 	for forever <| \_ => frame font)
 ```
 
@@ -101,7 +101,7 @@ owned the thread, performing `Feed.found app` per entry and `Feed.pause` at each
 frame boundary. It reads only after a zero-timeout `poll(2)` says the pipe is
 ready, so no frame ever blocks on it. The handler stores the paused continuation
 in the model, each frame resumes it with `@true`, and quitting resumes it with
-`@false` so its own `defer pclose f` reaps the child.
+`@false` so its own `@finale` around the read loop reaps the child.
 
 Regenerate the bindings after a raylib upgrade:
 

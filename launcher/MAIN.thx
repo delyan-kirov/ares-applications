@@ -226,7 +226,7 @@ $ take : @Int -> @Int -> <Feed, @IO> {} = \f n =>
         | Option.Some.{ line } => when (parse_app line) (\a => Feed.found a); take f (n - 1)
         | _ => {}
 
-$ scan_apps : @Int -> <Feed, @IO> {} = \f => defer pclose f in produce f
+$ scan_apps : @Int -> <Feed, @IO> {} = \f => @finale (\_ => pclose f; {}) <| \_ => produce f
 
 # Run the scan up to its next `pause`. Each `found` app joins the model; a
 # `pause` suspends the scan as a stored continuation. When it ends with nothing
@@ -252,7 +252,7 @@ $ resume_scan : @Bool -> <Ui, @IO> {} = \go =>
 
 $ scan_step : {} -> <Ui, @IO> {} = \_ => resume_scan @true
 
-# Quitting mid-scan tells it to stop, so its `defer` reaps the child.
+# Quitting mid-scan tells it to stop, so its `@finale` reaps the child.
 $ stop_scan : {} -> <Ui, @IO> {} = \_ => resume_scan @false
 
 # -- the query ---------------------------------------------------------------
@@ -518,6 +518,6 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =>
         .win_w = base_w,
         .win_h = base_h,
     } in
-    defer closeWindow {} in
-    defer unloadFont font in
-    (with_model m0 <| \_ => defer stop_scan {} in for forever <| \_ => frame font); 0
+    @finale (\_ => closeWindow {}) <| \_ =>
+    @finale (\_ => unloadFont font) <| \_ =>
+    (with_model m0 <| \_ => @finale stop_scan <| \_ => for forever <| \_ => frame font); 0
