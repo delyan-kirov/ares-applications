@@ -35,7 +35,7 @@ $ Args : @struct =
     help: @Bool,
     bad: @Str,
 
-$ @main : @Vec @Str -> <@IO> @Int = \argv =
+$ @main : @Vec @Str -> <@IO> @Int = \argv =>
     let
         a = parse_args argv 1
             Args.{ .roots = [], .excludes = [], .files = @false, .help = @false, .bad = "" }
@@ -50,24 +50,24 @@ $ @main : @Vec @Str -> <@IO> @Int = \argv =
                 in
                     print (render tally a.files); 0
 
-$ parse_args : @Vec @Str -> @Int -> Args -> Args = \argv i a =
+$ parse_args : @Vec @Str -> @Int -> Args -> Args = \argv i a =>
     if i >= @vec_len argv =>
         a
     else
-        is @vec_get argv i
-        | "-h" | "--help"  => parse_args argv (i + 1) Args.{ .help = @true | a }
-        | "-f" | "--files" => parse_args argv (i + 1) Args.{ .files = @true | a }
-        | "-e" | "--exclude" =>
-            if i + 1 >= @vec_len argv =>
-                Args.{ .bad = "missing pattern after -e" | a }
-            else
-                parse_args argv (i + 2)
-                    Args.{ .excludes = @vec_push a.excludes (@vec_get argv (i + 1)) | a }
-        | arg =>
-            if starts_with arg "-" && @array_len arg > 1 =>
-                Args.{ .bad = "unknown option " ++ arg | a }
-            else
-                parse_args argv (i + 1) Args.{ .roots = @vec_push a.roots arg | a }
+        @vec_get argv i |> \
+            | "-h" | "--help"  => parse_args argv (i + 1) Args.{ .help = @true | a }
+            | "-f" | "--files" => parse_args argv (i + 1) Args.{ .files = @true | a }
+            | "-e" | "--exclude" =>
+                if i + 1 >= @vec_len argv =>
+                    Args.{ .bad = "missing pattern after -e" | a }
+                else
+                    parse_args argv (i + 2)
+                        Args.{ .excludes = @vec_push a.excludes (@vec_get argv (i + 1)) | a }
+            | arg =>
+                if starts_with arg "-" && @array_len arg > 1 =>
+                    Args.{ .bad = "unknown option " ++ arg | a }
+                else
+                    parse_args argv (i + 1) Args.{ .roots = @vec_push a.roots arg | a }
 
 # ---- counting ----
 
@@ -109,44 +109,44 @@ $ big_file : @Int = 131072
 $ count_all : { roots: @Vec @Str, excludes: @Vec @Str, keep: @Bool } -> <@IO> Tally =
     let
         w    = Walker.{
-            .init = \_ = Counter.{ .tally = empty {}, keep, .big = [] },
+            .init = \_ => Counter.{ .tally = empty {}, keep, .big = [] },
             .visit = visit,
-            .merge = \a b =
+            .merge = \a b =>
                 Counter.{ .tally = merge a.tally b.tally, keep, .big = append a.big b.big },
         },
         done = WALK.fold { roots, excludes, w },
     in
-        foldl (\t f = merge t (PAR.get f)) done.tally done.big
+        foldl (\t f => merge t (PAR.get f)) done.tally done.big
 
-$ empty : {} -> Tally = \_ = Tally.{ .stats = [], .per = [] }
+$ empty : {} -> Tally = \_ => Tally.{ .stats = [], .per = [] }
 
-$ merge : Tally -> Tally -> Tally = \acc t =
+$ merge : Tally -> Tally -> Tally = \acc t =>
     Tally.{ .stats = foldl add_stat acc.stats t.stats, .per = append acc.per t.per }
 
-$ visit : Counter -> @Vec Found -> @Int -> @Int -> <@IO> Counter = \c files i hi =
+$ visit : Counter -> @Vec Found -> @Int -> @Int -> <@IO> Counter = \c files i hi =>
     if i >= hi => c else visit (visit_one c (@vec_get files i)) files (i + 1) hi
 
-$ visit_one : Counter -> Found -> <@IO> Counter = \c f =
-    is read_file f.path
-    | Option.Some.{ body } =>
-        let syn = @vec_get syntaxes f.lang in
-        if
-            @array_len body >= big_file =>
-                let
-                    keep = c.keep,
-                    task = spawn (\_ = count_body (empty {}) keep f syn body)
-                in
-                    Counter.{ .big = @vec_push c.big task | c },
-            else
-                Counter.{ .tally = count_body c.tally c.keep f syn body | c }
-    | _ => c
+$ visit_one : Counter -> Found -> <@IO> Counter = \c f =>
+    read_file f.path |> \
+        | Option.Some.{ body } =>
+            let syn = @vec_get syntaxes f.lang in
+            if
+                @array_len body >= big_file =>
+                    let
+                        keep = c.keep,
+                        task = spawn (\_ => count_body (empty {}) keep f syn body)
+                    in
+                        Counter.{ .big = @vec_push c.big task | c },
+                else
+                    Counter.{ .tally = count_body c.tally c.keep f syn body | c }
+        | _ => c
 
-$ syntax_of : Lang -> Syntax = \l =
+$ syntax_of : Lang -> Syntax = \l =>
     COUNT.syntax { l.line, l.docs, l.blocks, l.nested, l.quotes, l.prose }
 
 # The tally's fields are read out first, so the tally is gone and its vectors
 # are uniquely held when they are updated, in place.
-$ count_body : Tally -> @Bool -> Found -> Syntax -> @Str -> Tally = \t keep f syn body =
+$ count_body : Tally -> @Bool -> Found -> Syntax -> @Str -> Tally = \t keep f syn body =>
     let
         c     = COUNT.count syn body,
         stats = t.stats,
@@ -165,9 +165,9 @@ $ count_body : Tally -> @Bool -> Found -> Syntax -> @Str -> Tally = \t keep f sy
             .per = if keep => @vec_push per PerFile.{ f.path, f.lang, c } else per,
         }
 
-$ add_stat : @Vec LangStat -> LangStat -> @Vec LangStat = \stats x = add_stat_at stats x 0
+$ add_stat : @Vec LangStat -> LangStat -> @Vec LangStat = \stats x => add_stat_at stats x 0
 
-$ add_stat_at : @Vec LangStat -> LangStat -> @Int -> @Vec LangStat = \stats x i =
+$ add_stat_at : @Vec LangStat -> LangStat -> @Int -> @Vec LangStat = \stats x i =>
     if i >= @vec_len stats =>
         @vec_push stats x
     else
@@ -195,10 +195,10 @@ $ Row : @struct =
     comments: @Int,
     blanks: @Int,
 
-$ rows : @Vec LangStat -> @Vec { Row, @Int } = \stats =
-    VEC.map (\x = { row_of x, x.lang }) stats |> sort_by (\x y = cmp_str x.0.name y.0.name)
+$ rows : @Vec LangStat -> @Vec { Row, @Int } = \stats =>
+    VEC.map (\x => { row_of x, x.lang }) stats |> sort_by (\x y => cmp_str x.0.name y.0.name)
 
-$ row_of : LangStat -> Row = \x = Row.{
+$ row_of : LangStat -> Row = \x => Row.{
     .name = (@vec_get LANGS.table.langs x.lang).name,
     .files = x.files,
     .lines = x.lines,
@@ -211,11 +211,11 @@ $ rule_line : @Str = " " ++ repeat "─" 77 ++ "\n"
 
 $ heavy_line : @Str = " " ++ repeat "━" 77 ++ "\n"
 
-$ render : Tally -> @Bool -> @Str = \t files =
+$ render : Tally -> @Bool -> @Str = \t files =>
     let
         rs   = rows t.stats,
         sum =
-            foldl (\s r = add_rows s r.0)
+            foldl (\s r => add_rows s r.0)
                 (
                     Row.{
                         .name = "Total",
@@ -226,11 +226,11 @@ $ render : Tally -> @Bool -> @Str = \t files =
                         .blanks = 0
                     }
                 ) rs,
-        body = foldl (\out r = out ++ (if files => language_block t.per r else line r.0)) "" rs,
+        body = foldl (\out r => out ++ (if files => language_block t.per r else line r.0)) "" rs,
     in
         heavy_line ++ header ++ rule_line ++ body ++ rule_line ++ line sum ++ heavy_line
 
-$ add_rows : Row -> Row -> Row = \s r = Row.{
+$ add_rows : Row -> Row -> Row = \s r => Row.{
     .name = s.name,
     .files = s.files + r.files,
     .lines = s.lines + r.lines,
@@ -240,11 +240,11 @@ $ add_rows : Row -> Row -> Row = \s r = Row.{
 }
 
 # A language's row, then each of its files, by path.
-$ language_block : @Vec PerFile -> { Row, @Int } -> @Str = \per r =
-    let mine = per |> filter (\p = p.lang == r.1) |> sort_by (\x y = cmp_str x.path y.path) in
-    line r.0 ++ foldl (\out p = out ++ file_line (file_row p)) "" mine ++ rule_line
+$ language_block : @Vec PerFile -> { Row, @Int } -> @Str = \per r =>
+    let mine = per |> filter (\p => p.lang == r.1) |> sort_by (\x y => cmp_str x.path y.path) in
+    line r.0 ++ foldl (\out p => out ++ file_line (file_row p)) "" mine ++ rule_line
 
-$ file_row : PerFile -> Row = \p = Row.{
+$ file_row : PerFile -> Row = \p => Row.{
     .name = " " ++ p.path,
     .files = 1,
     .lines = p.counts.code + p.counts.comments + p.counts.blanks,
@@ -256,26 +256,26 @@ $ file_row : PerFile -> Row = \p = Row.{
 $ header : @Str =
     " " ++ pad_right "Language" 22 ++ cells ["Files", "Lines", "Code", "Comments", "Blanks"] ++ "\n"
 
-$ line : Row -> @Str = \r = row_with (clip r.name 22) r
+$ line : Row -> @Str = \r => row_with (clip r.name 22) r
 
 # A file's row names its whole path, which pushes the numbers right when it
 # does not fit the column.
-$ file_line : Row -> @Str = \r = row_with r.name r
+$ file_line : Row -> @Str = \r => row_with r.name r
 
-$ row_with : @Str -> Row -> @Str = \name r =
+$ row_with : @Str -> Row -> @Str = \name r =>
     " "
         ++ pad_right name 22
         ++ cells (VEC.map to_string [r.files, r.lines, r.code, r.comments, r.blanks])
         ++ "\n"
 
-$ cells : @Vec @Str -> @Str = \cs = foldl (\out c = out ++ pad_left c 11) "" cs
+$ cells : @Vec @Str -> @Str = \cs => foldl (\out c => out ++ pad_left c 11) "" cs
 
 # Too long for its column: keep the end (a path's file name), marked with `|`.
-$ clip : @Str -> @Int -> @Str = \s w =
+$ clip : @Str -> @Int -> @Str = \s w =>
     if @array_len s > w => "|" ++ substr s (@array_len s - (w - 1)) (@array_len s) else s
 
-$ pad_left : @Str -> @Int -> @Str = \s w = repeat " " (w - @array_len s) ++ s
+$ pad_left : @Str -> @Int -> @Str = \s w => repeat " " (w - @array_len s) ++ s
 
-$ pad_right : @Str -> @Int -> @Str = \s w = s ++ repeat " " (w - @array_len s)
+$ pad_right : @Str -> @Int -> @Str = \s w => s ++ repeat " " (w - @array_len s)
 
-$ repeat : @Str -> @Int -> @Str = \s n = if n <= 0 => "" else s ++ repeat s (n - 1)
+$ repeat : @Str -> @Int -> @Str = \s n => if n <= 0 => "" else s ++ repeat s (n - 1)

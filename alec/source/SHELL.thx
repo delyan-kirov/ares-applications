@@ -47,14 +47,14 @@ $ Sh : @struct =
     dir : @Str,
     last : @Str,
 
-$ run : Opts -> <@IO> @Int = \o0 =
+$ run : Opts -> <@IO> @Int = \o0 =>
     let o = Opts.{ .files = @vec_new {} | o0 } in
     println (
         "alec shell: C to WebAssembly ("
             ++ o.target.name
             ++ "). `:help` for help, `:quit` to leave."
     );
-    is load_lib o
+    load_lib o |> \
     | Option.Some.{ lib } =>
         let dir = scratch_dir {} in
         let sh = Sh.{
@@ -89,16 +89,16 @@ $ help : @Str =
         ++ "  :help               this help                                     (:?)\n"
         ++ "  :quit               leave the shell (or Ctrl-D)                   (:q)\n"
 
-$ load_lib : Opts -> <@IO> Option (Map @Str ({} -> TU)) = \o =
+$ load_lib : Opts -> <@IO> Option (Map @Str ({} -> TU)) = \o =>
     do (
         let lib = library o in
-        Option.Some.{ MAP.map_values (\get = let tu = get {} in \u = tu) lib }
+        Option.Some.{ MAP.map_values (\get => let tu = get {} in \u => tu) lib }
     )
     ctl k
     | Diag.fail e => (eprintln ("C library: " ++ render "error" e); Option.None)
     | Diag.warn e => k {}
 
-$ scratch_dir : {} -> <@IO> @Str = \u =
+$ scratch_dir : {} -> <@IO> @Str = \u =>
     let base = env "TMPDIR" in
     let d = (if base == "" => "/tmp" else base)
             ++ "/alec-shell-"
@@ -107,35 +107,35 @@ $ scratch_dir : {} -> <@IO> @Str = \u =
             ++ to_string (C.clock {}) in
     C.system ("mkdir -p " ++ sh_quote d); d
 
-$ sh_quote : @Str -> @Str = \s = "'" ++ replace s "'" "'\\''" ++ "'"
+$ sh_quote : @Str -> @Str = \s => "'" ++ replace s "'" "'\\''" ++ "'"
 
-$ save_session : Sh -> <@IO> {} = \sh =
-    write_file (sh.dir ++ "/session.h") (VEC.foldl (\acc d = acc ++ d ++ "\n") "" sh.decls); {}
+$ save_session : Sh -> <@IO> {} = \sh =>
+    write_file (sh.dir ++ "/session.h") (VEC.foldl (\acc d => acc ++ d ++ "\n") "" sh.decls); {}
 
 # -- reading entries -------------------------------------------------------------
 
-$ loop : Sh -> <@IO> {} = \sh =
-    is read_entry "c> "
+$ loop : Sh -> <@IO> {} = \sh =>
+    read_entry "c> " |> \
     | Option.Some.{ text } =>
         let t = trim text in
         if t == "" => loop sh
-        else if starts_with t ":" => (is command sh t | Option.Some.{ next } => loop next | _ => {})
+        else if starts_with t ":" => (command sh t |> \ | Option.Some.{ next } => loop next | _ => {})
         else loop (entry sh t)
     | _ => println ""
 
-$ read_entry : @Str -> <@IO> Option @Str = \prompt =
-    print prompt; is read_line_opt "" | Option.Some.{ line } => more line | _ => Option.None
+$ read_entry : @Str -> <@IO> Option @Str = \prompt =>
+    print prompt; read_line_opt "" |> \ | Option.Some.{ line } => more line | _ => Option.None
 
-$ more : @Str -> <@IO> Option @Str = \acc =
+$ more : @Str -> <@IO> Option @Str = \acc =>
     if starts_with (trim acc) ":" || complete acc => Option.Some.{ acc }
     else
         print "..> ";
-        is read_line_opt ""
+        read_line_opt "" |> \
         | Option.Some.{ l } => more (acc ++ "\n" ++ l)
         | _ => Option.Some.{ acc }
 
 # A line from stdin without its newline; `None` at the end of input.
-$ read_line_opt : @Str -> <@IO> Option @Str = \acc =
+$ read_line_opt : @Str -> <@IO> Option @Str = \acc =>
     let c = C.getchar {} in
     if c == 10 => Option.Some.{ acc }
     else if c >= 0 && c <= 255 => read_line_opt (@array_push acc c)
@@ -143,11 +143,11 @@ $ read_line_opt : @Str -> <@IO> Option @Str = \acc =
     else Option.None
 
 # Whether an entry is finished: every bracket closed and no line continued.
-$ complete : @Str -> @Bool = \s = depth s 0 0 0 <= 0 && !(ends_with (trim_right s) "\\")
+$ complete : @Str -> @Bool = \s => depth s 0 0 0 <= 0 && !(ends_with (trim_right s) "\\")
 
 # Open brackets, skipping string and character literals and comments; an
 # unterminated comment counts as open.
-$ depth : @Str -> @Int -> @Int -> @Int -> @Int = \s i d q =
+$ depth : @Str -> @Int -> @Int -> @Int -> @Int = \s i d q =>
     if i >= @array_len s => d
     else
         let c = @array_get s i, n = if i + 1 < @array_len s => @array_get s (i + 1) else 0 in
@@ -161,7 +161,7 @@ $ depth : @Str -> @Int -> @Int -> @Int -> @Int = \s i d q =
         else if c == 47 && n == 47 => depth s (line_end s i) d 0
         else if c == 47 && n == 42 =>
             (
-                is STR.find (@array_slice s (i + 2) (@array_len s)) "*/"
+                STR.find (@array_slice s (i + 2) (@array_len s)) "*/" |> \
                 | Option.Some.{ k } => depth s (i + 4 + k) d 0
                 | _ => d + 1
             )
@@ -169,7 +169,7 @@ $ depth : @Str -> @Int -> @Int -> @Int -> @Int = \s i d q =
         else if c == 41 || c == 93 || c == 125 => depth s (i + 1) (d - 1) 0
         else depth s (i + 1) d 0
 
-$ line_end : @Str -> @Int -> @Int = \s i =
+$ line_end : @Str -> @Int -> @Int = \s i =>
     if i >= @array_len s || @array_get s i == 10 => i else line_end s (i + 1)
 
 # -- what an entry is -----------------------------------------------------------
@@ -212,32 +212,32 @@ $ decl_words : @Vec @Str =
         "__extension__"
     ]
 
-$ classify : Sh -> @Str -> <@IO> Entry = \sh e =
+$ classify : Sh -> @Str -> <@IO> Entry = \sh e =>
     let decl = Entry.Decl.{ e } in
     if starts_with e "#" => decl
     else
-        is lex "<input>" e
+        lex "<input>" e |> \
         | List.Cons.{ t, rest } =>
-            if is_ident t && (VEC.any (\w = w == t.text) decl_words || is_type sh t.text) => decl
+            if is_ident t && (VEC.any (\w => w == t.text) decl_words || is_type sh t.text) => decl
             else if ends_with e ";" || ends_with e "}" => Entry.Stmts
             else Entry.Expr
         | _ => Entry.Stmts
 
 # `(name *)0` parses only when `name` names a type.
-$ is_type : Sh -> @Str -> <@IO> @Bool = \sh name =
-    is parse_src sh (prelude ++ "void __alec_t(void) { (void)(" ++ name ++ " *)0; }\n")
+$ is_type : Sh -> @Str -> <@IO> @Bool = \sh name =>
+    parse_src sh (prelude ++ "void __alec_t(void) { (void)(" ++ name ++ " *)0; }\n") |> \
     | Result.Ok.{ tu } => @true
     | _ => @false
 
 # A declaration parsed in the session, with the `;` it may have left off added:
 # the text the session keeps, and its unit.
-$ decl_tu : Sh -> @Str -> <@IO> Result { @Str, TU } @Str = \sh d =
-    is parse_src sh (decl_src d)
+$ decl_tu : Sh -> @Str -> <@IO> Result { @Str, TU } @Str = \sh d =>
+    parse_src sh (decl_src d) |> \
     | Result.Ok.{ tu } => Result.Ok.{ { d, tu } }
     | Result.Err.{ msg } =>
         if ends_with d ";" || starts_with d "#" => Result.Err.{ msg }
         else
-            is parse_src sh (decl_src (d ++ ";"))
+            parse_src sh (decl_src (d ++ ";")) |> \
             | Result.Ok.{ tu } => Result.Ok.{ { d ++ ";", tu } }
             | _ => Result.Err.{ msg }
 
@@ -245,38 +245,38 @@ $ prelude : @Str = "#include <stdio.h>\n#include \"session.h\"\n"
 
 $ at_input : @Str = "#line 1 \"<input>\"\n"
 
-$ decl_src : @Str -> @Str = \d = prelude ++ at_input ++ d ++ "\n"
+$ decl_src : @Str -> @Str = \d => prelude ++ at_input ++ d ++ "\n"
 
-$ stmt_src : @Str -> @Str = \e =
+$ stmt_src : @Str -> @Str = \e =>
     prelude ++ "int main(void) {\n" ++ at_input ++ e ++ "\n;\nreturn 0;\n}\n"
 
-$ probe_src : @Str -> @Str = \e =
+$ probe_src : @Str -> @Str = \e =>
     prelude ++ "void __alec_probe(void) {\n(\n" ++ at_input ++ e ++ "\n);\n}\n"
 
 # -- compiling and running ----------------------------------------------------------
 
-$ input_path : Sh -> @Str = \sh = sh.dir ++ "/input.c"
+$ input_path : Sh -> @Str = \sh => sh.dir ++ "/input.c"
 
-$ in_world : Sh -> @Str -> ({} -> <Diag, @IO> a) -> <@IO> Result a @Str = \sh src body =
+$ in_world : Sh -> @Str -> ({} -> <Diag, @IO> a) -> <@IO> Result a @Str = \sh src body =>
     write_file (input_path sh) src;
     do Result.Ok.{ body {} }
     ctl k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}
 
-$ src_opts : Sh -> Opts = \sh = Opts.{ .files = [input_path sh] | sh.o }
+$ src_opts : Sh -> Opts = \sh => Opts.{ .files = [input_path sh] | sh.o }
 
-$ parse_src : Sh -> @Str -> <@IO> Result TU @Str = \sh src =
+$ parse_src : Sh -> @Str -> <@IO> Result TU @Str = \sh src =>
     in_world sh src (
-        \u = let o = src_opts sh in @vec_get (with_files (file_state o) (\v = parse_all o)) 0
+        \u => let o = src_opts sh in @vec_get (with_files (file_state o) (\v => parse_all o)) 0
     )
 
-$ build_src : Sh -> @Str -> <@IO> Result @Str @Str = \sh src =
-    in_world sh src (\u = compile_with (src_opts sh) (\v = sh.lib) sh.index)
+$ build_src : Sh -> @Str -> <@IO> Result @Str @Str = \sh src =>
+    in_world sh src (\u => compile_with (src_opts sh) (\v => sh.lib) sh.index)
 
-$ value_path : Sh -> @Str = \sh = sh.dir ++ "/value"
+$ value_path : Sh -> @Str = \sh => sh.dir ++ "/value"
 
 # Run a module under node, its output going straight to the terminal; its exit
 # status, reported when it is not 0.
-$ run_wasm : Sh -> @Str -> <@IO> {} = \sh bytes =
+$ run_wasm : Sh -> @Str -> <@IO> {} = \sh bytes =>
     let path = sh.dir ++ "/entry.wasm" in
     write_file path bytes;
     let status = C.system (
@@ -284,12 +284,12 @@ $ run_wasm : Sh -> @Str -> <@IO> {} = \sh bytes =
         ) / 256 in
     if status != 0 => println ("  // exit status " ++ to_string status) else {}
 
-$ entry : Sh -> @Str -> <@IO> Sh = \sh0 e =
+$ entry : Sh -> @Str -> <@IO> Sh = \sh0 e =>
     let sh = Sh.{ .last = e | sh0 } in
-    is classify sh e
+    classify sh e |> \
     | Entry.Decl.{ d } =>
         (
-            is decl_tu sh d
+            decl_tu sh d |> \
             | Result.Ok.{ r } =>
                 (let next = Sh.{ .decls = @vec_push sh.decls r.0 | sh } in save_session next; next)
             | Result.Err.{ msg } => (println msg; sh)
@@ -297,27 +297,27 @@ $ entry : Sh -> @Str -> <@IO> Sh = \sh0 e =
     | Entry.Stmts => (run_stmts sh e; sh)
     | Entry.Expr => (run_expr sh e; sh)
 
-$ run_stmts : Sh -> @Str -> <@IO> {} = \sh e =
-    is build_src sh (stmt_src e)
+$ run_stmts : Sh -> @Str -> <@IO> {} = \sh e =>
+    build_src sh (stmt_src e) |> \
     | Result.Ok.{ bytes } => run_wasm sh bytes
     | Result.Err.{ msg } => println msg
 
 # The type of expression `e`, by parsing it alone as a statement: `None` when
 # it does not parse (with the error), and the layout to name the type by.
-$ probe : Sh -> @Str -> <@IO> Result { Ty, Layout } @Str = \sh e =
-    is parse_src sh (probe_src e)
+$ probe : Sh -> @Str -> <@IO> Result { Ty, Layout } @Str = \sh e =>
+    parse_src sh (probe_src e) |> \
     | Result.Ok.{ tu } =>
         (
-            is VEC.find (\f = f.name == "__alec_probe") tu.funcs
+            VEC.find (\f => f.name == "__alec_probe") tu.funcs |> \
             | Option.Some.{ f } =>
                 (
-                    is f.body
+                    f.body |> \
                     | Stmt.Block.{ ss } =>
                         (
-                            is ss
+                            ss |> \
                             | List.Cons.{ s, rest } =>
                                 (
-                                    is s
+                                    s |> \
                                     | Stmt.Do.{ x } => Result.Ok.{ { x.ty, tu.layout } }
                                     | _ => Result.Ok.{ { t_void, tu.layout } }
                                 )
@@ -329,18 +329,18 @@ $ probe : Sh -> @Str -> <@IO> Result { Ty, Layout } @Str = \sh e =
         )
     | Result.Err.{ msg } => Result.Err.{ msg }
 
-$ run_expr : Sh -> @Str -> <@IO> {} = \sh e =
-    is probe sh e
+$ run_expr : Sh -> @Str -> <@IO> {} = \sh e =>
+    probe sh e |> \
     | Result.Ok.{ p } =>
         if is_void p.0 => run_stmts sh (e ++ ";")
         else
             (
-                is build_src sh (value_src sh e p.0)
+                build_src sh (value_src sh e p.0) |> \
                 | Result.Ok.{ bytes } =>
                     remove_file (value_path sh);
                     run_wasm sh bytes;
                     (
-                        is read_file (value_path sh)
+                        read_file (value_path sh) |> \
                         | Option.Some.{ v } =>
                             println ("  // " ++ shown v ++ " : " ++ ty_name p.1 p.0)
                         | _ => {}
@@ -350,7 +350,7 @@ $ run_expr : Sh -> @Str -> <@IO> {} = \sh e =
     | Result.Err.{ msg } => println msg
 
 # A `main` that evaluates `e` once, into a variable the writer below reads.
-$ value_src : Sh -> @Str -> Ty -> @Str = \sh e t =
+$ value_src : Sh -> @Str -> Ty -> @Str = \sh e t =>
     let w = writer t in
     prelude
         ++ "int main(void) {\n"
@@ -368,8 +368,8 @@ $ value_src : Sh -> @Str -> Ty -> @Str = \sh e t =
 # How the value is held (the start of a statement that `e` and `);` finish)
 # and the statement that writes it; the first byte written says how to show
 # what follows. A struct or union is evaluated but not shown.
-$ writer : Ty -> { @Str, @Str } = \t =
-    let hold = \ty = ty ++ " __alec_v = (" in
+$ writer : Ty -> { @Str, @Str } = \t =>
+    let hold = \ty => ty ++ " __alec_v = (" in
     if is_flonum t =>
         {
             hold "double",
@@ -392,18 +392,18 @@ $ writer : Ty -> { @Str, @Str } = \t =
         { hold "unsigned long", "fprintf(__alec_f, \"v0x%lx\", __alec_v);" }
     else { "(void)(", "fputs(\"v{...}\", __alec_f);" }
 
-$ is_char : Ty -> @Bool = \t = is t | Ty.Int.{ k } => k.size == 1 && k.rank == 1 | _ => @false
+$ is_char : Ty -> @Bool = \t => t |> \ | Ty.Int.{ k } => k.size == 1 && k.rank == 1 | _ => @false
 
-$ is_chars : Ty -> @Bool = \t = is_pointerish t && is_char (base_of t)
+$ is_chars : Ty -> @Bool = \t => is_pointerish t && is_char (base_of t)
 
-$ c_escape : @Str -> @Str = \s = replace (replace s "\\" "\\\\") "\"" "\\\""
+$ c_escape : @Str -> @Str = \s => replace (replace s "\\" "\\\\") "\"" "\\\""
 
 # The value the program wrote, for the `//` line.
-$ shown : @Str -> @Str = \v =
+$ shown : @Str -> @Str = \v =>
     if @array_len v == 0 => "?"
     else
         let rest = @array_slice v 1 (@array_len v) in
-        is @array_get v 0
+        @array_get v 0 |> \
         | 102 => to_string (f64_of_bits (unwrap_or (to_int rest) 0))
         | 115 => c_string rest
         | 110 => "NULL"
@@ -414,11 +414,11 @@ $ shown : @Str -> @Str = \v =
             )
         | _ => rest
 
-$ c_string : @Str -> @Str = \s = "\"" ++ esc_go s 0 "" ++ "\""
+$ c_string : @Str -> @Str = \s => "\"" ++ esc_go s 0 "" ++ "\""
 
-$ c_char : @Int -> @Str = \n = "'" ++ esc_go (@array_push "" n) 0 "" ++ "'"
+$ c_char : @Int -> @Str = \n => "'" ++ esc_go (@array_push "" n) 0 "" ++ "'"
 
-$ esc_go : @Str -> @Int -> @Str -> @Str = \s i acc =
+$ esc_go : @Str -> @Int -> @Str -> @Str = \s i acc =>
     if i >= @array_len s => acc
     else
         let c = @array_get s i in
@@ -434,28 +434,28 @@ $ esc_go : @Str -> @Int -> @Str -> @Str = \s i acc =
             else acc ++ "\\x" ++ hex2 c
         )
 
-$ hex2 : @Int -> @Str = \b =
+$ hex2 : @Int -> @Str = \b =>
     let d = "0123456789abcdef" in
     @array_push (@array_push "" (@array_get d (b / 16))) (@array_get d (b % 16))
 
 # -- meta-commands ---------------------------------------------------------------
 
 # `None` to leave the shell.
-$ command : Sh -> @Str -> <@IO> Option Sh = \sh t =
-    let name = is STR.find t " " | Option.Some.{ i } => @array_slice t 0 i | _ => t in
+$ command : Sh -> @Str -> <@IO> Option Sh = \sh t =>
+    let name = STR.find t " " |> \ | Option.Some.{ i } => @array_slice t 0 i | _ => t in
     let rest = trim (@array_slice t (@array_len name) (@array_len t)) in
     let code = if rest == "" => sh.last else rest in
-    is name
+    name |> \
     | ":q" | ":quit" => Option.None
     | ":help" | ":?" => (print help; Option.Some.{ sh })
-    | ":list" | ":l" => (for sh.decls (\d = println d); Option.Some.{ sh })
+    | ":list" | ":l" => (for sh.decls (\d => println d); Option.Some.{ sh })
     | ":reset" =>
         (let next = Sh.{ .decls = @vec_new {} | sh } in save_session next; Option.Some.{ next })
     | ":type" | ":t" =>
         (
             if rest == "" => println "alec: `:type` needs an expression, e.g. `:type 1 + 2`"
             else
-                is probe sh rest
+                probe sh rest |> \
                 | Result.Ok.{ p } => println (rest ++ " : " ++ ty_name p.1 p.0)
                 | Result.Err.{ msg } => println msg
         );
@@ -468,7 +468,7 @@ $ command : Sh -> @Str -> <@IO> Option Sh = \sh t =
             if rest == "wasm32" || rest == "wasm64" =>
                 (
                     let o = Opts.{ .target = (if rest == "wasm64" => wasm64 else wasm32) | sh.o } in
-                    is load_lib o
+                    load_lib o |> \
                     | Option.Some.{ lib } => Option.Some.{ Sh.{ .o = o, .lib = lib | sh } }
                     | _ => Option.Some.{ sh }
                 )
@@ -488,90 +488,90 @@ $ command : Sh -> @Str -> <@IO> Option Sh = \sh t =
             Option.Some.{ sh }
         )
 
-$ nothing : Sh -> @Str -> <@IO> @Bool = \sh code =
+$ nothing : Sh -> @Str -> <@IO> @Bool = \sh code =>
     if code == "" => (println "alec: no entry yet; give some C after the command"; @true)
     else @false
 
 # `pp` first means after preprocessing, with the session and <stdio.h> in
 # effect; only the entry's own tokens are shown.
-$ show_tokens : Sh -> @Str -> <@IO> {} = \sh rest =
+$ show_tokens : Sh -> @Str -> <@IO> {} = \sh rest =>
     let pp = rest == "pp" || starts_with rest "pp " in
     let given = trim (if pp => @array_slice rest 2 (@array_len rest) else rest) in
     let code = if given == "" => sh.last else given in
     if nothing sh code => {}
-    else if !pp => for (lex "<input>" code) (\t = println (DUMP.token t))
+    else if !pp => for (lex "<input>" code) (\t => println (DUMP.token t))
     else
-        is in_world sh (
+        in_world sh (
             decl_src code
         ) (
-            \u =
+            \u =>
                 let o = src_opts sh in
                 with_files (
                     file_state o
                 ) (
-                    \v =
+                    \v =>
                         collect_tokens (
-                            \w = with_macros initial_macros (\x = run_file o (input_path sh))
+                            \w => with_macros initial_macros (\x => run_file o (input_path sh))
                         )
                 )
-        )
+        ) |> \
         | Result.Ok.{ ts } =>
-            for ts (\t = if t.pos.file == "<input>" => println (DUMP.token t) else {})
+            for ts (\t => if t.pos.file == "<input>" => println (DUMP.token t) else {})
         | Result.Err.{ msg } => println msg
 
-$ opt_tu : Result { @Str, TU } @Str -> Result TU @Str = \r =
-    is r | Result.Ok.{ p } => Result.Ok.{ p.1 } | Result.Err.{ msg } => Result.Err.{ msg }
+$ opt_tu : Result { @Str, TU } @Str -> Result TU @Str = \r =>
+    r |> \ | Result.Ok.{ p } => Result.Ok.{ p.1 } | Result.Err.{ msg } => Result.Err.{ msg }
 
-$ show_ast : Sh -> @Str -> <@IO> {} = \sh code =
+$ show_ast : Sh -> @Str -> <@IO> {} = \sh code =>
     if nothing sh code => {}
     else
-        let r = is classify sh code
-            | Entry.Decl.{ d } => { opt_tu (decl_tu sh d), \n p = p.file == "<input>" }
-            | Entry.Stmts => { parse_src sh (stmt_src code), \n p = n == "main" }
-            | Entry.Expr => { parse_src sh (probe_src code), \n p = n == "__alec_probe" } in
-        is r.0
+        let r = classify sh code |> \
+            | Entry.Decl.{ d } => { opt_tu (decl_tu sh d), \n p => p.file == "<input>" }
+            | Entry.Stmts => { parse_src sh (stmt_src code), \n p => n == "main" }
+            | Entry.Expr => { parse_src sh (probe_src code), \n p => n == "__alec_probe" } in
+        r.0 |> \
         | Result.Ok.{ tu } => print (DUMP.unit_where tu r.1)
         | Result.Err.{ msg } => println msg
 
 # A declaration's functions are kept alive by a `main` that takes their
 # addresses; otherwise only `main` itself is shown.
-$ show_wasm : Sh -> @Str -> @Bool -> <@IO> {} = \sh code all =
+$ show_wasm : Sh -> @Str -> @Bool -> <@IO> {} = \sh code all =>
     let c = if all => sh.last else code in
     if nothing sh c => {}
     else
-        let r = is classify sh c
+        let r = classify sh c |> \
             | Entry.Decl.{ d } =>
                 (
-                    is decl_tu sh d
+                    decl_tu sh d |> \
                     | Result.Ok.{ r } =>
                         (
                             let mine = VEC.map (
-                                    \f = f.name
-                                ) (VEC.filter (\f = f.pos.file == "<input>") r.1.funcs) in
-                            let uses = VEC.foldl (\acc n = acc ++ "(void)&" ++ n ++ "; ") "" mine in
+                                    \f => f.name
+                                ) (VEC.filter (\f => f.pos.file == "<input>") r.1.funcs) in
+                            let uses = VEC.foldl (\acc n => acc ++ "(void)&" ++ n ++ "; ") "" mine in
                             {
                                 build_src sh (
                                     decl_src r.0 ++ "int main(void) { " ++ uses ++ "return 0; }\n"
                                 ),
-                                \n = VEC.any (\m = m == n) mine
+                                \n => VEC.any (\m => m == n) mine
                             }
                         )
-                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n = @false }
+                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n => @false }
                 )
-            | Entry.Stmts => { build_src sh (stmt_src c), \n = n == "main" }
+            | Entry.Stmts => { build_src sh (stmt_src c), \n => n == "main" }
             | Entry.Expr =>
                 (
-                    is probe sh c
+                    probe sh c |> \
                     | Result.Ok.{ p } =>
                         {
                             build_src sh (
                                 if is_void p.0 => stmt_src (c ++ ";") else value_src sh c p.0
                             ),
-                            \n = n == "main"
+                            \n => n == "main"
                         }
-                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n = @false }
+                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n => @false }
                 ) in
-        is r.0
+        r.0 |> \
         | Result.Ok.{ bytes } =>
-            for (if all => module_lines bytes else function_lines bytes r.1) (\l = println l)
+            for (if all => module_lines bytes else function_lines bytes r.1) (\l => println l)
         | Result.Err.{ msg } => println msg

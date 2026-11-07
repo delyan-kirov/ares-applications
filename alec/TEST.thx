@@ -37,17 +37,17 @@ $ Outcome : @union = Pass : {}, Fail : { @Str },
 
 # Compile `units` linked with the library units, catching a diagnostic as the
 # test's failure instead of ending the run.
-$ build : Opts -> @Vec TU -> @Str -> <Files, @IO> Result @Str @Str = \o lib path =
+$ build : Opts -> @Vec TU -> @Str -> <Files, @IO> Result @Str @Str = \o lib path =>
     do let user = parse_from Opts.{ .files = [path] | o } 0 (@vec_len lib) (@vec_new {}) in
     Result.Ok.{ link o.target "_start" (VEC.append lib user) }
     ctl k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}
 
-$ sh_quote : @Str -> @Str = \s = "'" ++ replace s "'" "'\\''" ++ "'"
+$ sh_quote : @Str -> @Str = \s => "'" ++ replace s "'" "'\\''" ++ "'"
 
 # Run a command, returning its combined output and exit status in the
 # expectation format.
 # `tag` names the capture file, so concurrent runs do not share one.
-$ capture : @Str -> @Str -> @Str -> <@IO> @Str = \tag cmd input =
+$ capture : @Str -> @Str -> @Str -> <@IO> @Str = \tag cmd input =>
     let out = scratch ++ "/" ++ tag ++ ".out" in
     let stdin = if is_some (read_file input) => " < " ++ sh_quote input else " < /dev/null" in
     let status = C.system (
@@ -67,15 +67,15 @@ $ Suite : @struct = dir : @Str, suffix : @Str, status : @Bool,
 
 $ own : Suite = Suite.{ .dir = "tests/run", .suffix = ".expected", .status = @true }
 
-$ source_of : Suite -> @Str -> @Str = \su t = su.dir ++ "/" ++ t ++ ".c"
+$ source_of : Suite -> @Str -> @Str = \su t => su.dir ++ "/" ++ t ++ ".c"
 
-$ expected_of : Suite -> @Str -> <@IO> @Str = \su t =
+$ expected_of : Suite -> @Str -> <@IO> @Str = \su t =>
     let e = unwrap_or (
             read_file (su.dir ++ "/" ++ t ++ (if su.status => ".expected" else ".c.expected"))
         ) "" in
     if su.status => e else e ++ "exit=0\n"
 
-$ regen : @Str -> <@IO> {} = \t =
+$ regen : @Str -> <@IO> {} = \t =>
     let src = "tests/run/" ++ t ++ ".c", bin = scratch ++ "/" ++ t ++ ".gcc" in
     let cc = C.system (
             "gcc -std=gnu11 -w -O0 -o " ++ sh_quote bin ++ " " ++ sh_quote src ++ " -lm"
@@ -85,9 +85,9 @@ $ regen : @Str -> <@IO> {} = \t =
         let r = capture (t ++ ".gcc") (sh_quote bin) ("tests/run/" ++ t ++ ".input") in
         write_file ("tests/run/" ++ t ++ ".expected") r; println ("  recorded " ++ t)
 
-$ run_one : Suite -> Opts -> @Vec TU -> @Str -> <Files, @IO> Outcome = \su o lib t =
+$ run_one : Suite -> Opts -> @Vec TU -> @Str -> <Files, @IO> Outcome = \su o lib t =>
     let src = source_of su t, wasm = scratch ++ "/" ++ t ++ "." ++ o.target.name ++ ".wasm" in
-    is build o lib src
+    build o lib src |> \
     | Result.Err.{ msg } => Outcome.Fail.{ msg }
     | Result.Ok.{ bytes } =>
         write_file wasm bytes;
@@ -98,21 +98,21 @@ $ run_one : Suite -> Opts -> @Vec TU -> @Str -> <Files, @IO> Outcome = \su o lib
         if got == want => Outcome.Pass
         else Outcome.Fail.{ "output differs\n--- expected\n" ++ want ++ "--- got\n" ++ got }
 
-$ run_target : Suite -> Opts -> @Vec @Str -> <@IO> { Set @Str, @Int } = \su o tests =
+$ run_target : Suite -> Opts -> @Vec @Str -> <@IO> { Set @Str, @Int } = \su o tests =>
     let r = do (
-            let lib = VEC.map (\unit = unit {}) (MAP.values (library o)) in
-            with_files (file_state o) (\u = run_all su o lib tests 0 SET.new_str 0)
+            let lib = VEC.map (\unit => unit {}) (MAP.values (library o)) in
+            with_files (file_state o) (\u => run_all su o lib tests 0 SET.new_str 0)
         )
         ctl k
         | Diag.fail e => (eprintln ("C library: " ++ render "error" e); { SET.new_str, 0 })
         | Diag.warn e => k {} in
     r
 
-$ run_all : Suite -> Opts -> @Vec TU -> @Vec @Str -> @Int -> Set @Str -> @Int -> <Files, Diag, @IO> { Set @Str, @Int } = \su o lib tests i failed passed =
+$ run_all : Suite -> Opts -> @Vec TU -> @Vec @Str -> @Int -> Set @Str -> @Int -> <Files, Diag, @IO> { Set @Str, @Int } = \su o lib tests i failed passed =>
     if i >= @vec_len tests => { failed, passed }
     else
         let t = @vec_get tests i in
-        is run_one su o lib t
+        run_one su o lib t |> \
         | Outcome.Pass =>
             (
                 println ("  ok    " ++ o.target.name ++ " " ++ t);
@@ -122,25 +122,25 @@ $ run_all : Suite -> Opts -> @Vec TU -> @Vec @Str -> @Int -> Set @Str -> @Int ->
             println ("  FAIL  " ++ o.target.name ++ " " ++ t ++ "\n" ++ indent why);
             run_all su o lib tests (i + 1) (SET.add failed (o.target.name ++ " " ++ t)) passed
 
-$ indent : @Str -> @Str = \s = join "\n" (VEC.map (\l = "        " ++ l) (lines s))
+$ indent : @Str -> @Str = \s => join "\n" (VEC.map (\l => "        " ++ l) (lines s))
 
-$ all_tests : Suite -> <@IO> @Vec @Str = \su =
-    VEC.map (\n = substr n 0 (STR.len n - 2)) (VEC.filter (\n = ends_with n ".c") (read_dir su.dir))
+$ all_tests : Suite -> <@IO> @Vec @Str = \su =>
+    VEC.map (\n => substr n 0 (STR.len n - 2)) (VEC.filter (\n => ends_with n ".c") (read_dir su.dir))
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     C.system ("mkdir -p " ++ scratch);
     let rest = @vec_slice args 1 (@vec_len args) in
-    let si = VEC.find_index (\a = a == "--suite") rest in
+    let si = VEC.find_index (\a => a == "--suite") rest in
     let su = (
-            is si
+            si |> \
             | Option.Some.{ i } =>
                 Suite.{ .dir = @vec_get rest (i + 1), .suffix = ".c.expected", .status = @false }
             | _ => own
         ) in
-    let named = VEC.filter (\a = a != "--regen" && a != "--suite" && a != su.dir) rest in
+    let named = VEC.filter (\a => a != "--regen" && a != "--suite" && a != su.dir) rest in
     let tests = if @vec_len named > 0 => named else all_tests su in
-    if VEC.any (\a = a == "--regen") args =>
-        (println "recording expectations with gcc:"; for tests (\t = regen t); 0)
+    if VEC.any (\a => a == "--regen") args =>
+        (println "recording expectations with gcc:"; for tests (\t => regen t); 0)
     else
         let home = DRIVER.find_home (@vec_get args 0) in
         let o = Opts.{
@@ -170,5 +170,5 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =
         println (
             "\n" ++ to_string passed ++ " passed, " ++ to_string (SET.size failed) ++ " failed"
         );
-        for (SET.to_list failed) (\f = println ("  failed: " ++ f));
+        for (SET.to_list failed) (\f => println ("  failed: " ++ f));
         if SET.size failed == 0 => 0 else 1

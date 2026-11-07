@@ -63,11 +63,11 @@ $ PPfx : @alias = <Macros, Files, Out, Diag>
 $ Expand : @alias = <Macros, Diag>
 
 # Preprocess one file's token stream, emitting the result through `Out`.
-$ preprocess : @Str -> List Token -> <PPfx> {} = \file toks = run (ctx_for file 0) toks
+$ preprocess : @Str -> List Token -> <PPfx> {} = \file toks => run (ctx_for file 0) toks
 
 # Macro-expand a token list completely, with no directives. Used for macro
 # arguments, `#if` lines and computed `#include`s.
-$ expand_all : List Token -> <Expand> List Token = \l = expand_go l List.Nil
+$ expand_all : List Token -> <Expand> List Token = \l => expand_go l List.Nil
 
 # The macros every translation unit starts with, besides the predefined source.
 $ builtin_macros : @Vec @Str =
@@ -82,7 +82,7 @@ $ builtin_macros : @Vec @Str =
         "__INCLUDE_LEVEL__"
     ]
 
-$ builtin_macro : @Str -> Macro = \n =
+$ builtin_macro : @Str -> Macro = \n =>
     Macro.{
         .name = n,
         .fn = @false,
@@ -94,10 +94,10 @@ $ builtin_macro : @Str -> Macro = \n =
 
 # The spelling of a token sequence, one space wherever the source had space,
 # which is what `-E` prints and what `#error` reports.
-$ spell : List Token -> @Str = \l = spell_go l "" @true
+$ spell : List Token -> @Str = \l => spell_go l "" @true
 
 # A string literal spelling `s` with `"` and `\` escaped.
-$ quote : @Str -> @Str = \s = "\"" ++ escape_str s 0 "" ++ "\""
+$ quote : @Str -> @Str = \s => "\"" ++ escape_str s 0 "" ++ "\""
 
 # The macro table as a handler: `find`/`define`/`undef` read and replace the
 # map the handler carries, and `counter` serves `__COUNTER__`.
@@ -106,15 +106,15 @@ $ MacroState : @struct =
     counter : @Int,
     saved : Map @Str (List (Option Macro)),
 
-$ with_macros : Map @Str Macro -> ({} -> <PPfx> a) -> <Files, Out, Diag> a = \tbl body =
+$ with_macros : Map @Str Macro -> ({} -> <PPfx> a) -> <Files, Out, Diag> a = \tbl body =>
     let go = do body {}
         ctl k
-        | Macros.find n => \s = (k (MAP.get s.table n)) s
-        | Macros.define d => \s = (k {}) MacroState.{ .table = MAP.insert s.table d.name d | s }
-        | Macros.undef n => \s = (k {}) MacroState.{ .table = MAP.remove s.table n | s }
-        | Macros.counter u => \s = (k s.counter) MacroState.{ .counter = s.counter + 1 | s }
+        | Macros.find n => \s => (k (MAP.get s.table n)) s
+        | Macros.define d => \s => (k {}) MacroState.{ .table = MAP.insert s.table d.name d | s }
+        | Macros.undef n => \s => (k {}) MacroState.{ .table = MAP.remove s.table n | s }
+        | Macros.counter u => \s => (k s.counter) MacroState.{ .counter = s.counter + 1 | s }
         | Macros.push_macro n =>
-            \s =
+            \s =>
                 let stack = MAP.get_or s.saved n List.Nil in
                 (
                     k {}
@@ -122,73 +122,73 @@ $ with_macros : Map @Str Macro -> ({} -> <PPfx> a) -> <Files, Out, Diag> a = \tb
                     .saved = MAP.insert s.saved n List.Cons.{ MAP.get s.table n, stack } | s
                 }
         | Macros.pop_macro n =>
-            \s =
+            \s =>
                 (
-                    is MAP.get_or s.saved n List.Nil
+                    MAP.get_or s.saved n List.Nil |> \
                     | List.Cons.{ top, rest } =>
                         let tbl = (
-                                is top
+                                top |> \
                                 | Option.Some.{ m } => MAP.insert s.table n m
                                 | _ => MAP.remove s.table n
                             ) in
                         (k {}) MacroState.{ .table = tbl, .saved = MAP.insert s.saved n rest | s }
                     | _ => (k {}) s
                 )
-        | v => \s = v in
+        | v => \s => v in
     go MacroState.{ .table = tbl, .counter = 0, .saved = MAP.new_str }
 
 $ initial_macros : Map @Str Macro =
-    VEC.foldl (\m n = MAP.insert m n (builtin_macro n)) MAP.new_str builtin_macros
+    VEC.foldl (\m n => MAP.insert m n (builtin_macro n)) MAP.new_str builtin_macros
 
 $ @private
 
 $ Ctx : @struct = file : @Str, dir : @Str, conds : List Cond, depth : @Int,
 $ Cond : @struct = pos : Pos, seen_else : @Bool,
 
-$ ctx_for : @Str -> @Int -> Ctx = \file depth =
+$ ctx_for : @Str -> @Int -> Ctx = \file depth =>
     Ctx.{ .file = file, .dir = dir_of file, .conds = List.Nil, .depth = depth }
 
-$ dir_of : @Str -> @Str = \path = dir_go path (@array_len path - 1)
+$ dir_of : @Str -> @Str = \path => dir_go path (@array_len path - 1)
 
-$ dir_go : @Str -> @Int -> @Str = \p i =
+$ dir_go : @Str -> @Int -> @Str = \p i =>
     if i < 0 => "."
     else if @array_get p i == 47 => (if i == 0 => "/" else @array_slice p 0 i)
     else dir_go p (i - 1)
 
 # -- the main loop ----------------------------------------------------------
 
-$ run : Ctx -> List Token -> <PPfx> {} = \c l =
-    is l
+$ run : Ctx -> List Token -> <PPfx> {} = \c l =>
+    l |> \
     | List.Nil =>
         (
-            is c.conds
+            c.conds |> \
             | List.Cons.{ h, t } => error_at h.pos "unterminated conditional directive"
             | _ => {}
         )
     | List.Cons.{ tok, rest } =>
         if tok.bol && is_punct tok "#" => directive c tok rest
         else
-            is tok.kind
+            tok.kind |> \
             | Kind.Bad => error_at tok.pos tok.text
             | Kind.Ident =>
                 if tok.text == "_Pragma" => run c (skip_pragma_op tok rest)
                 else
                     (
-                        is expand_step tok rest
+                        expand_step tok rest |> \
                         | Option.Some.{ l2 } => run c l2
                         | _ => (Out.emit tok; run c rest)
                     )
             | _ => (Out.emit tok; run c rest)
 
 # `_Pragma ( "..." )` is consumed; alec has no pragmas that matter mid-line.
-$ skip_pragma_op : Token -> List Token -> <Diag> List Token = \tok l =
-    is l
+$ skip_pragma_op : Token -> List Token -> <Diag> List Token = \tok l =>
+    l |> \
     | List.Cons.{ a, r1 } =>
         (
-            is r1
+            r1 |> \
             | List.Cons.{ s, r2 } =>
                 (
-                    is r2
+                    r2 |> \
                     | List.Cons.{ b, r3 } =>
                         if is_punct a "(" && is_str s && is_punct b ")" => r3
                         else error_at tok.pos "_Pragma takes a parenthesized string literal"
@@ -199,17 +199,17 @@ $ skip_pragma_op : Token -> List Token -> <Diag> List Token = \tok l =
     | _ => error_at tok.pos "_Pragma takes a parenthesized string literal"
 
 # The rest of the directive's line, and what follows it.
-$ split_line : List Token -> { List Token, List Token } = \l = split_go l List.Nil
+$ split_line : List Token -> { List Token, List Token } = \l => split_go l List.Nil
 
-$ split_go : List Token -> List Token -> { List Token, List Token } = \l acc =
-    is l
+$ split_go : List Token -> List Token -> { List Token, List Token } = \l acc =>
+    l |> \
     | List.Cons.{ t, r } => if t.bol => { LIST.reverse acc, l } else split_go r List.Cons.{ t, acc }
     | _ => { LIST.reverse acc, l }
 
-$ directive : Ctx -> Token -> List Token -> <PPfx> {} = \c hash rest =
+$ directive : Ctx -> Token -> List Token -> <PPfx> {} = \c hash rest =>
     let sp = split_line rest in
     let after = sp.1 in
-    is sp.0
+    sp.0 |> \
     | List.Nil => run c after
     | List.Cons.{ d, args } =>
         let name = d.text in
@@ -225,7 +225,7 @@ $ directive : Ctx -> Token -> List Token -> <PPfx> {} = \c hash rest =
         else if name == "ifndef" => cond_if c d (!(is_defined d args)) after
         else if name == "elif" || name == "elifdef" || name == "elifndef" || name == "else" =>
             (
-                is c.conds
+                c.conds |> \
                 | List.Cons.{ h, t } =>
                     if h.seen_else => error_at d.pos ("#" ++ name ++ " after #else")
                     else run Ctx.{ .conds = t | c } (skip_to_endif d after)
@@ -233,7 +233,7 @@ $ directive : Ctx -> Token -> List Token -> <PPfx> {} = \c hash rest =
             )
         else if name == "endif" =>
             (
-                is c.conds
+                c.conds |> \
                 | List.Cons.{ h, t } => run Ctx.{ .conds = t | c } after
                 | _ => error_at d.pos "#endif without #if"
             )
@@ -247,15 +247,15 @@ $ directive : Ctx -> Token -> List Token -> <PPfx> {} = \c hash rest =
 
 # -- conditional inclusion --------------------------------------------------
 
-$ cond_if : Ctx -> Token -> @Bool -> List Token -> <PPfx> {} = \c d taken after =
+$ cond_if : Ctx -> Token -> @Bool -> List Token -> <PPfx> {} = \c d taken after =>
     if taken => run (push_cond c d @false) after else next_branch c d after
 
-$ push_cond : Ctx -> Token -> @Bool -> Ctx = \c d e =
+$ push_cond : Ctx -> Token -> @Bool -> Ctx = \c d e =>
     Ctx.{ .conds = List.Cons.{ Cond.{ .pos = d.pos, .seen_else = e }, c.conds } | c }
 
 # The group was not taken: skip to the next `#elif`/`#else`/`#endif` of this
 # conditional and decide again there.
-$ next_branch : Ctx -> Token -> List Token -> <PPfx> {} = \c d after =
+$ next_branch : Ctx -> Token -> List Token -> <PPfx> {} = \c d after =>
     let s = skip_group after 0 in
     if s.name == "" => error_at d.pos "unterminated conditional directive"
     else if s.name == "endif" => run c s.rest
@@ -266,7 +266,7 @@ $ next_branch : Ctx -> Token -> List Token -> <PPfx> {} = \c d after =
 
 # A taken group ended at an `#elif` or `#else`: everything up to the matching
 # `#endif` is skipped unexamined.
-$ skip_to_endif : Token -> List Token -> <Diag> List Token = \d l =
+$ skip_to_endif : Token -> List Token -> <Diag> List Token = \d l =>
     let s = skip_group l 0 in
     if s.name == "" => error_at d.pos "unterminated conditional directive"
     else if s.name == "endif" => s.rest
@@ -276,8 +276,8 @@ $ Skipped : @struct = name : @Str, tok : Token, line : List Token, rest : List T
 
 # Skip tokens to the directive that ends the current group at nesting depth 0.
 # Pure: nothing in a skipped group is expanded, included or reported.
-$ skip_group : List Token -> @Int -> Skipped = \l depth =
-    is l
+$ skip_group : List Token -> @Int -> Skipped = \l depth =>
+    l |> \
     | List.Nil =>
         Skipped.{
             .name = "",
@@ -288,7 +288,7 @@ $ skip_group : List Token -> @Int -> Skipped = \l depth =
     | List.Cons.{ t, r } =>
         if t.bol && is_punct t "#" =>
             (
-                is r
+                r |> \
                 | List.Cons.{ d, r2 } =>
                     if d.bol || !(is_ident d) => skip_group r depth
                     else if d.text == "if" || d.text == "ifdef" || d.text == "ifndef" =>
@@ -309,13 +309,13 @@ $ skip_group : List Token -> @Int -> Skipped = \l depth =
             )
         else skip_group r depth
 
-$ is_defined : Token -> List Token -> <Expand> @Bool = \d args =
-    is args
+$ is_defined : Token -> List Token -> <Expand> @Bool = \d args =>
+    args |> \
     | List.Cons.{ n, r } =>
         if is_ident n => defined_name n.text else error_at n.pos ("macro names must be identifiers")
     | _ => error_at d.pos ("no macro name given in #" ++ d.text ++ " directive")
 
-$ defined_name : @Str -> <Macros> @Bool = \n =
+$ defined_name : @Str -> <Macros> @Bool = \n =>
     is_some (Macros.find n)
         || n == "__has_include"
         || n == "__has_include_next"
@@ -325,14 +325,14 @@ $ defined_name : @Str -> <Macros> @Bool = \n =
 
 # -- #define and #undef -----------------------------------------------------
 
-$ define_macro : Token -> List Token -> <Expand> {} = \d args =
-    is args
+$ define_macro : Token -> List Token -> <Expand> {} = \d args =>
+    args |> \
     | List.Cons.{ n, after } =>
         if !(is_ident n) => error_at n.pos "macro names must be identifiers"
         else if n.text == "defined" => error_at n.pos "\"defined\" cannot be used as a macro name"
         else
             (
-                is after
+                after |> \
                 | List.Cons.{ p, r } =>
                     if is_punct p "(" && !p.space => define_fn n r (@vec_new {})
                     else Macros.define (object_macro n.text after)
@@ -340,7 +340,7 @@ $ define_macro : Token -> List Token -> <Expand> {} = \d args =
             )
     | _ => error_at d.pos "no macro name given in #define directive"
 
-$ object_macro : @Str -> List Token -> Macro = \name body =
+$ object_macro : @Str -> List Token -> Macro = \name body =>
     Macro.{
         .name = name,
         .fn = @false,
@@ -350,18 +350,18 @@ $ object_macro : @Str -> List Token -> Macro = \name body =
         .builtin = @false
     }
 
-$ unspace : List Token -> List Token = \l =
-    is l | List.Cons.{ h, t } => List.Cons.{ Token.{ .space = @false | h }, t } | _ => l
+$ unspace : List Token -> List Token = \l =>
+    l |> \ | List.Cons.{ h, t } => List.Cons.{ Token.{ .space = @false | h }, t } | _ => l
 
 # Parameters up to `)`: identifiers, then optionally `...` (or GNU `name...`).
-$ define_fn : Token -> List Token -> @Vec @Str -> <Expand> {} = \n l ps =
-    is l
+$ define_fn : Token -> List Token -> @Vec @Str -> <Expand> {} = \n l ps =>
+    l |> \
     | List.Cons.{ t, r } =>
         if is_punct t ")" && @vec_len ps == 0 => finish_fn n ps "" r
         else if is_punct t "..." => close_params n ps "__VA_ARGS__" r t
         else if is_ident t =>
             (
-                is r
+                r |> \
                 | List.Cons.{ s, r2 } =>
                     if is_punct s "," => define_fn n r2 (@vec_push ps t.text)
                     else if is_punct s ")" => finish_fn n (@vec_push ps t.text) "" r2
@@ -372,13 +372,13 @@ $ define_fn : Token -> List Token -> @Vec @Str -> <Expand> {} = \n l ps =
         else error_at t.pos "expected parameter name in macro parameter list"
     | _ => error_at n.pos "missing ')' in macro parameter list"
 
-$ close_params : Token -> @Vec @Str -> @Str -> List Token -> Token -> <Expand> {} = \n ps va l at =
-    is l
+$ close_params : Token -> @Vec @Str -> @Str -> List Token -> Token -> <Expand> {} = \n ps va l at =>
+    l |> \
     | List.Cons.{ t, r } =>
         if is_punct t ")" => finish_fn n ps va r else error_at t.pos "expected ')' after \"...\""
     | _ => error_at at.pos "missing ')' in macro parameter list"
 
-$ finish_fn : Token -> @Vec @Str -> @Str -> List Token -> <Expand> {} = \n ps va body =
+$ finish_fn : Token -> @Vec @Str -> @Str -> List Token -> <Expand> {} = \n ps va body =>
     let m = Macro.{
             .name = n.text,
             .fn = @true,
@@ -390,12 +390,12 @@ $ finish_fn : Token -> @Vec @Str -> @Str -> List Token -> <Expand> {} = \n ps va
     check_hashes m body; Macros.define m
 
 # In a function-like macro every `#` must be followed by a parameter.
-$ check_hashes : Macro -> List Token -> <Diag> {} = \m l =
-    is l
+$ check_hashes : Macro -> List Token -> <Diag> {} = \m l =>
+    l |> \
     | List.Cons.{ t, r } =>
         if is_punct t "#" =>
             (
-                is r
+                r |> \
                 | List.Cons.{ p, r2 } =>
                     if is_param m p.text => check_hashes m r2
                     else error_at t.pos "'#' is not followed by a macro parameter"
@@ -404,31 +404,31 @@ $ check_hashes : Macro -> List Token -> <Diag> {} = \m l =
         else check_hashes m r
     | _ => {}
 
-$ is_param : Macro -> @Str -> @Bool = \m s =
-    (m.va != "" && s == m.va) || VEC.any (\p = p == s) m.params || (s == "__VA_OPT__" && m.va != "")
+$ is_param : Macro -> @Str -> @Bool = \m s =>
+    (m.va != "" && s == m.va) || VEC.any (\p => p == s) m.params || (s == "__VA_OPT__" && m.va != "")
 
-$ undef_macro : Token -> List Token -> <Expand> {} = \d args =
-    is args
+$ undef_macro : Token -> List Token -> <Expand> {} = \d args =>
+    args |> \
     | List.Cons.{ n, r } =>
         if is_ident n => Macros.undef n.text else error_at n.pos "macro names must be identifiers"
     | _ => error_at d.pos "no macro name given in #undef directive"
 
 # -- #include, #line, #pragma -----------------------------------------------
 
-$ do_include : Ctx -> Token -> List Token -> @Bool -> <PPfx> {} = \c d args next =
+$ do_include : Ctx -> Token -> List Token -> @Bool -> <PPfx> {} = \c d args next =>
     let h = header_name d args @true in
     let req = Request.{ .name = h.0, .angled = h.1, .dir = c.dir, .next = next, .from = c.file } in
     if c.depth >= 200 => error_at d.pos "#include nested too deeply"
     else
-        is Files.include req
+        Files.include req |> \
         | Loaded.Found.{ path, src } => run (ctx_for path (c.depth + 1)) (lex path src)
         | Loaded.Skip => {}
         | _ => error_at d.pos (h.0 ++ ": No such file or directory")
 
 # The name in `"name"` or `<name>`; a line that is neither is macro-expanded
 # once and read again.
-$ header_name : Token -> List Token -> @Bool -> <Expand> { @Str, @Bool } = \d args retry =
-    is args
+$ header_name : Token -> List Token -> @Bool -> <Expand> { @Str, @Bool } = \d args retry =>
+    args |> \
     | List.Cons.{ t, r } =>
         if is_str t && @array_get t.text 0 == 34 =>
             { @array_slice t.text 1 (@array_len t.text - 1), @false }
@@ -437,8 +437,8 @@ $ header_name : Token -> List Token -> @Bool -> <Expand> { @Str, @Bool } = \d ar
         else error_at t.pos "#include expects \"FILENAME\" or <FILENAME>"
     | _ => error_at d.pos "#include expects \"FILENAME\" or <FILENAME>"
 
-$ angled : List Token -> @Str -> Token -> <Diag> @Str = \l acc d =
-    is l
+$ angled : List Token -> @Str -> Token -> <Diag> @Str = \l acc d =>
+    l |> \
     | List.Cons.{ t, r } =>
         if is_punct t ">" => acc
         else angled r (acc ++ (if t.space && @array_len acc > 0 => " " else "") ++ t.text) d
@@ -446,18 +446,18 @@ $ angled : List Token -> @Str -> Token -> <Diag> @Str = \l acc d =
 
 # `#line N "file"` renumbers the lines that follow. The rest of the file is
 # relocated lazily, a cell at a time as it is read.
-$ do_line : Token -> List Token -> List Token -> <Expand> List Token = \d args after =
+$ do_line : Token -> List Token -> List Token -> <Expand> List Token = \d args after =>
     let ex = expand_all args in
-    is ex
+    ex |> \
     | List.Cons.{ n, r } =>
         (
-            is int_lit n.text
+            int_lit n.text |> \
             | Option.Some.{ v } =>
                 if !(is_num n) => error_at n.pos "#line directive requires a simple digit sequence"
                 else
                     let delta = v.value - (d.pos.line + 1),
                         file = (
-                            is r
+                            r |> \
                             | List.Cons.{ f, r2 } =>
                                 if is_str f => @array_slice f.text 1 (@array_len f.text - 1) else ""
                             | _ => ""
@@ -467,7 +467,7 @@ $ do_line : Token -> List Token -> List Token -> <Expand> List Token = \d args a
         )
     | _ => error_at d.pos "#line directive requires a simple digit sequence"
 
-$ relocate : @Int -> @Str -> Token -> Token = \delta file t =
+$ relocate : @Int -> @Str -> Token -> Token = \delta file t =>
     Token.{
         .pos = Pos.{
             .line = t.pos.line + delta,
@@ -477,13 +477,13 @@ $ relocate : @Int -> @Str -> Token -> Token = \delta file t =
 
 # `#pragma once`, and `push_macro("NAME")` / `pop_macro("NAME")`, which save and
 # restore a macro's definition. Every other pragma is ignored.
-$ do_pragma : Ctx -> List Token -> <PPfx> {} = \c args =
-    is args
+$ do_pragma : Ctx -> List Token -> <PPfx> {} = \c args =>
+    args |> \
     | List.Cons.{ t, r } =>
         if t.text == "once" => Files.once c.file
         else if t.text == "push_macro" || t.text == "pop_macro" =>
             (
-                is LIST.filter is_str r
+                LIST.filter is_str r |> \
                 | List.Cons.{ n, more } =>
                     let name = @array_slice n.text 1 (@array_len n.text - 1) in
                     if t.text == "push_macro" => Macros.push_macro name else Macros.pop_macro name
@@ -494,12 +494,12 @@ $ do_pragma : Ctx -> List Token -> <PPfx> {} = \c args =
 
 # -- macro expansion --------------------------------------------------------
 
-$ expand_go : List Token -> List Token -> <Expand> List Token = \l acc =
-    is l
+$ expand_go : List Token -> List Token -> <Expand> List Token = \l acc =>
+    l |> \
     | List.Cons.{ t, r } =>
         if is_ident t =>
             (
-                is expand_step t r
+                expand_step t r |> \
                 | Option.Some.{ l2 } => expand_go l2 acc
                 | _ => expand_go r List.Cons.{ t, acc }
             )
@@ -509,10 +509,10 @@ $ expand_go : List Token -> List Token -> <Expand> List Token = \l acc =
 # If `tok` invokes a macro, the input with the invocation replaced by its
 # expansion; otherwise None. The expansion is stamped with the invocation's
 # position and with the hide set that stops it expanding itself again.
-$ expand_step : Token -> List Token -> <Expand> Option (List Token) = \tok rest =
+$ expand_step : Token -> List Token -> <Expand> Option (List Token) = \tok rest =>
     if member tok.text tok.hide => Option.None
     else
-        is Macros.find tok.text
+        Macros.find tok.text |> \
         | Option.Some.{ m } =>
             if m.builtin => Option.Some.{ List.Cons.{ builtin_token m tok, rest } }
             else if !m.fn =>
@@ -523,7 +523,7 @@ $ expand_step : Token -> List Token -> <Expand> Option (List Token) = \tok rest 
                 }
             else
                 (
-                    is rest
+                    rest |> \
                     | List.Cons.{ p, r } =>
                         if is_punct p "(" =>
                             let a = read_args m tok r in
@@ -534,8 +534,8 @@ $ expand_step : Token -> List Token -> <Expand> Option (List Token) = \tok rest 
                 )
         | _ => Option.None
 
-$ stamp : List @Str -> Token -> List Token -> @Bool -> List Token = \hs at l first =
-    is l
+$ stamp : List @Str -> Token -> List Token -> @Bool -> List Token = \hs at l first =>
+    l |> \
     | List.Cons.{ t, r } =>
         List.Cons.{
             Token.{
@@ -548,9 +548,9 @@ $ stamp : List @Str -> Token -> List Token -> @Bool -> List Token = \hs at l fir
         }
     | _ => List.Nil
 
-$ builtin_token : Macro -> Token -> <Expand> Token = \m tok =
+$ builtin_token : Macro -> Token -> <Expand> Token = \m tok =>
     let n = m.name in
-    let mk = \k s = Token.{ .kind = k, .text = s, .hide = List.Nil | tok } in
+    let mk = \k s => Token.{ .kind = k, .text = s, .hide = List.Nil | tok } in
     if n == "__FILE__" || n == "__BASE_FILE__" => mk Kind.Str (quote tok.pos.file)
     else if n == "__LINE__" => mk Kind.Num (to_string tok.pos.line)
     else if n == "__COUNTER__" => mk Kind.Num (to_string (Macros.counter {}))
@@ -564,11 +564,11 @@ $ Args : @struct = args : List Arg, rparen : Token, rest : List Token,
 
 # The arguments of an invocation, from just after its `(`. Commas at paren depth
 # 0 separate them, except within the variadic part.
-$ read_args : Macro -> Token -> List Token -> <Diag> Args = \m tok l =
+$ read_args : Macro -> Token -> List Token -> <Diag> Args = \m tok l =>
     args_go m tok l 0 List.Nil List.Nil
 
-$ args_go : Macro -> Token -> List Token -> @Int -> List Token -> List (List Token) -> <Diag> Args = \m tok l depth cur done =
-    is l
+$ args_go : Macro -> Token -> List Token -> @Int -> List Token -> List (List Token) -> <Diag> Args = \m tok l depth cur done =>
+    l |> \
     | List.Cons.{ t, r } =>
         if is_punct t ")" && depth == 0 =>
             let all = LIST.reverse List.Cons.{ LIST.reverse cur, done } in
@@ -582,7 +582,7 @@ $ args_go : Macro -> Token -> List Token -> @Int -> List Token -> List (List Tok
         else args_go m tok r depth List.Cons.{ t, cur } done
     | _ => error_at tok.pos ("unterminated argument list invoking macro \"" ++ m.name ++ "\"")
 
-$ bind_args : Macro -> Token -> List (List Token) -> <Diag> List Arg = \m tok all =
+$ bind_args : Macro -> Token -> List (List Token) -> <Diag> List Arg = \m tok all =>
     let np = @vec_len m.params, got = LIST.length all in
     let lone_empty = got == 1 && LIST.is_empty (unwrap_or (LIST.head all) List.Nil) in
     if np == 0 && m.va == "" =>
@@ -627,32 +627,32 @@ $ bind_args : Macro -> Token -> List (List Token) -> <Diag> List Arg = \m tok al
             else all in
         name_args m 0 padded
 
-$ name_args : Macro -> @Int -> List (List Token) -> List Arg = \m i l =
-    is l
+$ name_args : Macro -> @Int -> List (List Token) -> List Arg = \m i l =>
+    l |> \
     | List.Cons.{ a, r } =>
         let n = if i < @vec_len m.params => @vec_get m.params i else m.va in
         List.Cons.{ Arg.{ .name = n, .toks = a }, name_args m (i + 1) r }
     | _ => List.Nil
 
-$ find_arg : List Arg -> Token -> Option Arg = \args t =
-    if !(is_ident t) => Option.None else LIST.find (\a = a.name == t.text) args
+$ find_arg : List Arg -> Token -> Option Arg = \args t =>
+    if !(is_ident t) => Option.None else LIST.find (\a => a.name == t.text) args
 
 # Replace the parameters in a function-like macro's body: `#p` stringizes,
 # `a ## b` pastes, and a plain parameter is replaced by its fully expanded
 # argument. The result is built reversed in `acc`, so a paste can take the token
 # it glues onto from the head.
-$ subst : Macro -> List Arg -> <Expand> List Token = \m args = subst_go m args m.body List.Nil
+$ subst : Macro -> List Arg -> <Expand> List Token = \m args => subst_go m args m.body List.Nil
 
-$ subst_go : Macro -> List Arg -> List Token -> List Token -> <Expand> List Token = \m args l acc =
-    is l
+$ subst_go : Macro -> List Arg -> List Token -> List Token -> <Expand> List Token = \m args l acc =>
+    l |> \
     | List.Nil => LIST.reverse acc
     | List.Cons.{ t, r } =>
         if is_punct t "#" && m.fn =>
             (
-                is r
+                r |> \
                 | List.Cons.{ p, r2 } =>
                     (
-                        is find_arg args p
+                        find_arg args p |> \
                         | Option.Some.{ a } =>
                             subst_go m args r2 List.Cons.{ stringize t a.toks, acc }
                         | _ => error_at t.pos "'#' is not followed by a macro parameter"
@@ -663,7 +663,7 @@ $ subst_go : Macro -> List Arg -> List Token -> List Token -> <Expand> List Toke
         else if t.text == "__VA_OPT__" && m.va != "" => va_opt m args t r acc
         else
             (
-                is find_arg args t
+                find_arg args t |> \
                 | Option.Some.{ a } =>
                     if next_is_paste r => subst_go m args r (push_all (respace t a.toks) acc)
                     else subst_go m args r (push_all (respace t (expand_all a.toks)) acc)
@@ -671,31 +671,31 @@ $ subst_go : Macro -> List Arg -> List Token -> List Token -> <Expand> List Toke
             )
 
 # An object-like macro's body only needs substitution for its `##`s.
-$ object_body : Macro -> <Expand> List Token = \m =
-    if LIST.any (\t = is_punct t "##") m.body => subst m List.Nil else m.body
+$ object_body : Macro -> <Expand> List Token = \m =>
+    if LIST.any (\t => is_punct t "##") m.body => subst m List.Nil else m.body
 
-$ next_is_paste : List Token -> @Bool = \r =
-    is r | List.Cons.{ h, t } => is_punct h "##" | _ => @false
+$ next_is_paste : List Token -> @Bool = \r =>
+    r |> \ | List.Cons.{ h, t } => is_punct h "##" | _ => @false
 
 # `## rhs`: glue the next token (or the first token of the next argument) onto
 # the token at the head of `acc`. A placemarker (an empty argument) on either
 # side leaves the other side alone. GNU `, ## __VA_ARGS__` drops the comma when
 # the variadic argument is empty.
-$ paste_rhs : Macro -> List Arg -> Token -> List Token -> List Token -> <Expand> List Token = \m args hh r acc =
-    is r
+$ paste_rhs : Macro -> List Arg -> Token -> List Token -> List Token -> <Expand> List Token = \m args hh r acc =>
+    r |> \
     | List.Nil => error_at hh.pos "'##' cannot appear at either end of a macro expansion"
     | List.Cons.{ p, r2 } =>
-        let rhs = (is find_arg args p | Option.Some.{ a } => a.toks | _ => LIST.singleton p) in
+        let rhs = (find_arg args p |> \ | Option.Some.{ a } => a.toks | _ => LIST.singleton p) in
         let comma_va = m.va != ""
                 && p.text == m.va
-                && (is acc | List.Cons.{ h, t } => is_punct h "," | _ => @false) in
-        is rhs
+                && (acc |> \ | List.Cons.{ h, t } => is_punct h "," | _ => @false) in
+        rhs |> \
         | List.Nil => if comma_va => subst_go m args r2 (LIST.tail acc) else subst_go m args r2 acc
         | List.Cons.{ first, more } =>
             if comma_va => subst_go m args r2 (push_all rhs acc)
             else
                 (
-                    is acc
+                    acc |> \
                     | List.Cons.{ lhs, below } =>
                         subst_go m args r2 (push_all more List.Cons.{ paste lhs first, below })
                     | _ => subst_go m args r2 (push_all rhs acc)
@@ -703,13 +703,13 @@ $ paste_rhs : Macro -> List Arg -> Token -> List Token -> List Token -> <Expand>
 
 # `__VA_OPT__ ( tokens )` keeps its tokens only when the variadic argument has
 # some (C23).
-$ va_opt : Macro -> List Arg -> Token -> List Token -> List Token -> <Expand> List Token = \m args t r acc =
-    is r
+$ va_opt : Macro -> List Arg -> Token -> List Token -> List Token -> <Expand> List Token = \m args t r acc =>
+    r |> \
     | List.Cons.{ p, r2 } =>
         if is_punct p "(" =>
             let sp = paren_group r2 0 List.Nil t in
             let va = (
-                    is LIST.find (\a = a.name == m.va) args
+                    LIST.find (\a => a.name == m.va) args |> \
                     | Option.Some.{ a } => a.toks
                     | _ => List.Nil
                 ) in
@@ -718,8 +718,8 @@ $ va_opt : Macro -> List Arg -> Token -> List Token -> List Token -> <Expand> Li
         else error_at t.pos "__VA_OPT__ must be followed by '('"
     | _ => error_at t.pos "__VA_OPT__ must be followed by '('"
 
-$ paren_group : List Token -> @Int -> List Token -> Token -> <Diag> { List Token, List Token } = \l depth acc at =
-    is l
+$ paren_group : List Token -> @Int -> List Token -> Token -> <Diag> { List Token, List Token } = \l depth acc at =>
+    l |> \
     | List.Cons.{ t, r } =>
         if is_punct t ")" && depth == 0 => { LIST.reverse acc, r }
         else if is_punct t "(" => paren_group r (depth + 1) List.Cons.{ t, acc } at
@@ -727,8 +727,8 @@ $ paren_group : List Token -> @Int -> List Token -> Token -> <Diag> { List Token
         else paren_group r depth List.Cons.{ t, acc } at
     | _ => error_at at.pos "unterminated __VA_OPT__"
 
-$ paste : Token -> Token -> <Diag> Token = \lhs rhs =
-    is lex_one (lhs.text ++ rhs.text)
+$ paste : Token -> Token -> <Diag> Token = \lhs rhs =>
+    lex_one (lhs.text ++ rhs.text) |> \
     | Option.Some.{ t } => Token.{ .kind = t.kind, .text = t.text | lhs }
     | _ =>
         error_at lhs.pos (
@@ -739,24 +739,24 @@ $ paste : Token -> Token -> <Diag> Token = \lhs rhs =
                 ++ "\" does not give a valid preprocessing token"
         )
 
-$ respace : Token -> List Token -> List Token = \at l =
-    is l | List.Cons.{ h, t } => List.Cons.{ Token.{ .space = at.space | h }, t } | _ => l
+$ respace : Token -> List Token -> List Token = \at l =>
+    l |> \ | List.Cons.{ h, t } => List.Cons.{ Token.{ .space = at.space | h }, t } | _ => l
 
-$ push_all : List Token -> List Token -> List Token = \l acc = LIST.reverse_onto acc l
+$ push_all : List Token -> List Token -> List Token = \l acc => LIST.reverse_onto acc l
 
-$ stringize : Token -> List Token -> Token = \hash l =
+$ stringize : Token -> List Token -> Token = \hash l =>
     Token.{
         .kind = Kind.Str,
         .text = "\"" ++ stringize_go l "" @true ++ "\"",
         .hide = List.Nil | hash
     }
 
-$ stringize_go : List Token -> @Str -> @Bool -> @Str = \l acc first =
-    is l
+$ stringize_go : List Token -> @Str -> @Bool -> @Str = \l acc first =>
+    l |> \
     | List.Cons.{ t, r } =>
         let sep = if t.space && !first => " " else "" in
         let body = (
-                is t.kind
+                t.kind |> \
                 | Kind.Str => escape_str t.text 0 ""
                 | Kind.Chr => escape_str t.text 0 ""
                 | _ => t.text
@@ -764,7 +764,7 @@ $ stringize_go : List Token -> @Str -> @Bool -> @Str = \l acc first =
         stringize_go r (acc ++ sep ++ body) @false
     | _ => acc
 
-$ escape_str : @Str -> @Int -> @Str -> @Str = \s i acc =
+$ escape_str : @Str -> @Int -> @Str -> @Str = \s i acc =>
     if i >= @array_len s => acc
     else
         let c = @array_get s i in
@@ -772,20 +772,20 @@ $ escape_str : @Str -> @Int -> @Str -> @Str = \s i acc =
             i + 1
         ) (if c == 34 || c == 92 => @array_push (@array_push acc 92) c else @array_push acc c)
 
-$ spell_go : List Token -> @Str -> @Bool -> @Str = \l acc first =
-    is l
+$ spell_go : List Token -> @Str -> @Bool -> @Str = \l acc first =>
+    l |> \
     | List.Cons.{ t, r } =>
         spell_go r (acc ++ (if t.space && !first => " " else "") ++ t.text) @false
     | _ => acc
 
 # -- hide sets --------------------------------------------------------------
 
-$ member : @Str -> List @Str -> @Bool = \s l = LIST.any (\x = x == s) l
+$ member : @Str -> List @Str -> @Bool = \s l => LIST.any (\x => x == s) l
 
-$ intersect : List @Str -> List @Str -> List @Str = \a b = LIST.filter (\x = member x b) a
+$ intersect : List @Str -> List @Str -> List @Str = \a b => LIST.filter (\x => member x b) a
 
-$ union : List @Str -> List @Str -> List @Str = \a b =
-    LIST.foldl (\acc x = if member x acc => acc else List.Cons.{ x, acc }) a b
+$ union : List @Str -> List @Str -> List @Str = \a b =>
+    LIST.foldl (\acc x => if member x acc => acc else List.Cons.{ x, acc }) a b
 
 # -- #if expressions --------------------------------------------------------
 
@@ -796,49 +796,49 @@ $ Val : @struct = v : @Int, u : @Bool,
 # the remaining tokens.
 $ Cur : @effect = look : {} -> Option Token, skip : {} -> {},
 
-$ eval_if : Token -> List Token -> <PPfx> @Bool = \d args =
+$ eval_if : Token -> List Token -> <PPfx> @Bool = \d args =>
     let l1 = replace_defined d args in
     let l2 = LIST.map zero_ident (expand_all l1) in
     if LIST.is_empty l2 => error_at d.pos ("#" ++ d.text ++ " with no expression")
     else
         let go = do (
                 let v = cond_expr d @true in
-                is Cur.look {}
+                Cur.look {} |> \
                 | Option.Some.{ t } =>
                     error_at t.pos ("missing binary operator before token \"" ++ t.text ++ "\"")
                 | _ => v
             )
             ctl k
             | Cur.look u =>
-                \l = (is l | List.Cons.{ h, t } => (k Option.Some.{ h }) l | _ => (k Option.None) l)
-            | Cur.skip u => \l = (k {}) (LIST.tail l)
-            | v => \l = v in
+                \l => (l |> \ | List.Cons.{ h, t } => (k Option.Some.{ h }) l | _ => (k Option.None) l)
+            | Cur.skip u => \l => (k {}) (LIST.tail l)
+            | v => \l => v in
         (go l2).v != 0
 
-$ zero_ident : Token -> Token = \t =
+$ zero_ident : Token -> Token = \t =>
     if is_ident t => Token.{ .kind = Kind.Num, .text = (if t.text == "true" => "1" else "0") | t }
     else t
 
 # `defined X`, `defined ( X )` and the `__has_*` queries are answered before
 # macro expansion, so their operands are never expanded.
-$ replace_defined : Token -> List Token -> <PPfx> List Token = \d l = repl_go d l List.Nil
+$ replace_defined : Token -> List Token -> <PPfx> List Token = \d l => repl_go d l List.Nil
 
-$ repl_go : Token -> List Token -> List Token -> <PPfx> List Token = \d l acc =
-    is l
+$ repl_go : Token -> List Token -> List Token -> <PPfx> List Token = \d l acc =>
+    l |> \
     | List.Nil => LIST.reverse acc
     | List.Cons.{ t, r } =>
         if is_ident t && t.text == "defined" =>
             (
-                is r
+                r |> \
                 | List.Cons.{ a, r2 } =>
                     if is_ident a =>
                         repl_go d r2 List.Cons.{ bool_tok t (defined_name a.text), acc }
                     else if is_punct a "(" =>
                         (
-                            is r2
+                            r2 |> \
                             | List.Cons.{ n, r3 } =>
                                 (
-                                    is r3
+                                    r3 |> \
                                     | List.Cons.{ b, r4 } =>
                                         if is_ident n && is_punct b ")" =>
                                             repl_go d r4 List.Cons.{
@@ -878,7 +878,7 @@ $ repl_go : Token -> List Token -> List Token -> <PPfx> List Token = \d l acc =
             repl_go d sp.1 List.Cons.{ bool_tok t (has_builtin (spell sp.0)), acc }
         else repl_go d r List.Cons.{ t, acc }
 
-$ has_builtin : @Str -> @Bool = \s =
+$ has_builtin : @Str -> @Bool = \s =>
     s == "__builtin_va_start"
         || s == "__builtin_va_arg"
         || s == "__builtin_va_end"
@@ -886,21 +886,21 @@ $ has_builtin : @Str -> @Bool = \s =
         || s == "__builtin_offsetof"
         || s == "__builtin_expect"
 
-$ has_operand : Token -> List Token -> <Diag> { List Token, List Token } = \t r =
-    is r
+$ has_operand : Token -> List Token -> <Diag> { List Token, List Token } = \t r =>
+    r |> \
     | List.Cons.{ a, r2 } =>
         if is_punct a "(" => paren_group r2 0 List.Nil t
         else error_at t.pos ("missing '(' after " ++ t.text)
     | _ => error_at t.pos ("missing '(' after " ++ t.text)
 
-$ bool_tok : Token -> @Bool -> Token = \t b =
+$ bool_tok : Token -> @Bool -> Token = \t b =>
     Token.{ .kind = Kind.Num, .text = (if b => "1" else "0") | t }
 
 $ IfEval : @alias = <Cur, Diag>
 
-$ cond_expr : Token -> @Bool -> <IfEval> Val = \d live =
+$ cond_expr : Token -> @Bool -> <IfEval> Val = \d live =>
     let c = bin_expr d 1 live in
-    is Cur.look {}
+    Cur.look {} |> \
     | Option.Some.{ t } =>
         if is_punct t "?" =>
             (
@@ -914,15 +914,15 @@ $ cond_expr : Token -> @Bool -> <IfEval> Val = \d live =
         else c
     | _ => c
 
-$ expect_punct : Token -> @Str -> <IfEval> {} = \d p =
-    is Cur.look {}
+$ expect_punct : Token -> @Str -> <IfEval> {} = \d p =>
+    Cur.look {} |> \
     | Option.Some.{ t } =>
         if is_punct t p => Cur.skip {}
         else error_at t.pos ("expected '" ++ p ++ "' in preprocessor expression")
     | _ => error_at d.pos ("expected '" ++ p ++ "' in preprocessor expression")
 
-$ prec : @Str -> @Int = \op =
-    is op
+$ prec : @Str -> @Int = \op =>
+    op |> \
     | "||" => 1
     | "&&" => 2
     | "|" => 3
@@ -935,13 +935,13 @@ $ prec : @Str -> @Int = \op =
     | "*" | "/" | "%" => 10
     | _ => 0
 
-$ bin_expr : Token -> @Int -> @Bool -> <IfEval> Val = \d min live =
+$ bin_expr : Token -> @Int -> @Bool -> <IfEval> Val = \d min live =>
     let lhs = unary d live in climb d min live lhs
 
-$ climb : Token -> @Int -> @Bool -> Val -> <IfEval> Val = \d min live lhs =
-    is Cur.look {}
+$ climb : Token -> @Int -> @Bool -> Val -> <IfEval> Val = \d min live lhs =>
+    Cur.look {} |> \
     | Option.Some.{ t } =>
-        let p = (is t.kind | Kind.Punct => prec t.text | _ => 0) in
+        let p = (t.kind |> \ | Kind.Punct => prec t.text | _ => 0) in
         if p == 0 || p < min => lhs
         else
             (
@@ -953,8 +953,8 @@ $ climb : Token -> @Int -> @Bool -> Val -> <IfEval> Val = \d min live lhs =
             )
     | _ => lhs
 
-$ unary : Token -> @Bool -> <IfEval> Val = \d live =
-    is Cur.look {}
+$ unary : Token -> @Bool -> <IfEval> Val = \d live =>
+    Cur.look {} |> \
     | Option.Some.{ t } =>
         (
             Cur.skip {};
@@ -969,12 +969,12 @@ $ unary : Token -> @Bool -> <IfEval> Val = \d live =
                     if is_float_text t.text =>
                         error_at t.pos "floating constant in preprocessor expression"
                     else
-                        is int_lit t.text
+                        int_lit t.text |> \
                         | Option.Some.{ n } => Val.{ .v = n.value, .u = n.unsigned || n.value < 0 }
                         | _ =>
                             error_at t.pos ("invalid integer constant \"" ++ t.text ++ "\" in #if")
                 )
-            else if (is t.kind | Kind.Chr => @true | _ => @false) =>
+            else if (t.kind |> \ | Kind.Chr => @true | _ => @false) =>
                 Val.{ .v = char_value t.text, .u = @false }
             else
                 error_at t.pos (
@@ -983,12 +983,12 @@ $ unary : Token -> @Bool -> <IfEval> Val = \d live =
         )
     | _ => error_at d.pos "#if with no expression"
 
-$ ult : @Int -> @Int -> @Bool = \a b = let x : @Nat = @cast a, y : @Nat = @cast b in x < y
+$ ult : @Int -> @Int -> @Bool = \a b => let x : @Nat = @cast a, y : @Nat = @cast b in x < y
 
-$ apply : Token -> Val -> Val -> @Bool -> <Diag> Val = \t a b live =
+$ apply : Token -> Val -> Val -> @Bool -> <Diag> Val = \t a b live =>
     let op = t.text, u = a.u || b.u in
-    let mk = \v = Val.{ .v = v, .u = u },
-        flag = \c = Val.{ .v = (if c => 1 else 0), .u = @false } in
+    let mk = \v => Val.{ .v = v, .u = u },
+        flag = \c => Val.{ .v = (if c => 1 else 0), .u = @false } in
     if op == "+" => mk (a.v + b.v)
     else if op == "-" => mk (a.v - b.v)
     else if op == "*" => mk (a.v * b.v)

@@ -14,17 +14,17 @@ $ with CFG
 $ with PARSE
 $ with AST
 
-$ walk_pull : Pull -> <Files, Diag> @Int = \p = walk_go p 0
-$ walk_go : Pull -> @Int -> <Files, Diag> @Int = \p n =
-    is p | Pull.More.{ t, rest } => walk_go (rest {}) (n + 1) | _ => n
+$ walk_pull : Pull -> <Files, Diag> @Int = \p => walk_go p 0
+$ walk_go : Pull -> @Int -> <Files, Diag> @Int = \p n =>
+    p |> \ | Pull.More.{ t, rest } => walk_go (rest {}) (n + 1) | _ => n
 
-$ pp : @Str -> @Str -> {} -> <Files, Out, Diag> {} = \path src u =
+$ pp : @Str -> @Str -> {} -> <Files, Out, Diag> {} = \path src u =>
     with_macros
-        initial_macros <| \u3 =
+        initial_macros <| \u3 =>
             preprocess "<built-in>" (lex "<built-in>" (predefined wasm32));
             preprocess path (lex path src)
 
-$ run : ({} -> <Files, Diag, @IO> @Int) -> <@IO> @Int = \body =
+$ run : ({} -> <Files, Diag, @IO> @Int) -> <@IO> @Int = \body =>
     do (
         do body {}
         ctl k
@@ -34,16 +34,17 @@ $ run : ({} -> <Files, Diag, @IO> @Int) -> <@IO> @Int = \body =
     )
     ctl k | Diag.fail e => (println (render "error" e); 0) | Diag.warn e => k {}
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     let
         path = @vec_get args 1,
         src  = unwrap_or (read_file path) "",
         t0   = C.clock {},
-        a    = run (\u = walk_pull (start (pp path src))),
+        a    = run (\u => walk_pull (start (pp path src))),
         t1   = C.clock {},
-        b    = run (\u = drain_tok (start (pp path src))),
+        b    = run (\u => drain_tok (start (pp path src))),
         t2   = C.clock {},
-        c    = run (\u = let tu = parse_tu { wasm32, 1, start (pp path src) } in @vec_len tu.funcs),
+        c    =
+            run (\u => let tu = parse_tu { wasm32, 1, start (pp path src) } in @vec_len tu.funcs),
         t3   = C.clock {}
     in
         println ("pull " ++ to_string a ++ ": " ++ to_string ((t1 - t0) / 1000) ++ " ms");

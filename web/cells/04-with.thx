@@ -16,7 +16,7 @@ $ Point3 : @struct =
     with Point #- inserts x: @Int, y: @Int -#,
     z: @Int,
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     let
         p = Point3.{ .x = 1, .y = 2, .z = 3 }
     in with p in

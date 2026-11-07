@@ -16,21 +16,21 @@ $ Rect : @struct =
     w: @Int,
     h: @Int,
 
-$ impl_IArea_for_Rect : IArea Rect = .{ .area = \r = r.w * r.h }
+$ impl_IArea_for_Rect : IArea Rect = .{ .area = \r => r.w * r.h }
 
 $ Square : @struct =
     side: @Int,
 
-$ impl_IArea_for_Square : IArea Square = .{ .area = \s = s.side * s.side }
+$ impl_IArea_for_Square : IArea Square = .{ .area = \s => s.side * s.side }
 
-# `d` is the context parameter. A recursive call names it with `@ctx d`; an
-# ordinary call site writes nothing.
-$ total : @ctx IArea t -> @Vec t -> @Int = \d xs =
-    is xs
+# `d` is a `@use` field: in scope by name in the body, found by type at every
+# call site, including the recursive one, so no call writes it.
+$ total : @use {d: IArea t} -> @Vec t -> @Int = \xs =>
+    xs |> \
     | []        => 0
-    | h :: rest => d.area h + total (@ctx d) rest
+    | h :: rest => d.area h + total rest
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     print "rects:   ?(total [Rect.{ 2, 3 }, Rect.{ 1, 4 }])";
     print "squares: ?(total [Square.{ 3 }, Square.{ 5 }])";
     0

@@ -36,13 +36,13 @@ $ data_base : @Int = 1024
 # `main` with whichever parameters `main` was declared to take.
 $ main_shim : @Str = "__alec_main"
 
-$ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =
+$ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =>
     let lay = Layout.{ .target = tg, .aggs = merge_aggs tus } in
     let funcs = collect_funcs tus 0 0 MAP.new_str in
     let globals = collect_globals tus 0 0 MAP.new_str in
     let protos = VEC.foldl (
-            \m tu =
-                MAP.fold (\acc k v = if MAP.has acc k => acc else MAP.insert acc k v) m tu.protos
+            \m tu =>
+                MAP.fold (\acc k v => if MAP.has acc k => acc else MAP.insert acc k v) m tu.protos
         ) MAP.new_str tus in
     (
         if !(MAP.has funcs entry) =>
@@ -50,13 +50,13 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =
         else {}
     );
     let frefs = VEC.foldl (
-            \m tu = VEC.foldl (\m2 f = MAP.insert m2 f.name (func_refs tu f)) m tu.funcs
+            \m tu => VEC.foldl (\m2 f => MAP.insert m2 f.name (func_refs tu f)) m tu.funcs
         ) MAP.new_str tus in
     let live = reach frefs globals (LIST.singleton entry) SET.new_str in
-    let defined = VEC.filter (\f = SET.has live f.name) (MAP.values funcs) in
-    let ordered = VEC.sort_by (\a b = STR.cmp_str a.name b.name) defined in
+    let defined = VEC.filter (\f => SET.has live f.name) (MAP.values funcs) in
+    let ordered = VEC.sort_by (\a b => STR.cmp_str a.name b.name) defined in
     let imports = VEC.filter (
-            \n =
+            \n =>
                 !(MAP.has funcs n)
                     && !(MAP.has globals n)
                     && is_none (GEN.intrinsic n)
@@ -66,21 +66,21 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =
         ) (SET.to_list live) in
     let shim = SET.has live main_shim in
     check_vars imports protos;
-    let gvars = VEC.filter (\g = SET.has live g.name) (MAP.values globals) in
+    let gvars = VEC.filter (\g => SET.has live g.name) (MAP.values globals) in
     let placed = place lay gvars 0 data_base MAP.new_str (@vec_new {}) in
     let data_end = placed.0 in
     let stack_top = align_to (data_end + stack_size) 16 in
     let addrs = MAP.insert placed.1 "__heap_base" stack_top in
     let ni = @vec_len imports in
-    let fidx0 = VEC.foldl (\m n = MAP.insert m n (MAP.size m)) MAP.new_str imports in
-    let fidx1 = VEC.foldl (\m f = MAP.insert m f.name (MAP.size m)) fidx0 ordered in
+    let fidx0 = VEC.foldl (\m n => MAP.insert m n (MAP.size m)) MAP.new_str imports in
+    let fidx1 = VEC.foldl (\m f => MAP.insert m f.name (MAP.size m)) fidx0 ordered in
     let fidx = if shim => MAP.insert fidx1 main_shim (MAP.size fidx1) else fidx1 in
-    let table_names = VEC.append imports (VEC.map (\f = f.name) ordered) in
-    let tidx = VEC.foldl (\m n = MAP.insert m n (MAP.size m + 1)) MAP.new_str table_names in
+    let table_names = VEC.append imports (VEC.map (\f => f.name) ordered) in
+    let tidx = VEC.foldl (\m n => MAP.insert m n (MAP.size m + 1)) MAP.new_str table_names in
     let ftys0 = MAP.fold (
-            \m k t = is fn_of t | Option.Some.{ ft } => MAP.insert m k ft | _ => m
+            \m k t => fn_of t |> \ | Option.Some.{ ft } => MAP.insert m k ft | _ => m
         ) MAP.new_str protos in
-    let ftys = VEC.foldl (\m f = MAP.insert m f.name f.ty) ftys0 ordered in
+    let ftys = VEC.foldl (\m f => MAP.insert m f.name f.ty) ftys0 ordered in
     let ctx = Ctx.{
             .lay = lay,
             .tg = tg,
@@ -91,7 +91,7 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =
             .heap = stack_top
         } in
     let imp = VEC.foldl (
-            \acc n =
+            \acc n =>
                 let ft = unwrap_or (
                         MAP.get ftys n
                     ) (
@@ -112,7 +112,7 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =
             .types = with_shim.2.sigs,
             .imports = imp.0,
             .funcs = with_shim.1,
-            .table = VEC.map (\n = unwrap_or (MAP.get fidx n) 0) table_names,
+            .table = VEC.map (\n => unwrap_or (MAP.get fidx n) 0) table_names,
             .pages = pages,
             .mem64 = tg.wasm64,
             .globals = [
@@ -127,43 +127,43 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =
                 Export.{ .name = entry, .kind = 0, .index = unwrap_or (MAP.get fidx entry) 0 }
             ],
             .bodies = with_shim.0,
-            .data = VEC.filter_map (\g = data_of ctx g) gvars,
+            .data = VEC.filter_map (\g => data_of ctx g) gvars,
             .names = VEC.append table_names (if shim => [main_shim] else @vec_new {})
         } in
     encode m
 
 # The names a set of units uses but none of them defines: what is still to
 # be found in the C library (or left to the host as imports).
-$ undefined : @Vec TU -> Set @Str = \tus =
+$ undefined : @Vec TU -> Set @Str = \tus =>
     let defined = VEC.foldl (
-            \acc tu =
+            \acc tu =>
                 VEC.foldl (
-                    \a g = if g.defined || g.init => SET.add a g.name else a
-                ) (VEC.foldl (\a f = SET.add a f.name) acc tu.funcs) tu.globals
+                    \a g => if g.defined || g.init => SET.add a g.name else a
+                ) (VEC.foldl (\a f => SET.add a f.name) acc tu.funcs) tu.globals
         ) SET.new_str tus in
     let used = VEC.foldl (
-            \acc tu =
+            \acc tu =>
                 VEC.foldl (
-                    \a g = VEC.foldl (\b r = SET.add b r.sym) a g.relocs
+                    \a g => VEC.foldl (\b r => SET.add b r.sym) a g.relocs
                 ) (
                     VEC.foldl (
-                        \a f = LIST.foldl (\b n = SET.add b n) a (func_refs tu f)
+                        \a f => LIST.foldl (\b n => SET.add b n) a (func_refs tu f)
                     ) acc tu.funcs
                 ) tu.globals
         ) SET.new_str tus in
-    SET.filter (\n = !(SET.has defined n)) used
+    SET.filter (\n => !(SET.has defined n)) used
 
 # The names `f`'s body refers to.
-$ func_refs : TU -> Func -> List @Str = \tu f =
-    is MAP.get tu.refs f.name | Option.Some.{ r } => r | _ => refs_stmt f.body List.Nil
+$ func_refs : TU -> Func -> List @Str = \tu f =>
+    MAP.get tu.refs f.name |> \ | Option.Some.{ r } => r | _ => refs_stmt f.body List.Nil
 
 # The externally visible names a unit defines, for the library index.
-$ exports : TU -> @Vec @Str = \tu =
+$ exports : TU -> @Vec @Str = \tu =>
     VEC.append (
-        VEC.filter_map (\f = if f.static => Option.None else Option.Some.{ f.name }) tu.funcs
+        VEC.filter_map (\f => if f.static => Option.None else Option.Some.{ f.name }) tu.funcs
     ) (
         VEC.filter_map (
-            \g = if g.static || !(g.defined || g.init) => Option.None else Option.Some.{ g.name }
+            \g => if g.static || !(g.defined || g.init) => Option.None else Option.Some.{ g.name }
         ) tu.globals
     )
 
@@ -171,16 +171,16 @@ $ @private
 
 # Each unit numbers its aggregates from its own base (see PARSE.with_tab), so
 # their tables merge into one without collisions.
-$ merge_aggs : @Vec TU -> Map @Int Agg = \tus = merge_aggs_go tus 0 MAP.new_int
+$ merge_aggs : @Vec TU -> Map @Int Agg = \tus => merge_aggs_go tus 0 MAP.new_int
 
-$ merge_aggs_go : @Vec TU -> @Int -> Map @Int Agg -> Map @Int Agg = \tus i acc =
+$ merge_aggs_go : @Vec TU -> @Int -> Map @Int Agg -> Map @Int Agg = \tus i acc =>
     if i >= @vec_len tus => acc
     else
         merge_aggs_go tus (
             i + 1
-        ) (MAP.fold (\m k v = MAP.insert m k v) acc (@vec_get tus i).layout.aggs)
+        ) (MAP.fold (\m k v => MAP.insert m k v) acc (@vec_get tus i).layout.aggs)
 
-$ collect_funcs : @Vec TU -> @Int -> @Int -> Map @Str Func -> <Diag> Map @Str Func = \tus i j acc =
+$ collect_funcs : @Vec TU -> @Int -> @Int -> Map @Str Func -> <Diag> Map @Str Func = \tus i j acc =>
     if i >= @vec_len tus => acc
     else
         let fs = (@vec_get tus i).funcs in
@@ -190,7 +190,7 @@ $ collect_funcs : @Vec TU -> @Int -> @Int -> Map @Str Func -> <Diag> Map @Str Fu
             if MAP.has acc f.name => error_at f.pos ("multiple definition of '" ++ f.name ++ "'")
             else collect_funcs tus i (j + 1) (MAP.insert acc f.name f)
 
-$ collect_globals : @Vec TU -> @Int -> @Int -> Map @Str GVar -> <Diag> Map @Str GVar = \tus i j acc =
+$ collect_globals : @Vec TU -> @Int -> @Int -> Map @Str GVar -> <Diag> Map @Str GVar = \tus i j acc =>
     if i >= @vec_len tus => acc
     else
         let gs = (@vec_get tus i).globals in
@@ -198,7 +198,7 @@ $ collect_globals : @Vec TU -> @Int -> @Int -> Map @Str GVar -> <Diag> Map @Str 
         else
             let g = @vec_get gs j in
             let merged = (
-                    is MAP.get acc g.name
+                    MAP.get acc g.name |> \
                     | Option.Some.{ old } =>
                         if old.init && g.init =>
                             error_at g.pos ("multiple definition of '" ++ g.name ++ "'")
@@ -213,38 +213,38 @@ $ collect_globals : @Vec TU -> @Int -> @Int -> Map @Str GVar -> <Diag> Map @Str 
             collect_globals tus i (j + 1) (MAP.insert acc g.name merged)
 
 # A variable used but defined nowhere has no import to become.
-$ check_vars : @Vec @Str -> Map @Str Ty -> <Diag> {} = \names protos =
+$ check_vars : @Vec @Str -> Map @Str Ty -> <Diag> {} = \names protos =>
     for names (
-        \n =
+        \n =>
             if MAP.has protos n => {} else error_at nowhere ("undefined reference to '" ++ n ++ "'")
     )
 
 # -- reachability -------------------------------------------------------------------
 
-$ reach : Map @Str (List @Str) -> Map @Str GVar -> List @Str -> Set @Str -> Set @Str = \frefs globals work seen =
-    is work
+$ reach : Map @Str (List @Str) -> Map @Str GVar -> List @Str -> Set @Str -> Set @Str = \frefs globals work seen =>
+    work |> \
     | List.Nil => seen
     | List.Cons.{ n, rest } =>
         if SET.has seen n => reach frefs globals rest seen
         else
             let seen2 = SET.add seen n in
             let more = (
-                    is MAP.get frefs n
+                    MAP.get frefs n |> \
                     | Option.Some.{ r } => r
                     | _ =>
                         (
-                            is MAP.get globals n
+                            MAP.get globals n |> \
                             | Option.Some.{ g } =>
-                                VEC.foldl (\acc r = List.Cons.{ r.sym, acc }) List.Nil g.relocs
+                                VEC.foldl (\acc r => List.Cons.{ r.sym, acc }) List.Nil g.relocs
                             | _ => if n == main_shim => LIST.singleton "main" else List.Nil
                         )
                 ) in
             reach frefs globals (LIST.append more rest) seen2
 
-$ refs_stmt : Stmt -> List @Str -> List @Str = \s acc =
-    is s
+$ refs_stmt : Stmt -> List @Str -> List @Str = \s acc =>
+    s |> \
     | Stmt.Do.{ e } => refs e acc
-    | Stmt.Block.{ ss } => LIST.foldl (\a x = refs_stmt x a) acc ss
+    | Stmt.Block.{ ss } => LIST.foldl (\a x => refs_stmt x a) acc ss
     | Stmt.If.{ c, a, b } => refs_stmt b (refs_stmt a (refs c acc))
     | Stmt.While.{ c, b } => refs_stmt b (refs c acc)
     | Stmt.DoWhile.{ b, c } => refs c (refs_stmt b acc)
@@ -258,8 +258,8 @@ $ refs_stmt : Stmt -> List @Str -> List @Str = \s acc =
     | Stmt.GotoPtr.{ e } => refs e acc
     | _ => acc
 
-$ refs : Expr -> List @Str -> List @Str = \e acc =
-    is e.e
+$ refs : Expr -> List @Str -> List @Str = \e acc =>
+    e.e |> \
     | ENode.Global.{ g } => List.Cons.{ g, acc }
     | ENode.Unary.{ o, x } => refs x acc
     | ENode.Bin.{ o, a, b } => refs b (refs a acc)
@@ -268,7 +268,7 @@ $ refs : Expr -> List @Str -> List @Str = \e acc =
     | ENode.PostOp.{ o, a, b } => refs b (refs a acc)
     | ENode.Cond.{ c, a, b } => refs b (refs a (refs c acc))
     | ENode.Comma.{ a, b } => refs b (refs a acc)
-    | ENode.Call.{ f, args, ft } => LIST.foldl (\a x = refs x a) (refs f acc) args
+    | ENode.Call.{ f, args, ft } => LIST.foldl (\a x => refs x a) (refs f acc) args
     | ENode.Field.{ x, m } => refs x acc
     | ENode.Deref.{ x } => refs x acc
     | ENode.Addr.{ x } => refs x acc
@@ -278,12 +278,12 @@ $ refs : Expr -> List @Str -> List @Str = \e acc =
     | ENode.Alloca.{ x } => refs x acc
     | ENode.VaStart.{ x } => refs x acc
     | ENode.VaArg.{ x } => refs x acc
-    | ENode.SExpr.{ ss, x } => refs x (LIST.foldl (\a s = refs_stmt s a) acc ss)
+    | ENode.SExpr.{ ss, x } => refs x (LIST.foldl (\a s => refs_stmt s a) acc ss)
     | _ => acc
 
 # -- data layout ----------------------------------------------------------------------
 
-$ place : Layout -> @Vec GVar -> @Int -> @Int -> Map @Str @Int -> @Vec GVar -> { @Int, Map @Str @Int } = \lay gs i at addrs acc =
+$ place : Layout -> @Vec GVar -> @Int -> @Int -> Map @Str @Int -> @Vec GVar -> { @Int, Map @Str @Int } = \lay gs i at addrs acc =>
     if i >= @vec_len gs => { at, addrs }
     else
         let g = @vec_get gs i in
@@ -294,14 +294,14 @@ $ place : Layout -> @Vec GVar -> @Int -> @Int -> Map @Str @Int -> @Vec GVar -> {
         let start = align_to at al in
         place lay gs (i + 1) (start + (if sz < 1 => 1 else sz)) (MAP.insert addrs g.name start) acc
 
-$ data_of : Ctx -> GVar -> Option Data = \c g =
+$ data_of : Ctx -> GVar -> Option Data = \c g =>
     if !g.init => Option.None
     else
         let base = unwrap_or (MAP.get c.addrs g.name) 0 in
         let bytes = VEC.foldl (
-                \b r =
+                \b r =>
                     let v = (
-                            is MAP.get c.addrs r.sym
+                            MAP.get c.addrs r.sym |> \
                             | Option.Some.{ a } => a
                             | _ => unwrap_or (MAP.get c.tidx r.sym) 0
                         ) + r.addend in
@@ -310,15 +310,15 @@ $ data_of : Ctx -> GVar -> Option Data = \c g =
         if all_zero bytes 0 => Option.None
         else Option.Some.{ Data.{ .offset = base, .bytes = bytes } }
 
-$ patch : @Str -> @Int -> @Int -> @Int -> @Str = \b off n v =
+$ patch : @Str -> @Int -> @Int -> @Int -> @Str = \b off n v =>
     if n <= 0 => b else patch (@array_set b off (band v 255)) (off + 1) (n - 1) (shr_u v 8)
 
-$ all_zero : @Str -> @Int -> @Bool = \b i =
+$ all_zero : @Str -> @Int -> @Bool = \b i =>
     if i >= @array_len b => @true else if @array_get b i != 0 => @false else all_zero b (i + 1)
 
 # -- functions --------------------------------------------------------------------------
 
-$ gen_all : Ctx -> @Vec Func -> @Int -> @Vec Body -> @Vec @Int -> TypeTab -> <Diag> { @Vec Body, @Vec @Int, TypeTab } = \c fs i bodies types tt =
+$ gen_all : Ctx -> @Vec Func -> @Int -> @Vec Body -> @Vec @Int -> TypeTab -> <Diag> { @Vec Body, @Vec @Int, TypeTab } = \c fs i bodies types tt =>
     if i >= @vec_len fs => { bodies, types, tt }
     else
         let f = @vec_get fs i in
@@ -328,18 +328,18 @@ $ gen_all : Ctx -> @Vec Func -> @Int -> @Vec Body -> @Vec @Int -> TypeTab -> <Di
 
 # `__alec_main(argc, argv)` calls `main` with what it declares: nothing,
 # `argc`, or `argc` and `argv`.
-$ add_shim : Ctx -> Map @Str FnTy -> { @Vec Body, @Vec @Int, TypeTab } -> <Diag> { @Vec Body, @Vec @Int, TypeTab } = \c ftys g =
+$ add_shim : Ctx -> Map @Str FnTy -> { @Vec Body, @Vec @Int, TypeTab } -> <Diag> { @Vec Body, @Vec @Int, TypeTab } = \c ftys g =>
     let mt = unwrap_or (
             MAP.get ftys "main"
         ) (FnTy.{ .ret = t_int, .params = List.Nil, .variadic = @false, .proto = @true }) in
     let np = LIST.length mt.params in
     let argc_ty = unwrap_or (LIST.head mt.params) t_int in
-    let argc = local_get 0 ++ (is vt_of c.tg argc_ty | ValT.I64 => op 172 | _ => "") in
+    let argc = local_get 0 ++ (vt_of c.tg argc_ty |> \ | ValT.I64 => op 172 | _ => "") in
     let args = (if np >= 1 => argc else "")
             ++ (if np >= 2 => local_get 1 else "")
             ++ (if np >= 3 => (if c.tg.wasm64 => i64_const 0 else i32_const 0) else "") in
     let ret = if is_void mt.ret => i32_const 0
-        else (is vt_of c.tg mt.ret | ValT.I64 => op 167 | _ => "") in
+        else (vt_of c.tg mt.ret |> \ | ValT.I64 => op 167 | _ => "") in
     let code = args ++ call_op (unwrap_or (MAP.get c.fidx "main") 0) ++ ret in
     let sig = Sig.{ .params = [ValT.I32, ptr_vt c.tg], .results = [ValT.I32] } in
     let t = type_index g.2 sig in

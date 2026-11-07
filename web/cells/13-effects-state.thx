@@ -11,14 +11,14 @@ $ State : @effect =
     get : {} -> @Int,
     put : @Int -> {},
 
-$ runState : ({} -> <State> @Int) -> @Int -> @Int = \action s0 =
+$ runState : ({} -> <State> @Int) -> @Int -> @Int = \action s0 =>
     let
         h =
             do action {}
             ctl k
-            | get u => \s = k s s
-            | put n => \s = k {} n
-            | x     => \s = x
+            | get u => \s => k s s
+            | put n => \s => k {} n
+            | x     => \s => x
     in
         h s0
 
@@ -30,6 +30,6 @@ $ counter : {} -> <State> @Int =
     in
         x + y
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     print "counter from 10 = ?(runState counter 10)";
     0

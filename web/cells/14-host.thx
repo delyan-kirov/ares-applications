@@ -23,12 +23,12 @@ $ delay  : @Int -> {}  = @extern "WASM" "delay" ""
 $ color : {} -> @Str =
     "rgb(?(random 256), ?(random 256), ?(random 256))"
 
-$ withColor : ({} -> <ChangeColorEffect> {}) -> {} = \body =
+$ withColor : ({} -> <ChangeColorEffect> {}) -> {} = \body =>
     do body {}
     ctl k
     | ChangeColorEffect.recolor c => (if animate => paint c else {}); k {}
 
-$ spin : @Int -> <ChangeColorEffect> {} = \n =
+$ spin : @Int -> <ChangeColorEffect> {} = \n =>
     if n == 0 => {}
     else
         let
@@ -38,7 +38,7 @@ $ spin : @Int -> <ChangeColorEffect> {} = \n =
             recolor c;
             spin (n - 1)
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     delay 150;
-    withColor (\_ = spin 12);
+    withColor (\_ => spin 12);
     0

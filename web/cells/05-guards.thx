@@ -8,18 +8,18 @@ $ @mod MAIN
 $ with STR
 $ with HOST
 
-$ sign : @Int -> @Str = \n =
-    is n
-    | m if m > 0 => "positive"
-    | m if m < 0 => "negative"
-    | _          => "zero"
+$ sign : @Int -> @Str = \n =>
+    n |> \
+        | m if m > 0 => "positive"
+        | m if m < 0 => "negative"
+        | _          => "zero"
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     (
         for [
             "sign  7 = ?(sign 7)",
             "sign -3 = ?(sign (- 3))",
             "sign  0 = ?(sign 0)",
-        ] \i = print i
+        ] \i => print i
     );
     0

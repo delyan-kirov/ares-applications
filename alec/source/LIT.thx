@@ -28,12 +28,12 @@ $ FloatLit : @struct = value : @Float64, kind : @Int,
 # and `u8`, 2 for `u`, 4 for `U` and `L`). No terminator is included.
 $ StrLit : @struct = units : @Vec @Int, width : @Int,
 
-$ is_float_text : @Str -> @Bool = \s =
+$ is_float_text : @Str -> @Bool = \s =>
     let hex = starts_with s "0x" || starts_with s "0X" in
     contains s "."
         || (if hex => contains s "p" || contains s "P" else contains s "e" || contains s "E")
 
-$ int_lit : @Str -> Option IntLit = \text =
+$ int_lit : @Str -> Option IntLit = \text =>
     let s = strip_seps text 0 "" in
     let hex = starts_with s "0x" || starts_with s "0X",
         bin = starts_with s "0b" || starts_with s "0B" in
@@ -46,7 +46,7 @@ $ int_lit : @Str -> Option IntLit = \text =
     if end == from && !(base == 8) => Option.None
     else
         let v = digits_value s from end base 0 @false in
-        is suffix (to_lower (@array_slice s end (@array_len s)))
+        suffix (to_lower (@array_slice s end (@array_len s))) |> \
         | Option.Some.{ sx } =>
             Option.Some.{
                 IntLit.{
@@ -59,7 +59,7 @@ $ int_lit : @Str -> Option IntLit = \text =
             }
         | _ => Option.None
 
-$ float_lit : @Str -> Option FloatLit = \text =
+$ float_lit : @Str -> Option FloatLit = \text =>
     let s = strip_seps text 0 "", n = @array_len s in
     let last = if n > 0 => @array_get s (n - 1) else 0 in
     let hex = starts_with s "0x" || starts_with s "0X" in
@@ -71,7 +71,7 @@ $ float_lit : @Str -> Option FloatLit = \text =
 # The value of a character constant, as the `int` (or `wchar_t`, `char16_t`,
 # `char32_t`) it denotes. A plain `'x'` is a `char`, which is signed here, so a
 # byte above 127 is negative; several characters pack big-endian, as GCC does.
-$ char_value : @Str -> @Int = \text =
+$ char_value : @Str -> @Int = \text =>
     let pre = prefix_of text in
     let body = @array_slice text (@array_len pre + 1) (@array_len text - 1) in
     if pre == "" =>
@@ -86,18 +86,18 @@ $ char_value : @Str -> @Int = \text =
         else sext v 32
 
 # The prefix of a character constant or string literal: "", "L", "u", "U", "u8".
-$ prefix_of : @Str -> @Str = \text =
+$ prefix_of : @Str -> @Str = \text =>
     if starts_with text "u8" => "u8"
     else if starts_with text "L" => "L"
     else if starts_with text "u" => "u"
     else if starts_with text "U" => "U"
     else ""
 
-$ width_of_prefix : @Str -> @Int = \pre =
+$ width_of_prefix : @Str -> @Int = \pre =>
     if pre == "u" => 2 else if pre == "U" || pre == "L" => 4 else 1
 
 # One string literal token's contents.
-$ str_value : @Str -> StrLit = \text =
+$ str_value : @Str -> StrLit = \text =>
     let pre = prefix_of text in
     let w = width_of_prefix pre in
     let body = @array_slice text (@array_len pre + 1) (@array_len text - 1) in
@@ -107,25 +107,25 @@ $ str_value : @Str -> StrLit = \text =
 # UTF-8: copied as bytes into a narrow literal, decoded to code points for a wide
 # one (and split into surrogate pairs for `u`). `\x` and octal escapes give one
 # unit as written, `\u`/`\U` a code point.
-$ decode : @Str -> @Int -> @Vec @Int = \s w = decode_go s 0 w (@vec_new {})
+$ decode : @Str -> @Int -> @Vec @Int = \s w => decode_go s 0 w (@vec_new {})
 
 $ @private
 
-$ strip_seps : @Str -> @Int -> @Str -> @Str = \s i acc =
+$ strip_seps : @Str -> @Int -> @Str -> @Str = \s i acc =>
     if i >= @array_len s => acc
     else let c = @array_get s i in strip_seps s (i + 1) (if c == 39 => acc else @array_push acc c)
 
-$ digit_val : @Int -> @Int = \c =
+$ digit_val : @Int -> @Int = \c =>
     if c >= 48 && c <= 57 => c - 48
     else if c >= 97 && c <= 102 => c - 87
     else if c >= 65 && c <= 70 => c - 55
     else 99
 
-$ digits_end : @Str -> @Int -> @Int -> @Int = \s i base =
+$ digits_end : @Str -> @Int -> @Int -> @Int = \s i base =>
     if i < @array_len s && digit_val (@array_get s i) < base => digits_end s (i + 1) base else i
 
 # The value modulo 2^64, and whether it overflowed 64 bits.
-$ digits_value : @Str -> @Int -> @Int -> @Int -> @Nat -> @Bool -> { @Int, @Bool } = \s i end base acc ov =
+$ digits_value : @Str -> @Int -> @Int -> @Int -> @Nat -> @Bool -> { @Int, @Bool } = \s i end base acc ov =>
     if i >= end => (let r : @Int = @cast acc in { r, ov })
     else
         let b : @Nat = @cast base, d : @Nat = @cast (digit_val (@array_get s i)) in
@@ -133,8 +133,8 @@ $ digits_value : @Str -> @Int -> @Int -> @Int -> @Nat -> @Bool -> { @Int, @Bool 
         digits_value s (i + 1) end base next (ov || (acc > 0 && next / b < acc))
 
 # The suffix as {unsigned, number of `l`s}, or None when it is not a valid one.
-$ suffix : @Str -> Option { @Bool, @Int } = \s =
-    is s
+$ suffix : @Str -> Option { @Bool, @Int } = \s =>
+    s |> \
     | "" => Option.Some.{ { @false, 0 } }
     | "u" => Option.Some.{ { @true, 0 } }
     | "l" => Option.Some.{ { @false, 1 } }
@@ -145,19 +145,19 @@ $ suffix : @Str -> Option { @Bool, @Int } = \s =
     | "uz" | "zu" => Option.Some.{ { @true, 1 } }
     | _ => Option.None
 
-$ valid_float : @Str -> @Bool -> @Bool = \s hex =
-    let ok = \c = is_alnum c || c == 46 || c == 43 || c == 45 in
+$ valid_float : @Str -> @Bool -> @Bool = \s hex =>
+    let ok = \c => is_alnum c || c == 46 || c == 43 || c == 45 in
     @array_len s > 0
         && all_bytes ok s 0
         && (hex || is_digit (@array_get s 0) || @array_get s 0 == 46)
 
-$ all_bytes : (@Int -> @Bool) -> @Str -> @Int -> @Bool = \ok s i =
+$ all_bytes : (@Int -> @Bool) -> @Str -> @Int -> @Bool = \ok s i =>
     if i >= @array_len s => @true else ok (@array_get s i) && all_bytes ok s (i + 1)
 
-$ pack : @Vec @Int -> @Int -> @Int -> @Int = \us i acc =
+$ pack : @Vec @Int -> @Int -> @Int -> @Int = \us i acc =>
     if i >= @vec_len us => acc else pack us (i + 1) (acc * 256 + zext (@vec_get us i) 8)
 
-$ decode_go : @Str -> @Int -> @Int -> @Vec @Int -> @Vec @Int = \s i w acc =
+$ decode_go : @Str -> @Int -> @Int -> @Vec @Int -> @Vec @Int = \s i w acc =>
     if i >= @array_len s => acc
     else
         let c = @array_get s i in
@@ -169,7 +169,7 @@ $ decode_go : @Str -> @Int -> @Int -> @Vec @Int -> @Vec @Int = \s i w acc =
 
 # A code point as units: UTF-8 bytes for a narrow literal, one unit or a
 # surrogate pair for `u`, one unit for `U`/`L`.
-$ put_cp : @Vec @Int -> @Int -> @Int -> @Vec @Int = \acc cp w =
+$ put_cp : @Vec @Int -> @Int -> @Int -> @Vec @Int = \acc cp w =>
     if w == 4 => @vec_push acc cp
     else if w == 2 =>
         (
@@ -193,7 +193,7 @@ $ put_cp : @Vec @Int -> @Int -> @Int -> @Vec @Int = \acc cp w =
 
 # One UTF-8 sequence at `i`: the code point and the offset after it. A malformed
 # byte stands for itself.
-$ utf8 : @Str -> @Int -> { @Int, @Int } = \s i =
+$ utf8 : @Str -> @Int -> { @Int, @Int } = \s i =>
     let c = @array_get s i,
         n = if c >= 240 => 3 else if c >= 224 => 2 else if c >= 192 => 1 else 0 in
     if n == 0 || i + n >= @array_len s => { c, i + 1 }
@@ -201,12 +201,12 @@ $ utf8 : @Str -> @Int -> { @Int, @Int } = \s i =
         let lead = if n == 3 => band c 7 else if n == 2 => band c 15 else band c 31 in
         { utf8_more s (i + 1) n lead, i + 1 + n }
 
-$ utf8_more : @Str -> @Int -> @Int -> @Int -> @Int = \s i n acc =
+$ utf8_more : @Str -> @Int -> @Int -> @Int -> @Int = \s i n acc =>
     if n == 0 => acc else utf8_more s (i + 1) (n - 1) (acc * 64 + band (@array_get s i) 63)
 
 # An escape after the backslash at `i - 1`: its value, the offset after it, and
 # whether it names a code point (`\u`, `\U`) rather than a raw unit.
-$ escape : @Str -> @Int -> { @Int, @Int, @Bool } = \s i =
+$ escape : @Str -> @Int -> { @Int, @Int, @Bool } = \s i =>
     let c = if i < @array_len s => @array_get s i else 0 in
     if c == 110 => { 10, i + 1, @false }
     else if c == 116 => { 9, i + 1, @false }
@@ -224,18 +224,18 @@ $ escape : @Str -> @Int -> { @Int, @Int, @Bool } = \s i =
     else if is_odigit c => let e = oct_run s i 0 0 in { e.0, e.1, @false }
     else { c, i + 1, @false }
 
-$ is_odigit : @Int -> @Bool = \c = c >= 48 && c <= 55
+$ is_odigit : @Int -> @Bool = \c => c >= 48 && c <= 55
 
-$ hex_run : @Str -> @Int -> @Int -> { @Int, @Int } = \s i acc =
+$ hex_run : @Str -> @Int -> @Int -> { @Int, @Int } = \s i acc =>
     if i < @array_len s && digit_val (@array_get s i) < 16 =>
         hex_run s (i + 1) (acc * 16 + digit_val (@array_get s i))
     else { acc, i }
 
-$ hex_n : @Str -> @Int -> @Int -> @Int -> { @Int, @Int } = \s i n acc =
+$ hex_n : @Str -> @Int -> @Int -> @Int -> { @Int, @Int } = \s i n acc =>
     if n == 0 || i >= @array_len s || digit_val (@array_get s i) >= 16 => { acc, i }
     else hex_n s (i + 1) (n - 1) (acc * 16 + digit_val (@array_get s i))
 
-$ oct_run : @Str -> @Int -> @Int -> @Int -> { @Int, @Int } = \s i n acc =
+$ oct_run : @Str -> @Int -> @Int -> @Int -> { @Int, @Int } = \s i n acc =>
     if n < 3 && i < @array_len s && is_odigit (@array_get s i) =>
         oct_run s (i + 1) (n + 1) (acc * 8 + @array_get s i - 48)
     else { acc, i }

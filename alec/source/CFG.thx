@@ -16,7 +16,7 @@ $ wasm32 : Target = Target.{ .name = "wasm32", .ptr = 4, .long = 4, .wasm64 = @f
 $ wasm64 : Target = Target.{ .name = "wasm64", .ptr = 8, .long = 8, .wasm64 = @true }
 
 # The predefined macros, as source the preprocessor reads before the first file.
-$ predefined : Target -> @Str = \t =
+$ predefined : Target -> @Str = \t =>
     let lp = t.long == 8 in
     "#define __STDC__ 1\n"
         ++ "#define __STDC_VERSION__ 201112L\n"

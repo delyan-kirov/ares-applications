@@ -12,14 +12,14 @@ $ with PARSE
 $ with LIST
 $ with VEC
 
-$ unit : TU -> @Str = \tu =
-    VEC.foldl (\acc g = acc ++ global tu.layout g) "" tu.globals
-        ++ VEC.foldl (\acc f = acc ++ func tu.layout f) "" tu.funcs
+$ unit : TU -> @Str = \tu =>
+    VEC.foldl (\acc g => acc ++ global tu.layout g) "" tu.globals
+        ++ VEC.foldl (\acc f => acc ++ func tu.layout f) "" tu.funcs
 
 # One token: where it is, its kind and its spelling (a malformed token's
 # spelling is the problem with it).
-$ token : Token -> @Str = \t =
-    let kind = is t.kind
+$ token : Token -> @Str = \t =>
+    let kind = t.kind |> \
         | Kind.Ident => "ident"
         | Kind.Num => "number"
         | Kind.Chr => "char"
@@ -38,13 +38,13 @@ $ token : Token -> @Str = \t =
         ++ t.text
 
 # The globals and functions `keep` accepts, by name and position.
-$ unit_where : TU -> (@Str -> Pos -> @Bool) -> @Str = \tu keep =
-    VEC.foldl (\acc g = if keep g.name g.pos => acc ++ global tu.layout g else acc) "" tu.globals
-        ++ VEC.foldl (\acc f = if keep f.name f.pos => acc ++ func tu.layout f else acc) "" tu.funcs
+$ unit_where : TU -> (@Str -> Pos -> @Bool) -> @Str = \tu keep =>
+    VEC.foldl (\acc g => if keep g.name g.pos => acc ++ global tu.layout g else acc) "" tu.globals
+        ++ VEC.foldl (\acc f => if keep f.name f.pos => acc ++ func tu.layout f else acc) "" tu.funcs
 
 $ @private
 
-$ global : Layout -> GVar -> @Str = \lay g =
+$ global : Layout -> GVar -> @Str = \lay g =>
     "(global "
         ++ g.name
         ++ " : "
@@ -54,14 +54,14 @@ $ global : Layout -> GVar -> @Str = \lay g =
         ++ (if @vec_len g.relocs > 0 => " relocs=" ++ to_string (@vec_len g.relocs) else "")
         ++ ")\n"
 
-$ func : Layout -> Func -> @Str = \lay f =
+$ func : Layout -> Func -> @Str = \lay f =>
     "(func "
         ++ f.name
         ++ " : "
         ++ ty_name lay (Ty.Func.{ f.ty })
         ++ "\n"
         ++ LIST.foldl (
-            \acc l =
+            \acc l =>
                 acc
                     ++ "  (local "
                     ++ to_string l.id
@@ -75,14 +75,14 @@ $ func : Layout -> Func -> @Str = \lay f =
         ++ stmt lay 1 f.body
         ++ ")\n"
 
-$ pad : @Int -> @Str = \n = if n <= 0 => "" else "  " ++ pad (n - 1)
+$ pad : @Int -> @Str = \n => if n <= 0 => "" else "  " ++ pad (n - 1)
 
-$ stmt : Layout -> @Int -> Stmt -> @Str = \lay d s =
+$ stmt : Layout -> @Int -> Stmt -> @Str = \lay d s =>
     let p = pad d in
-    is s
+    s |> \
     | Stmt.Do.{ e } => p ++ expr lay e ++ "\n"
     | Stmt.Block.{ ss } =>
-        p ++ "(block\n" ++ LIST.foldl (\acc x = acc ++ stmt lay (d + 1) x) "" ss ++ p ++ ")\n"
+        p ++ "(block\n" ++ LIST.foldl (\acc x => acc ++ stmt lay (d + 1) x) "" ss ++ p ++ ")\n"
     | Stmt.If.{ c, a, b } =>
         p ++ "(if " ++ expr lay c ++ "\n" ++ stmt lay (d + 1) a ++ stmt lay (d + 1) b ++ p ++ ")\n"
     | Stmt.While.{ c, b } =>
@@ -126,15 +126,15 @@ $ stmt : Layout -> @Int -> Stmt -> @Str = \lay d s =
             ++ "(jump "
             ++ expr lay e
             ++ LIST.foldl (
-                \acc (c: { @Int, @Int, @Str }) = acc ++ " " ++ to_string c.0 ++ "->" ++ c.2
+                \acc (c: { @Int, @Int, @Str }) => acc ++ " " ++ to_string c.0 ++ "->" ++ c.2
             ) "" cs
             ++ " default->"
             ++ d
             ++ ")\n"
 
-$ expr : Layout -> Expr -> @Str = \lay e =
+$ expr : Layout -> Expr -> @Str = \lay e =>
     let t = ":" ++ ty_name lay e.ty in
-    is e.e
+    e.e |> \
     | ENode.IntC.{ v } => to_string v
     | ENode.FltC.{ f } => to_string f
     | ENode.Local.{ i } => "$" ++ to_string i
@@ -147,7 +147,7 @@ $ expr : Layout -> Expr -> @Str = \lay e =
     | ENode.Cond.{ c, a, b } => "(? " ++ expr lay c ++ " " ++ expr lay a ++ " " ++ expr lay b ++ ")"
     | ENode.Comma.{ a, b } => "(, " ++ expr lay a ++ " " ++ expr lay b ++ ")"
     | ENode.Call.{ f, args, ft } =>
-        "(call " ++ expr lay f ++ LIST.foldl (\acc a = acc ++ " " ++ expr lay a) "" args ++ ")"
+        "(call " ++ expr lay f ++ LIST.foldl (\acc a => acc ++ " " ++ expr lay a) "" args ++ ")"
     | ENode.Field.{ x, m } =>
         "(. " ++ expr lay x ++ " " ++ m.name ++ "@" ++ to_string m.offset ++ ")"
     | ENode.Deref.{ x } => "(* " ++ expr lay x ++ ")"

@@ -15,77 +15,77 @@ $ with STR
 
 $ ValT : @union = I32 : {}, I64 : {}, F32 : {}, F64 : {},
 
-$ vt_byte : ValT -> @Int = \v =
-    is v
+$ vt_byte : ValT -> @Int = \v =>
+    v |> \
     | ValT.I32 => 127
     | ValT.I64 => 126
     | ValT.F32 => 125
     | ValT.F64 => 124
 
-$ vt_eq : ValT -> ValT -> @Bool = \a b = vt_byte a == vt_byte b
+$ vt_eq : ValT -> ValT -> @Bool = \a b => vt_byte a == vt_byte b
 
 # A function signature: parameter and result types.
 $ Sig : @struct = params : @Vec ValT, results : @Vec ValT,
 
-$ sig_key : Sig -> @Str = \s =
-    VEC.foldl (\acc v = @array_push acc (vt_byte v)) "" s.params
+$ sig_key : Sig -> @Str = \s =>
+    VEC.foldl (\acc v => @array_push acc (vt_byte v)) "" s.params
         ++ ":"
-        ++ VEC.foldl (\acc v = @array_push acc (vt_byte v)) "" s.results
+        ++ VEC.foldl (\acc v => @array_push acc (vt_byte v)) "" s.results
 
-$ byte : @Int -> @Str = \b = @array_push "" (band b 255)
+$ byte : @Int -> @Str = \b => @array_push "" (band b 255)
 
-$ uleb : @Int -> @Str = \v = uleb_go v ""
+$ uleb : @Int -> @Str = \v => uleb_go v ""
 
-$ sleb : @Int -> @Str = \v = sleb_go v ""
+$ sleb : @Int -> @Str = \v => sleb_go v ""
 
 # A name or byte vector: its length, then its bytes.
-$ vec_bytes : @Str -> @Str = \s = uleb (@array_len s) ++ s
+$ vec_bytes : @Str -> @Str = \s => uleb (@array_len s) ++ s
 
 # A vector of already-encoded items.
-$ vec_of : @Vec @Str -> @Str = \xs = uleb (@vec_len xs) ++ STR.concat xs
+$ vec_of : @Vec @Str -> @Str = \xs => uleb (@vec_len xs) ++ STR.concat xs
 
-$ section : @Int -> @Str -> @Str = \id body = byte id ++ uleb (@array_len body) ++ body
+$ section : @Int -> @Str -> @Str = \id body => byte id ++ uleb (@array_len body) ++ body
 
 # The double whose IEEE 754 binary64 bit pattern is `b`. Scaling by two is
 # exact, so every finite value, subnormals included, comes back bit for bit.
-$ f64_of_bits : @Int -> @Float64 = \b =
+$ f64_of_bits : @Int -> @Float64 = \b =>
     float_of (band (shr_u b 52) 2047) (band b 4503599627370495) 2047 4503599627370496 1074 (b < 0)
 
 # The value of the binary32 bit pattern in the low 32 bits of `b`.
-$ f64_of_f32_bits : @Int -> @Float64 = \b =
+$ f64_of_f32_bits : @Int -> @Float64 = \b =>
     float_of (band (shr_u b 23) 255) (band b 8388607) 255 8388608 149 (band b 2147483648 != 0)
 
 # -- instructions ---------------------------------------------------------------
 
-$ op : @Int -> @Str = \b = byte b
-$ op_fc : @Int -> @Str = \sub = byte 252 ++ uleb sub
+$ op : @Int -> @Str = \b => byte b
+$ op_fc : @Int -> @Str = \sub => byte 252 ++ uleb sub
 
-$ i32_const : @Int -> @Str = \v = byte 65 ++ sleb (sext v 32)
-$ i64_const : @Int -> @Str = \v = byte 66 ++ sleb v
-$ f32_const : @Float32 -> @Str = \f = byte 67 ++ le (f32_bits f) 4
-$ f64_const : @Float64 -> @Str = \f = byte 68 ++ le (f64_bits f) 8
+$ i32_const : @Int -> @Str = \v => byte 65 ++ sleb (sext v 32)
+$ i64_const : @Int -> @Str = \v => byte 66 ++ sleb v
+$ f32_const : @Float32 -> @Str = \f => byte 67 ++ le (f32_bits f) 4
+$ f64_const : @Float64 -> @Str = \f => byte 68 ++ le (f64_bits f) 8
 
-$ le : @Int -> @Int -> @Str = \v n =
+$ le : @Int -> @Int -> @Str = \v n =>
     if n <= 0 => "" else byte (band v 255) ++ le (shr_u v 8) (n - 1)
 
-$ local_get : @Int -> @Str = \i = byte 32 ++ uleb i
-$ local_set : @Int -> @Str = \i = byte 33 ++ uleb i
-$ local_tee : @Int -> @Str = \i = byte 34 ++ uleb i
-$ global_get : @Int -> @Str = \i = byte 35 ++ uleb i
-$ global_set : @Int -> @Str = \i = byte 36 ++ uleb i
-$ call_op : @Int -> @Str = \i = byte 16 ++ uleb i
-$ call_indirect : @Int -> @Str = \t = byte 17 ++ uleb t ++ byte 0
-$ br : @Int -> @Str = \d = byte 12 ++ uleb d
-$ br_if : @Int -> @Str = \d = byte 13 ++ uleb d
-$ br_table : @Vec @Int -> @Int -> @Str = \ds dflt =
-    byte 14 ++ uleb (@vec_len ds) ++ VEC.foldl (\acc d = acc ++ uleb d) "" ds ++ uleb dflt
+$ local_get : @Int -> @Str = \i => byte 32 ++ uleb i
+$ local_set : @Int -> @Str = \i => byte 33 ++ uleb i
+$ local_tee : @Int -> @Str = \i => byte 34 ++ uleb i
+$ global_get : @Int -> @Str = \i => byte 35 ++ uleb i
+$ global_set : @Int -> @Str = \i => byte 36 ++ uleb i
+$ call_op : @Int -> @Str = \i => byte 16 ++ uleb i
+$ call_indirect : @Int -> @Str = \t => byte 17 ++ uleb t ++ byte 0
+$ br : @Int -> @Str = \d => byte 12 ++ uleb d
+$ br_if : @Int -> @Str = \d => byte 13 ++ uleb d
+$ br_table : @Vec @Int -> @Int -> @Str = \ds dflt =>
+    byte 14 ++ uleb (@vec_len ds) ++ VEC.foldl (\acc d => acc ++ uleb d) "" ds ++ uleb dflt
 
 # Block types: none, or one result.
 $ block : @Str = byte 2 ++ byte 64
 $ loop : @Str = byte 3 ++ byte 64
 $ if_ : @Str = byte 4 ++ byte 64
-$ block_v : ValT -> @Str = \v = byte 2 ++ byte (vt_byte v)
-$ if_v : ValT -> @Str = \v = byte 4 ++ byte (vt_byte v)
+$ block_v : ValT -> @Str = \v => byte 2 ++ byte (vt_byte v)
+$ if_v : ValT -> @Str = \v => byte 4 ++ byte (vt_byte v)
 $ else_ : @Str = byte 5
 $ end : @Str = byte 11
 $ return_ : @Str = byte 15
@@ -95,7 +95,7 @@ $ unreachable : @Str = byte 0
 
 # A load or store: opcode, alignment exponent, offset. The offset is unsigned,
 # up to 32 bits on memory32 and 64 on memory64; both are LEB128.
-$ mem_op : @Int -> @Int -> @Int -> @Str = \code align off = byte code ++ uleb align ++ uleb off
+$ mem_op : @Int -> @Int -> @Int -> @Str = \code align off => byte code ++ uleb align ++ uleb off
 
 $ memory_copy : @Str = op_fc 10 ++ byte 0 ++ byte 0
 $ memory_fill : @Str = op_fc 11 ++ byte 0
@@ -126,7 +126,7 @@ $ Module : @struct =
     data : @Vec Data,
     names : @Vec @Str,
 
-$ encode : Module -> @Str = \m =
+$ encode : Module -> @Str = \m =>
     "\0asm"
         ++ le 1 4
         ++ section 1 (vec_of (VEC.map sig_bytes m.types))
@@ -155,7 +155,7 @@ $ encode : Module -> @Str = \m =
 
 # The custom `name` section: every function's C name, by index (imports
 # first), so a trap's stack trace reads as C.
-$ name_section : @Vec @Str -> @Str = \names =
+$ name_section : @Vec @Str -> @Str = \names =>
     let entries = name_entries names 0 (@vec_new {}) in
     let sub = byte 1 ++ vec_bytes (vec_of entries) in section 0 (vec_bytes "name" ++ sub)
 
@@ -164,56 +164,56 @@ $ @private
 # `e` and `m` are the exponent and fraction fields, `top` the all-ones
 # exponent, `hidden` the implicit leading bit and `tiny` the scale of a
 # subnormal's fraction.
-$ float_of : @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Float64 = \e m top hidden tiny neg =
+$ float_of : @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Float64 = \e m top hidden tiny neg =>
     let zero = C.i2d 0 in
     let mag = if e == top => (if m == 0 => 1.0 / zero else zero / zero)
         else if e == 0 => scale2 (C.i2d m) tiny
         else scale2 (C.i2d (m + hidden)) (tiny + 1 - e) in
     if neg => mag * (0.0 - 1.0) else mag
 
-$ scale2 : @Float64 -> @Int -> @Float64 = \x k =
+$ scale2 : @Float64 -> @Int -> @Float64 = \x k =>
     if k > 0 => scale2 (x / 2.0) (k - 1) else if k < 0 => scale2 (x * 2.0) (k + 1) else x
 
-$ name_entries : @Vec @Str -> @Int -> @Vec @Str -> @Vec @Str = \ns i acc =
+$ name_entries : @Vec @Str -> @Int -> @Vec @Str -> @Vec @Str = \ns i acc =>
     if i >= @vec_len ns => acc
     else name_entries ns (i + 1) (@vec_push acc (uleb i ++ vec_bytes (@vec_get ns i)))
 
-$ uleb_go : @Int -> @Str -> @Str = \v acc =
+$ uleb_go : @Int -> @Str -> @Str = \v acc =>
     let b = band v 127, rest = shr_u v 7 in
     if rest == 0 => @array_push acc b else uleb_go rest (@array_push acc (b + 128))
 
-$ sleb_go : @Int -> @Str -> @Str = \v acc =
+$ sleb_go : @Int -> @Str -> @Str = \v acc =>
     let b = band v 127, rest = shr_s v 7 in
     if (rest == 0 && band b 64 == 0) || (rest == 0 - 1 && band b 64 != 0) => @array_push acc b
     else sleb_go rest (@array_push acc (b + 128))
 
-$ sig_bytes : Sig -> @Str = \s =
+$ sig_bytes : Sig -> @Str = \s =>
     byte 96
-        ++ vec_of (VEC.map (\v = byte (vt_byte v)) s.params)
-        ++ vec_of (VEC.map (\v = byte (vt_byte v)) s.results)
+        ++ vec_of (VEC.map (\v => byte (vt_byte v)) s.params)
+        ++ vec_of (VEC.map (\v => byte (vt_byte v)) s.results)
 
-$ import_bytes : Import -> @Str = \i =
+$ import_bytes : Import -> @Str = \i =>
     vec_bytes i.module ++ vec_bytes i.name ++ byte 0 ++ uleb i.type
 
-$ global_bytes : Global -> @Str = \g =
+$ global_bytes : Global -> @Str = \g =>
     byte (vt_byte g.vt) ++ byte (if g.mutable => 1 else 0) ++ g.init ++ end
 
-$ export_bytes : Export -> @Str = \e = vec_bytes e.name ++ byte e.kind ++ uleb e.index
+$ export_bytes : Export -> @Str = \e => vec_bytes e.name ++ byte e.kind ++ uleb e.index
 
 # Locals are declared as runs of one type.
-$ body_bytes : Body -> @Str = \b =
+$ body_bytes : Body -> @Str = \b =>
     let runs = local_runs b.locals 0 (@vec_new {}) in
     let inner = vec_of runs ++ b.code ++ end in uleb (@array_len inner) ++ inner
 
-$ local_runs : @Vec ValT -> @Int -> @Vec @Str -> @Vec @Str = \ls i acc =
+$ local_runs : @Vec ValT -> @Int -> @Vec @Str -> @Vec @Str = \ls i acc =>
     if i >= @vec_len ls => acc
     else
         let v = @vec_get ls i in
         let n = run_len ls i v 0 in
         local_runs ls (i + n) (@vec_push acc (uleb n ++ byte (vt_byte v)))
 
-$ run_len : @Vec ValT -> @Int -> ValT -> @Int -> @Int = \ls i v n =
+$ run_len : @Vec ValT -> @Int -> ValT -> @Int -> @Int = \ls i v n =>
     if i < @vec_len ls && vt_eq (@vec_get ls i) v => run_len ls (i + 1) v (n + 1) else n
 
-$ data_bytes : @Bool -> Data -> @Str = \m64 d =
+$ data_bytes : @Bool -> Data -> @Str = \m64 d =>
     byte 0 ++ (if m64 => i64_const d.offset else i32_const d.offset) ++ end ++ vec_bytes d.bytes

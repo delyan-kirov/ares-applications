@@ -61,18 +61,18 @@ $ syntax : {
     prose: @Bool
 } -> Syntax =
     let
-        opens   = map (\b = b.0) blocks,
-        closes  = map (\b = b.1) blocks,
-        qopens  = map (\q = q.0) quotes,
-        qcloses = map (\q = q.1) quotes,
-        firsts  = \toks = foldl (\acc t = acc ++ from_byte (at t 0)) "" toks,
+        opens   = map (\b => b.0) blocks,
+        closes  = map (\b => b.1) blocks,
+        qopens  = map (\q => q.0) quotes,
+        qcloses = map (\q => q.1) quotes,
+        firsts  = \toks => foldl (\acc t => acc ++ from_byte (at t 0)) "" toks,
         any     = byte_set <| "\n\\" ++ firsts line ++ firsts opens ++ firsts qopens,
         bmasks =
-            map (\b =
+            map (\b =>
                 byte_set <| "\n"
                     ++ from_byte (at b.1 0)
                     ++ (if nested => from_byte (at b.0 0) else "")) blocks,
-        qmasks  = map (\q = byte_set <| "\n\\" ++ from_byte (at q.1 0)) quotes,
+        qmasks  = map (\q => byte_set <| "\n\\" ++ from_byte (at q.1 0)) quotes,
         nl      = byte_set "\n",
         solid   = byte_set_not " \t\r\n\x0b\x0c",
         bstart  = byte_set <| firsts opens,
@@ -99,7 +99,7 @@ $ syntax : {
         }
 
 # A UTF-8 byte-order mark is not part of the first line.
-$ count : Syntax -> @Str -> Counts = \syn s =
+$ count : Syntax -> @Str -> Counts = \syn s =>
     let start = if starts_with s "\xef\xbb\xbf" => 3 else 0 in
     if syn.prose => prose syn s start 0 0 else lines syn s start 0 0 0 0
 
@@ -109,7 +109,7 @@ $ count : Syntax -> @Str -> Counts = \syn s =
 # depth)`, where mode is 0 in code, 1 in block comment `k` at nesting `depth`,
 # 2 in string `k`.
 $ lines : Syntax -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int
-    -> Counts = \syn s pos st code comments blanks =
+    -> Counts = \syn s pos st code comments blanks =>
     if pos >= @array_len s =>
         Counts.{ code, comments, blanks }
     else
@@ -118,16 +118,16 @@ $ lines : Syntax -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int
             next  = r / 1048576 + 1,
             after = (r % 1048576) / 4
         in
-            is r % 4
-            | 1 => lines syn s next after (code + 1) comments blanks
-            | 2 => lines syn s next after code (comments + 1) blanks
-            | _ => lines syn s next after code comments (blanks + 1)
+            r % 4 |> \
+                | 1 => lines syn s next after (code + 1) comments blanks
+                | 2 => lines syn s next after code (comments + 1) blanks
+                | _ => lines syn s next after code comments (blanks + 1)
 
 # One line from `pos`: its end, its class (0 blank, 1 code, 2 comment) and the
 # state the next line starts in, packed as `eol * 2^20 + 4 * state + class`. A
 # line in code with nothing on it that could open a comment or a string is
 # settled here by two scans.
-$ line : Syntax -> @Str -> @Int -> @Int -> @Int = \syn s pos st =
+$ line : Syntax -> @Str -> @Int -> @Int -> @Int = \syn s pos st =>
     if st != 0 =>
         slow syn s pos st
     else
@@ -140,17 +140,17 @@ $ line : Syntax -> @Str -> @Int -> @Int -> @Int = \syn s pos st =
 
 # A line that starts inside a block comment is a comment whatever follows the
 # close, as tokei counts it.
-$ slow : Syntax -> @Str -> @Int -> @Int -> @Int = \syn s pos st =
+$ slow : Syntax -> @Str -> @Int -> @Int -> @Int = \syn s pos st =>
     let
         eol = @array_scan s pos syn.nl,
         r   = step syn s pos eol (st % 4) ((st / 4) % 256) (st / 1024) 0 0,
     in
         if st % 4 == 1 => eol * 1048576 + r - r % 4 + 2 else eol * 1048576 + r
 
-$ pack : @Int -> @Int -> @Int -> @Int -> @Int = \class mode k depth =
+$ pack : @Int -> @Int -> @Int -> @Int -> @Int = \class mode k depth =>
     class + 4 * (mode + 4 * (k + 256 * depth))
 
-$ classify : @Int -> @Int -> @Int = \has_code has_comment =
+$ classify : @Int -> @Int -> @Int = \has_code has_comment =>
     if
         has_code == 1    => 1,
         has_comment == 1 => 2,
@@ -162,85 +162,91 @@ $ classify : @Int -> @Int -> @Int = \has_code has_comment =
 # state after it, `class + 4 * state`. Every move is a tail call of `step`
 # itself, which the native backend makes a loop.
 $ step : Syntax -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Int -> @Int
-    -> @Int = \syn s i eol mode k depth has_code has_comment =
-    is mode
-    | 0 =>
-        let
-            j    = @array_scan s i syn.any,
-            code = if @array_scan s i syn.solid < j => 1 else has_code,
-        in
+    -> @Int = \syn s i eol mode k depth has_code has_comment =>
+    mode |> \
+        | 0 =>
+            let
+                j    = @array_scan s i syn.any,
+                code = if @array_scan s i syn.solid < j => 1 else has_code,
+            in
+                if
+                    j >= eol             => pack (classify code has_comment) 0 0 0,
+                    @array_get s j == 92 => step syn s (j + 2) eol 0 0 0 1 has_comment,
+                    else
+                        let
+                            c = @array_get s j,
+                            b = if @array_get syn.bstart c == 0 => 0 - 1 else token syn.opens s j 0,
+                            q =
+                                if @array_get syn.qstart c == 0 =>
+                                    0 - 1
+                                else
+                                    token syn.qopens s j 0,
+                        in
+                            if
+                                b >= 0 =>
+                                    step syn s (j + @array_len (@vec_get syn.opens b)) eol 1 b 1
+                                        code 1,
+                                q >= 0 =>
+                                    step syn s (j + @array_len (@vec_get syn.qopens q)) eol 2 q 0 1
+                                        has_comment,
+                                @array_get syn.lstart c == 0 =>
+                                    step syn s (j + 1) eol 0 0 0 1 has_comment,
+                                token syn.line s j 0 < 0 =>
+                                    step syn s (j + 1) eol 0 0 0 1 has_comment,
+                                code == 0 && has_comment == 0 && empty_doc syn s j eol =>
+                                    pack 0 0 0 0,
+                                else
+                                    pack (classify code 1) 0 0 0
+        | 1 =>
+            let j = @array_scan s i (@vec_get syn.bmasks k) in
             if
-                j >= eol             => pack (classify code has_comment) 0 0 0,
-                @array_get s j == 92 => step syn s (j + 2) eol 0 0 0 1 has_comment,
+                j >= eol =>
+                    pack (classify has_code 1) 1 k depth,
+                starts_at s j (@vec_get syn.closes k) =>
+                    let next = j + @array_len (@vec_get syn.closes k) in
+                    if depth == 1 =>
+                        step syn s next eol 0 0 0 has_code 1
+                    else
+                        step syn s next eol 1 k (depth - 1) has_code 1,
+                !syn.nested =>
+                    step syn s (j + 1) eol 1 k depth has_code 1,
+                starts_at s j (@vec_get syn.opens k) =>
+                    step syn s (j + @array_len (@vec_get syn.opens k)) eol 1 k (depth + 1) has_code
+                        1,
                 else
-                    let
-                        c = @array_get s j,
-                        b = if @array_get syn.bstart c == 0 => 0 - 1 else token syn.opens s j 0,
-                        q = if @array_get syn.qstart c == 0 => 0 - 1 else token syn.qopens s j 0,
-                    in
-                        if
-                            b >= 0 =>
-                                step syn s (j + @array_len (@vec_get syn.opens b)) eol 1 b 1 code 1,
-                            q >= 0 =>
-                                step syn s (j + @array_len (@vec_get syn.qopens q)) eol 2 q 0 1
-                                    has_comment,
-                            @array_get syn.lstart c == 0 =>
-                                step syn s (j + 1) eol 0 0 0 1 has_comment,
-                            token syn.line s j 0 < 0 =>
-                                step syn s (j + 1) eol 0 0 0 1 has_comment,
-                            code == 0 && has_comment == 0 && empty_doc syn s j eol =>
-                                pack 0 0 0 0,
-                            else
-                                pack (classify code 1) 0 0 0
-    | 1 =>
-        let j = @array_scan s i (@vec_get syn.bmasks k) in
-        if
-            j >= eol =>
-                pack (classify has_code 1) 1 k depth,
-            starts_at s j (@vec_get syn.closes k) =>
-                let next = j + @array_len (@vec_get syn.closes k) in
-                if depth == 1 =>
-                    step syn s next eol 0 0 0 has_code 1
+                    step syn s (j + 1) eol 1 k depth has_code 1
+        # Inside a string every line is code. A backslash escapes the next
+        # byte; one at the end of a line leaves the string open.
+        | _ =>
+            let j = @array_scan s i (@vec_get syn.qmasks k) in
+            if
+                j >= eol =>
+                    pack 1 2 k 0,
+                @array_get s j == 92 =>
+                    if j + 1 >= eol => pack 1 2 k 0 else step syn s (j + 2) eol 2 k 0 1 0,
+                starts_at s j (@vec_get syn.qcloses k) =>
+                    step syn s (j + @array_len (@vec_get syn.qcloses k)) eol 0 0 0 1 0,
                 else
-                    step syn s next eol 1 k (depth - 1) has_code 1,
-            !syn.nested =>
-                step syn s (j + 1) eol 1 k depth has_code 1,
-            starts_at s j (@vec_get syn.opens k) =>
-                step syn s (j + @array_len (@vec_get syn.opens k)) eol 1 k (depth + 1) has_code 1,
-            else
-                step syn s (j + 1) eol 1 k depth has_code 1
-    # Inside a string every line is code. A backslash escapes the next
-    # byte; one at the end of a line leaves the string open.
-    | _ =>
-        let j = @array_scan s i (@vec_get syn.qmasks k) in
-        if
-            j >= eol =>
-                pack 1 2 k 0,
-            @array_get s j == 92 =>
-                if j + 1 >= eol => pack 1 2 k 0 else step syn s (j + 2) eol 2 k 0 1 0,
-            starts_at s j (@vec_get syn.qcloses k) =>
-                step syn s (j + @array_len (@vec_get syn.qcloses k)) eol 0 0 0 1 0,
-            else
-                step syn s (j + 1) eol 2 k 0 1 0
+                    step syn s (j + 1) eol 2 k 0 1 0
 
 # Whether the comment at `j` is a doc marker with nothing after it.
-$ empty_doc : Syntax -> @Str -> @Int -> @Int -> @Bool = \syn s j eol =
+$ empty_doc : Syntax -> @Str -> @Int -> @Int -> @Bool = \syn s j eol =>
     let d = token syn.docs s j 0 in
     d >= 0 && @array_scan s (j + @array_len (@vec_get syn.docs d)) syn.solid >= eol
 
 # The index of the first of `toks` (from `t` on) that starts at `j`, or -1.
-$ token : @Vec @Str -> @Str -> @Int -> @Int -> @Int = \toks s j t =
+$ token : @Vec @Str -> @Str -> @Int -> @Int -> @Int = \toks s j t =>
     if
         t >= @vec_len toks              => 0 - 1,
         starts_at s j (@vec_get toks t) => t,
         else token toks s j (t + 1)
 
-$ starts_at : @Str -> @Int -> @Str -> @Bool = \s j tok = @array_match s j tok
+$ starts_at : @Str -> @Int -> @Str -> @Bool = \s j tok => @array_match s j tok
 
 # ---- prose ----
 
 # Markdown and plain text: a line with anything on it is a comment.
-$ prose : Syntax -> @Str -> @Int -> @Int -> @Int -> Counts = \syn s pos comments blanks =
+$ prose : Syntax -> @Str -> @Int -> @Int -> @Int -> Counts = \syn s pos comments blanks =>
     if pos >= @array_len s =>
         Counts.{ .code = 0, comments, blanks }
     else

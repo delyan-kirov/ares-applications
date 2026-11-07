@@ -48,7 +48,7 @@ $ cmd_timeout : @Str = "2" # seconds a captured `!`/`$` command may run before i
 # is the lowercased label, computed once so filtering does not redo it per frame.
 $ App : @struct = label: @Str, key: @Str, cmd: @Str, terminal: @Bool,
 
-$ app : @Str -> @Str -> @Bool -> App = \label cmd term =
+$ app : @Str -> @Str -> @Bool -> App = \label cmd term =>
     App.{ .label = label, .key = to_lower label, .cmd = cmd, .terminal = term }
 
 $ fallback_apps : @Vec App =
@@ -74,24 +74,24 @@ $ max_list_h : @Int32 = 760 # tallest the app-list window grows before it scroll
 
 # int <-> float32 for raylib's text API, whose positions and sizes are @Float32
 # (`@cast` crosses only integer widths; `C.i2f`/`C.f2i` bridge int and float).
-$ i2f32 : @Int32 -> @Float32 = \n = C.i2f (@cast n)
-$ f2i32 : @Float32 -> @Int32 = \x = @cast (C.f2i x)
+$ i2f32 : @Int32 -> @Float32 = \n => C.i2f (@cast n)
+$ f2i32 : @Float32 -> @Int32 = \x => @cast (C.f2i x)
 
 # List positions are @Int (they index a @Vec); pixels are @Int32 (raylib's).
-$ px : @Int -> @Int32 = \n = @cast n
+$ px : @Int -> @Int32 = \n => @cast n
 
-$ max_i32 : @Int32 -> @Int32 -> @Int32 = \a b = if a >= b => a else b
-$ min_i32 : @Int32 -> @Int32 -> @Int32 = \a b = if a < b => a else b
+$ max_i32 : @Int32 -> @Int32 -> @Int32 = \a b => if a >= b => a else b
+$ min_i32 : @Int32 -> @Int32 -> @Int32 = \a b => if a < b => a else b
 
 # One list row is a button plus its trailing gap. `rows_fit` is how many rows fit
 # before `max_list_h`; `list_height` is the window height that shows `rows` of them.
 $ row_stride : @Int32 = btn_h + gap
 $ rows_fit : @Int = @cast ((max_list_h - top) / row_stride)
-$ list_height : @Int -> @Int32 = \rows = top + px rows * row_stride + pad
-$ row_y : @Int -> @Int32 = \i = top + px i * row_stride
+$ list_height : @Int -> @Int32 = \rows => top + px rows * row_stride + pad
+$ row_y : @Int -> @Int32 = \i => top + px i * row_stride
 
 # The list row under (mx, my), if any. The gap below a row belongs to no row.
-$ row_at : @Int32 -> @Int32 -> @Int -> Option @Int = \mx my rows =
+$ row_at : @Int32 -> @Int32 -> @Int -> Option @Int = \mx my rows =>
     let r : @Int = @cast ((my - top) / row_stride) in
     if mx < pad || mx >= pad + btn_w || my < top => Option.None,
     r < rows && (my - top) % row_stride < btn_h => Option.Some.{ r },
@@ -121,26 +121,26 @@ $ Model : @struct =
 # The launcher's state, as an effect: `model` reads it, `set` replaces it.
 $ Ui : @effect = model : {} -> Model, set : Model -> {},
 
-$ modify : (Model -> Model) -> <Ui> {} = \f = Ui.set (f (Ui.model {}))
+$ modify : (Model -> Model) -> <Ui> {} = \f => Ui.set (f (Ui.model {}))
 
 # Handle `Ui` by passing the model along: each clause returns a function of the
 # current model, so `body` sees every `set` that came before.
-$ with_model : Model -> ({} -> <Ui, @IO> {}) -> <@IO> {} = \m0 body =
+$ with_model : Model -> ({} -> <Ui, @IO> {}) -> <@IO> {} = \m0 body =>
     let run = do body {}
         ctl k
-        | Ui.model u => \m = (k m) m
-        | Ui.set m2 => \m = (k {}) m2
-        | _ => \m = {} in
+        | Ui.model u => \m => (k m) m
+        | Ui.set m2 => \m => (k {}) m2
+        | _ => \m => {} in
     run m0
 
-$ matching : @Vec App -> @Str -> @Vec App = \apps q =
+$ matching : @Vec App -> @Str -> @Vec App = \apps q =>
     let needle = to_lower q in
-    formap apps <| \a = if STR.contains a.key needle => a else continue {}
+    formap apps <| \a => if STR.contains a.key needle => a else continue {}
 
-$ refilter : Model -> Model = \m = Model.{ .visible = matching m.apps m.query | m }
+$ refilter : Model -> Model = \m => Model.{ .visible = matching m.apps m.query | m }
 
 # How many list rows are on screen.
-$ rows : Model -> @Int = \m =
+$ rows : Model -> @Int = \m =>
     let n = @vec_len m.visible in if not m.typed => 0, n < rows_fit => n else rows_fit
 
 # -- app discovery -----------------------------------------------------------
@@ -182,21 +182,21 @@ $ PollFd : @struct @extern "C" = fd: @Int32, events: @Int16, revents: @Int16,
 $ poll : { fds: @Vec PollFd, n: @Nat64, timeout: @Int32 } -> <@IO> @Int32 =
     @extern "C" "poll" "libc"
 
-$ readable : @Int -> <@IO> @Bool = \f =
+$ readable : @Int -> <@IO> @Bool = \f =>
     poll { [PollFd.{ .fd = fileno f, .events = 1, .revents = 0 }], 1, 0 } > 0
 
-$ is_byte : @Int -> @Bool = \c = if c < 0 => @false else c <= 255
+$ is_byte : @Int -> @Bool = \c => if c < 0 => @false else c <= 255
 
 # One line from a stream, without its '\n'; `None` once the stream has ended.
-$ read_line : @Int -> @Str -> <@IO> Option @Str = \f acc =
+$ read_line : @Int -> @Str -> <@IO> Option @Str = \f acc =>
     let c = C.fgetc f in
     if c == 10 => Option.Some.{ acc },
     is_byte c => read_line f (@array_push acc c),
     STR.is_empty acc => Option.None,
     else Option.Some.{ acc }
 
-$ parse_app : @Str -> Option App = \line =
-    is split line "\t"
+$ parse_app : @Str -> Option App = \line =>
+    split line "\t" |> \
     | [name, cmd, term] => Option.Some.{ app name cmd (term == "1") }
     | _ => Option.None
 
@@ -209,64 +209,64 @@ $ lines_per_frame : @Int = 8
 # The scan, written as if it owned the thread: wait for the pipe, read a few
 # lines, deliver them, repeat. Every `pause` is a frame boundary, and the pipe is
 # only read once poll(2) says it will not block, so no frame waits on it.
-$ produce : @Int -> <Feed, @IO> {} = \f =
-    when (Feed.pause {}) <| \_ = if readable f => take f lines_per_frame else produce f
+$ produce : @Int -> <Feed, @IO> {} = \f =>
+    when (Feed.pause {}) <| \_ => if readable f => take f lines_per_frame else produce f
 
-$ take : @Int -> @Int -> <Feed, @IO> {} = \f n =
+$ take : @Int -> @Int -> <Feed, @IO> {} = \f n =>
     if n == 0 => produce f
     else
-        is read_line f ""
-        | Option.Some.{ line } => when (parse_app line) (\a = Feed.found a); take f (n - 1)
+        read_line f "" |> \
+        | Option.Some.{ line } => when (parse_app line) (\a => Feed.found a); take f (n - 1)
         | _ => {}
 
-$ scan_apps : @Int -> <Feed, @IO> {} = \f = defer pclose f in produce f
+$ scan_apps : @Int -> <Feed, @IO> {} = \f => defer pclose f in produce f
 
 # Run the scan up to its next `pause`. Each `found` app joins the model; a
 # `pause` suspends the scan as a stored continuation. When it ends with nothing
 # found, the fallback list stands in.
-$ scanning : ({} -> <Feed, Ui, @IO> {}) -> <Ui, @IO> Scan = \body =
+$ scanning : ({} -> <Feed, Ui, @IO> {}) -> <Ui, @IO> Scan = \body =>
     do body {}
     ctl k
-    | Feed.found a => modify (\m = Model.{ .apps = @vec_push m.apps a | m }); k {}
+    | Feed.found a => modify (\m => Model.{ .apps = @vec_push m.apps a | m }); k {}
     | Feed.pause u => Scan.Paused.{ k }
     | _ =>
-        modify (\m = if @vec_len m.apps == 0 => Model.{ .apps = fallback_apps | m } else m);
+        modify (\m => if @vec_len m.apps == 0 => Model.{ .apps = fallback_apps | m } else m);
         Scan.Done
 
 # The scan before its first slice. A failed `popen` (0) finds nothing.
-$ start_scan : @Int -> Scan = \f =
-    Scan.Paused.{ \go = scanning <| \_ = if f == 0 => {}, go => scan_apps f else (pclose f; {}) }
+$ start_scan : @Int -> Scan = \f =>
+    Scan.Paused.{ \go => scanning <| \_ => if f == 0 => {}, go => scan_apps f else (pclose f; {}) }
 
 # Resume the scan with `go`, then store wherever it stopped next.
-$ resume_scan : @Bool -> <Ui, @IO> {} = \go =
-    is (Ui.model {}).scan
-    | Scan.Paused.{ k } => let next = k go in modify (\m = refilter Model.{ .scan = next | m })
+$ resume_scan : @Bool -> <Ui, @IO> {} = \go =>
+    (Ui.model {}).scan |> \
+    | Scan.Paused.{ k } => let next = k go in modify (\m => refilter Model.{ .scan = next | m })
     | _ => {}
 
-$ scan_step : {} -> <Ui, @IO> {} = \_ = resume_scan @true
+$ scan_step : {} -> <Ui, @IO> {} = \_ => resume_scan @true
 
 # Quitting mid-scan tells it to stop, so its `defer` reaps the child.
-$ stop_scan : {} -> <Ui, @IO> {} = \_ = resume_scan @false
+$ stop_scan : {} -> <Ui, @IO> {} = \_ => resume_scan @false
 
 # -- the query ---------------------------------------------------------------
 # Drain raylib's character queue onto the query. `getCharPressed` yields a C
 # `int` codepoint (0 when the queue is empty); `from_byte` wants an `@Int`, so
 # each printable ASCII code crosses the width boundary with `@cast`.
-$ read_chars : @Str -> @Str = \q =
+$ read_chars : @Str -> @Str = \q =>
     let c = getCharPressed {} in
     if c == 0 => q, c >= 32 && c < 127 => read_chars (q ++ from_byte (@cast c)), else read_chars q
 
-$ drop_last : @Str -> @Str = \s = if STR.len s > 0 => substr s 0 (STR.len s - 1) else s
+$ drop_last : @Str -> @Str = \s => if STR.len s > 0 => substr s 0 (STR.len s - 1) else s
 
-$ pressed : I32 -> @Bool = \k = isKeyPressed k == 1
+$ pressed : I32 -> @Bool = \k => isKeyPressed k == 1
 
 # A key fires this frame if pressed now or auto-repeating (so a held arrow key
 # keeps scrolling).
-$ key_step : I32 -> @Bool = \k = pressed k || isKeyPressedRepeat k == 1
+$ key_step : I32 -> @Bool = \k => pressed k || isKeyPressedRepeat k == 1
 
 # Typed chars, backspace, and escape (which clears the query and any output).
 # Any change to the query resets the scroll and drops the output.
-$ edit_step : {} -> <Ui> {} = \_ =
+$ edit_step : {} -> <Ui> {} = \_ =>
     let m = Ui.model {},
         q1 = read_chars m.query,
         q2 = if key_step key_backspace => drop_last q1 else q1,
@@ -277,7 +277,7 @@ $ edit_step : {} -> <Ui> {} = \_ =
 
 # This frame's scroll intent in list rows: mouse wheel (a notch is one row),
 # arrow keys by one row, page keys by a whole page. Positive scrolls DOWN.
-$ scroll_delta : {} -> @Int = \_ =
+$ scroll_delta : {} -> @Int = \_ =>
     let wheel : @Int = @cast (0 - f2i32 (getMouseWheelMove {})),
         keys = (if key_step key_down => 1 else 0) - (if key_step key_up => 1 else 0),
         pages = (
@@ -286,45 +286,45 @@ $ scroll_delta : {} -> @Int = \_ =
     wheel + keys + pages
 
 # Clamp `off` into [0, n - rows_fit]: never past the last full page, never below 0.
-$ clamp_off : @Int -> @Int -> @Int = \off n =
+$ clamp_off : @Int -> @Int -> @Int = \off n =>
     let last = if n > rows_fit => n - rows_fit else 0 in
     if off < 0 => 0, off > last => last else off
 
-$ scroll_step : {} -> <Ui> {} = \_ =
+$ scroll_step : {} -> <Ui> {} = \_ =>
     let d = scroll_delta {} in
     when (
         d != 0
-    ) <| \_ = modify <| \m = Model.{ .off = clamp_off (m.off + d) (@vec_len m.visible) | m }
+    ) <| \_ => modify <| \m => Model.{ .off = clamp_off (m.off + d) (@vec_len m.visible) | m }
 
 # -- commands ----------------------------------------------------------------
 # Spawn a shell command in a fresh terminal window that stays open afterward.
-$ in_terminal : @Str -> <@IO> @Int = \cmd =
+$ in_terminal : @Str -> <@IO> @Int = \cmd =>
     system (terminal ++ " -e sh -c '" ++ cmd ++ "; exec $SHELL' &")
 
 # Launch an app: a `Terminal=true` (CLI/TUI) app runs inside a terminal window,
 # everything else is spawned fire-and-forget as a background GUI process.
-$ launch : App -> <@IO> @Int = \a = if a.terminal => in_terminal a.cmd else system (a.cmd ++ " &")
+$ launch : App -> <@IO> @Int = \a => if a.terminal => in_terminal a.cmd else system (a.cmd ++ " &")
 
 # Read a stream to its end, at most `budget` bytes, so a chatty command cannot
 # stall the frame loop.
-$ drain : @Int -> @Int -> @Str -> <@IO> @Str = \f budget acc =
+$ drain : @Int -> @Int -> @Str -> <@IO> @Str = \f budget acc =>
     if budget <= 0 => acc
     else let c = C.fgetc f in if is_byte c => drain f (budget - 1) (@array_push acc c) else acc
 
 # Single-quote a string for the shell, so the whole command reaches one `sh -c`
 # as a single argument (spaces, pipes and `;` included). A literal `'` becomes
 # `'\''`: close the quote, an escaped quote, reopen.
-$ shell_quote : @Str -> @Str = \s = "'" ++ replace s "'" "'\\''" ++ "'"
+$ shell_quote : @Str -> @Str = \s => "'" ++ replace s "'" "'\\''" ++ "'"
 
 # `pclose` hands back a wait(2) status; `timeout` exits 124 when it had to kill
 # the command, which sits in the high byte (WEXITSTATUS).
-$ timed_out : @Int -> @Bool = \status = (status / 256) % 256 == 124
+$ timed_out : @Int -> @Bool = \status => (status / 256) % 256 == 124
 
 # Run a shell command under `timeout` and capture its stdout+stderr. If it runs
 # longer than `cmd_timeout` seconds it is killed and the window shows a timeout
 # message instead of partial output. The command runs inside its own `sh -c` so
 # `timeout` covers the whole pipeline, not just the first word.
-$ run_capture : @Str -> <@IO> @Str = \cmd =
+$ run_capture : @Str -> <@IO> @Str = \cmd =>
     let wrapped = "timeout -k 1 " ++ cmd_timeout ++ " sh -c " ++ shell_quote cmd ++ " 2>&1",
         f = popen { wrapped, "r" } in
     if f == 0 => ""
@@ -333,45 +333,45 @@ $ run_capture : @Str -> <@IO> @Str = \cmd =
         if timed_out status => "command timed out" else body
 
 # Hand the query to the web browser as a search, spaces percent-escaped as `+`.
-$ open_search : @Str -> <@IO> @Int = \q =
+$ open_search : @Str -> <@IO> @Int = \q =>
     system ("xdg-open '" ++ search_url ++ replace q " " "+" ++ "' &")
 
 # Curated `$name` tools. An empty result means "no such tool".
-$ tool_cmd : @Str -> @Str = \name =
-    is name
+$ tool_cmd : @Str -> @Str = \name =>
+    name |> \
     | "time" => "date"
     | "cal" => "cal"
     | "disk" => "df -h"
     | "mem" => "free -h"
     | _ => ""
 
-$ show_output : Model -> @Str -> <Ui> {} = \m out =
+$ show_output : Model -> @Str -> <Ui> {} = \m out =>
     Ui.set (refilter Model.{ .query = "", .output = out, .off = 0 | m })
 
 # Enter commits the query by its leading sigil. `!` runs a shell command and `$`
 # a curated tool, showing the output in the window (an unknown tool leaves the
 # query, typo visible); `?` opens a web search. A plain query launches the first
 # visible app. Handing off to another program ends the launcher.
-$ commit : Model -> <Ui, Loop, @IO> {} = \m =
-    is m.query
+$ commit : Model -> <Ui, Loop, @IO> {} = \m =>
+    m.query |> \
     | "!" ++ cmd => show_output m (run_capture (trim cmd))
     | "?" ++ q => open_search (trim q); break {}
     | "$" ++ name =>
-        let cmd = tool_cmd (trim name) in when (cmd != "") <| \_ = show_output m (run_capture cmd)
-    | _ => when (VEC.first m.visible) <| \a = launch a; break {}
+        let cmd = tool_cmd (trim name) in when (cmd != "") <| \_ => show_output m (run_capture cmd)
+    | _ => when (VEC.first m.visible) <| \a => launch a; break {}
 
-$ enter_step : {} -> <Ui, Loop, @IO> {} = \_ =
-    when (pressed key_enter || pressed key_kp_enter) <| \_ = commit (Ui.model {})
+$ enter_step : {} -> <Ui, Loop, @IO> {} = \_ =>
+    when (pressed key_enter || pressed key_kp_enter) <| \_ => commit (Ui.model {})
 
 # A click on a list row launches that row's app.
-$ click_step : {} -> <Ui, Loop, @IO> {} = \_ =
+$ click_step : {} -> <Ui, Loop, @IO> {} = \_ =>
     let m = Ui.model {} in
     when (
         isMouseButtonPressed mouse_button_left == 1 && STR.is_empty m.output
-    ) <| \_ =
+    ) <| \_ =>
         when (
             row_at (getMouseX {}) (getMouseY {}) (rows m)
-        ) <| \r = launch (@vec_get m.visible (m.off + r)); break {}
+        ) <| \r => launch (@vec_get m.visible (m.off + r)); break {}
 
 # -- rendering ---------------------------------------------------------------
 # The day and time shown in the header, from libc `ctime` (no `date` fork, so it
@@ -382,14 +382,14 @@ $ click_step : {} -> <Ui, Loop, @IO> {} = \_ =
 # "Www Mmm dd" date and the "hh:mm" time, dropping seconds and year.
 $ ctime : @Str -> @Str = @extern "C" "ctime" "libc"
 
-$ le8 : @Int -> @Int -> @Str = \t k =
+$ le8 : @Int -> @Int -> @Str = \t k =>
     if k >= 8 => "" else (@array_push "" (t % 256)) ++ le8 (t / 256) (k + 1)
 
-$ clock_str : {} -> <@IO> @Str = \_ =
+$ clock_str : {} -> <@IO> @Str = \_ =>
     let s = ctime (le8 (C.time 0) 0) in substr s 0 10 ++ "   " ++ substr s 11 16
 
 # Draw `s` at (x, y) in `font`; positions and the size cross to @Float32 here.
-$ text : Font -> @Str -> @Int32 -> @Int32 -> @Float32 -> Color -> {} = \font s x y size col =
+$ text : Font -> @Str -> @Int32 -> @Int32 -> @Float32 -> Color -> {} = \font s x y size col =>
     drawTextEx {
         .p0 = font,
         .p1 = s,
@@ -400,14 +400,14 @@ $ text : Font -> @Str -> @Int32 -> @Int32 -> @Float32 -> Color -> {} = \font s x
     }
 
 # Width in pixels of the widest line of `s` drawn in `font` at `out_fs`.
-$ widest : Font -> @Str -> @Int32 = \font s =
-    let w = \l = f2i32 (measureTextEx { .p0 = font, .p1 = l, .p2 = out_fs, .p3 = spacing }).x in
-    VEC.foldl (\acc l = max_i32 acc (w l)) 0 (split s "\n")
+$ widest : Font -> @Str -> @Int32 = \font s =>
+    let w = \l => f2i32 (measureTextEx { .p0 = font, .p1 = l, .p2 = out_fs, .p3 = spacing }).x in
+    VEC.foldl (\acc l => max_i32 acc (w l)) 0 (split s "\n")
 
 # The window fits what it shows. With no output it fits the app list, never
 # below `base_h`; with output it grows to the longest line and every line, both
 # capped against the screen. raylib is only asked when the size changes.
-$ resize_step : Font -> <Ui> {} = \font =
+$ resize_step : Font -> <Ui> {} = \font =>
     let m = Ui.model {},
         w = if STR.is_empty m.output => base_w
         else min_i32 1200 (max_i32 base_w (widest font m.output + 2 * pad)),
@@ -415,11 +415,11 @@ $ resize_step : Font -> <Ui> {} = \font =
         else min_i32 800 (top + px (@vec_len (split m.output "\n")) * line_h + pad) in
     when (
         w != m.win_w || h != m.win_h
-    ) <| \_ = setWindowSize { .p0 = w, .p1 = h }; Ui.set Model.{ .win_w = w, .win_h = h | m }
+    ) <| \_ => setWindowSize { .p0 = w, .p1 = h }; Ui.set Model.{ .win_w = w, .win_h = h | m }
 
 # A hovered row is a filled rounded ("oval") box; an idle row is just its label
 # fenced by two thin divider lines (top and bottom edges).
-$ draw_row : Font -> App -> @Int32 -> @Bool -> {} = \font a y hover =
+$ draw_row : Font -> App -> @Int32 -> @Bool -> {} = \font a y hover =>
     (
         if hover =>
             drawRectangleRounded {
@@ -447,15 +447,15 @@ $ draw_row : Font -> App -> @Int32 -> @Bool -> {} = \font a y hover =
     );
     text font a.label (pad + 16) (y + 14) ui_fs text_col
 
-$ draw_list : Font -> Model -> {} = \font m =
+$ draw_list : Font -> Model -> {} = \font m =>
     let n = rows m, hover = row_at (getMouseX {}) (getMouseY {}) n in
     for (
         range 0 (n - 1)
-    ) <| \i =
-        let hovered = is hover | Option.Some.{ r } => r == i | _ => @false in
+    ) <| \i =>
+        let hovered = hover |> \ | Option.Some.{ r } => r == i | _ => @false in
         draw_row font (@vec_get m.visible (m.off + i)) (row_y i) hovered
 
-$ draw_step : Font -> <Ui, @IO> {} = \font =
+$ draw_step : Font -> <Ui, @IO> {} = \font =>
     resize_step font;
     let m = Ui.model {} in
     beginDrawing {};
@@ -467,8 +467,8 @@ $ draw_step : Font -> <Ui, @IO> {} = \font =
     endDrawing {}
 
 # -- frame loop --------------------------------------------------------------
-$ frame : Font -> <Ui, Loop, @IO> {} = \font =
-    when (windowShouldClose {} == 1) (\_ = break {});
+$ frame : Font -> <Ui, Loop, @IO> {} = \font =>
+    when (windowShouldClose {} == 1) (\_ => break {});
     scan_step {};
     edit_step {};
     scroll_step {};
@@ -476,7 +476,7 @@ $ frame : Font -> <Ui, Loop, @IO> {} = \font =
     click_step {};
     enter_step {}
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     let scan = popen { scan_cmd, "r" } in
     setConfigFlags (@cast flag_window_undecorated);
     initWindow { .p0 = base_w, .p1 = base_h, .p2 = "" };
@@ -495,4 +495,4 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =
             .win_h = base_h,
         } in
     defer closeWindow {}, unloadFont font in
-    (with_model m0 <| \_ = defer stop_scan {} in for forever <| \_ = frame font); 0
+    (with_model m0 <| \_ => defer stop_scan {} in for forever <| \_ => frame font); 0

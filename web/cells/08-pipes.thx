@@ -9,10 +9,10 @@ $ @mod MAIN
 $ with STR
 $ with HOST
 
-$ inc : @Int -> @Int = \x = x + 1
-$ dbl : @Int -> @Int = \x = x + x
+$ inc : @Int -> @Int = \x => x + 1
+$ dbl : @Int -> @Int = \x => x + x
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     let
         r = 5 |> inc |> dbl
     in

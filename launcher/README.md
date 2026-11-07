@@ -34,7 +34,7 @@ list by a case-insensitive substring match. `getCharPressed` returns a C `int`
 types. The `@cast` intrinsic bridges them:
 
 ```
-$ read_chars : @Str -> @Str = \q =
+$ read_chars : @Str -> @Str = \q =>
 	let c = getCharPressed {} in            # c : @Int32
 	if c == 0 => q
 	else if c >= 32 && c < 127 => read_chars (q ++ from_byte (@cast c))
@@ -63,11 +63,11 @@ The `$` tools are a small table in `MAIN.thx`: `time` runs `date`, `cal` runs
 query in place so the typo stays visible. The dispatch is a string-prefix match:
 
 ```
-is m.query
+m.query |> \
 | "!" ++ cmd  => show_output m (run_capture (trim cmd))
 | "?" ++ q    => open_search (trim q) ; break {}
 | "$" ++ name => ...
-| _           => when (VEC.first m.visible) <| \a = launch a ; break {}
+| _           => when (VEC.first m.visible) <| \a => launch a ; break {}
 ```
 
 The terminal (for `Terminal=true` apps) and the search engine are editable
@@ -89,9 +89,9 @@ the window however it ends:
 
 ```
 defer closeWindow {}, unloadFont font in
-(with_model m0 <| \u =
+(with_model m0 <| \u =>
 	defer stop_scan {} in
-	for forever <| \_ = frame font)
+	for forever <| \_ => frame font)
 ```
 
 App discovery is a coroutine. A shell pipeline (one `awk` pass over the `.desktop` files, then `sort`) is

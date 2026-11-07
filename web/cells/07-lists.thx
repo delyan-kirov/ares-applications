@@ -10,12 +10,12 @@ $ @mod MAIN
 $ with STR
 $ with HOST
 
-$ sum : @Vec @Int -> @Int = \xs =
-    is xs
+$ sum : @Vec @Int -> @Int = \xs =>
+    xs |> \
     | []     => 0
     | h :: t => h + sum t
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     let
         xs = [1, 2, 3, 4, 5]
     in

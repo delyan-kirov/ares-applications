@@ -12,12 +12,12 @@ $ Money : @struct =
     cents: @Int,
 
 $ impl_IAdd_for_Money : IAdd Money = 
-   .{ .add = \a b = Money.{ .cents = a.cents + b.cents } }
+   .{ .add = \a b => Money.{ .cents = a.cents + b.cents } }
 
-$ show : Money -> @Str = \m =
+$ show : Money -> @Str = \m =>
     "$?(m.cents / 100).?(m.cents % 100)"
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     let
         paid = Money.{ .cents = 150 } + Money.{ .cents = 99 }
     in

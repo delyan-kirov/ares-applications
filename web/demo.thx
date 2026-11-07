@@ -12,7 +12,7 @@ $ with STR
 # models the return as `@Int` (64-bit), so this module binds it itself.
 $ puts : @Str -> <@IO> @Int32 = @extern "C" "puts" "libc"
 
-$ fib : @Int -> @Int = \n = if n < 2 => n else fib (n - 1) + fib (n - 2)
+$ fib : @Int -> @Int = \n => if n < 2 => n else fib (n - 1) + fib (n - 2)
 
 $ banner : @Str =
     "Thrax on "
@@ -23,4 +23,4 @@ $ banner : @Str =
         ++ "fib 20 = "
         ++ STR.from_int (fib 20)
 
-$ @main : @Vec @Str -> <@IO> @Int = \args = puts banner; 0
+$ @main : @Vec @Str -> <@IO> @Int = \args => puts banner; 0

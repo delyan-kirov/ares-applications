@@ -10,12 +10,12 @@ $ with HOST
 
 $ Exn : @effect = throw : @Str -> a,
 
-$ safeDiv : @Int -> @Int -> @Int = \a b =
+$ safeDiv : @Int -> @Int -> @Int = \a b =>
     do if b == 0 => Exn.throw "divide by zero" else a / b
     ctl k
     | Exn.throw msg => 0 - 1
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     print "84 / 2 = ?(safeDiv 84 2)";
     print "10 / 0 = ?(safeDiv 10 0)";
     0

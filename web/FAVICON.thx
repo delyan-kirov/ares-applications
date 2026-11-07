@@ -57,12 +57,12 @@ $ inradius : Real = circumradius / 2.0
 # The point at distance `d` from the center in direction `k`, counted in thirds
 # of a turn from straight up (y grows downward). Whole `k` are the vertices,
 # and `k + 0.5` is the midpoint of the side between vertices `k` and `k + 1`.
-$ polar : Real -> Real -> Point = \k d =
+$ polar : Real -> Real -> Point = \k d =>
     let a = 0.0 - pi / 2.0 + 2.0 * pi * k / 3.0 in { cx + d * cos a, cy + d * sin a }
 
-$ vertex : Real -> Point = \k = polar k circumradius
+$ vertex : Real -> Point = \k => polar k circumradius
 
-$ side_midpoint : Real -> Point = \k = polar (k + 0.5) inradius
+$ side_midpoint : Real -> Point = \k => polar (k + 0.5) inradius
 
 $ circumcircle : Figure = Figure.Disc.{ cx, cy, circumradius }
 $ incircle : Figure = Figure.Disc.{ cx, cy, inradius }
@@ -72,7 +72,7 @@ $ triangle : Figure = Figure.Tri.{ vertex 0.0, vertex 1.0, vertex 2.0 }
 # the center, one at a vertex and one at a side's midpoint. Every other one,
 # taken as a figure, makes them alternate.
 $ wedges : @Vec Figure =
-    let wedge = \k = Figure.Tri.{ { cx, cy }, vertex k, side_midpoint k } in
+    let wedge = \k => Figure.Tri.{ { cx, cy }, vertex k, side_midpoint k } in
     [wedge 0.0, wedge 1.0, wedge 2.0]
 
 # Pure even-odd over all the figures: the wedges alternate, and flip again
@@ -94,16 +94,16 @@ $ site : Design = Design.{
 
 # ---- vector: SVG ----
 
-$ hex2 : @Int -> @Str = \n =
+$ hex2 : @Int -> @Str = \n =>
     let digits = "0123456789abcdef" in
     @array_push (@array_push "" (@array_get digits (n / 16))) (@array_get digits (n % 16))
 
-$ css : Rgb -> @Str = \c = "#?(hex2 c.r)?(hex2 c.g)?(hex2 c.b)"
+$ css : Rgb -> @Str = \c => "#?(hex2 c.r)?(hex2 c.g)?(hex2 c.b)"
 
 # Each figure as a closed subpath. A circle is two half-circle arcs, since one
 # arc cannot start and end at the same point.
-$ subpath : Figure -> @Str = \f =
-    is f
+$ subpath : Figure -> @Str = \f =>
+    f |> \
     | Figure.Disc.{ x, y, r } =>
         "M?(x - r) ?(y)a?(r) ?(r) 0 1 0 ?(2.0 * r) 0a?(r) ?(r) 0 1 0 ?(0.0 - 2.0 * r) 0Z"
     | Figure.Tri.{ a, b, c } => "M?(a.0) ?(a.1)L?(b.0) ?(b.1)L?(c.0) ?(c.1)Z"
@@ -111,9 +111,9 @@ $ subpath : Figure -> @Str = \f =
 # One path per layer, in order, so later layers paint over earlier ones. An
 # eraser wraps everything drawn so far in a mask that is black on its figures,
 # so the accumulator carries a count to keep mask ids distinct.
-$ svg_layer : { @Str, @Int } -> Layer -> { @Str, @Int } = \acc l =
-    let path = fold (\p f = p ++ subpath f) "" l.figures in
-    is l.color
+$ svg_layer : { @Str, @Int } -> Layer -> { @Str, @Int } = \acc l =>
+    let path = fold (\p f => p ++ subpath f) "" l.figures in
+    l.color |> \
     | Option.Some.{ c } =>
         { acc.0 ++ "<path fill-rule=\"evenodd\" fill=\"?(css c)\" d=\"?(path)\"/>\n", acc.1 }
     | Option.None =>
@@ -125,12 +125,12 @@ $ svg_layer : { @Str, @Int } -> Layer -> { @Str, @Int } = \acc l =
             acc.1 + 1,
         }
 
-$ svg_background : Option Rgb -> @Str = \b =
-    is b
+$ svg_background : Option Rgb -> @Str = \b =>
+    b |> \
     | Option.Some.{ c } => "<rect width=\"1\" height=\"1\" fill=\"?(css c)\"/>\n"
     | Option.None       => ""
 
-$ svg : Design -> @Str = \d =
+$ svg : Design -> @Str = \d =>
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 1 1\">\n"
         ++ (fold svg_layer { svg_background d.background, 0 } d.layers).0
         ++ "</svg>\n"
@@ -139,13 +139,13 @@ $ svg : Design -> @Str = \d =
 
 # Twice the signed area of p-q-s: its sign says which side of the line p-q the
 # point s is on.
-$ cross : Point -> Point -> Point -> Real = \p q s =
+$ cross : Point -> Point -> Point -> Real = \p q s =>
     (q.0 - p.0) * (s.1 - p.1) - (q.1 - p.1) * (s.0 - p.0)
 
 # Inside a triangle means on the same side of all three edges, whichever way
 # round its corners are listed.
-$ inside : Point -> Figure -> @Bool = \p f =
-    is f
+$ inside : Point -> Figure -> @Bool = \p f =>
+    f |> \
     | Figure.Disc.{ x, y, r } => (p.0 - x) * (p.0 - x) + (p.1 - y) * (p.1 - y) < r * r
     | Figure.Tri.{ a, b, c } =>
         let
@@ -155,35 +155,35 @@ $ inside : Point -> Figure -> @Bool = \p f =
         in
             if u > 0.0 && v > 0.0 && w > 0.0 => @true else u < 0.0 && v < 0.0 && w < 0.0
 
-$ covers : Point -> Layer -> @Bool = \p l =
-    (fold (\n f = if inside p f => n + 1 else n) 0 l.figures) % 2 == 1
+$ covers : Point -> Layer -> @Bool = \p l =>
+    (fold (\n f => if inside p f => n + 1 else n) 0 l.figures) % 2 == 1
 
-$ color_at : Design -> Point -> Option Rgb = \d p =
-    fold (\c l = if covers p l => l.color else c) d.background d.layers
+$ color_at : Design -> Point -> Option Rgb = \d p =>
+    fold (\c l => if covers p l => l.color else c) d.background d.layers
 
 # ffmpeg averages color channels without weighting them by alpha, so the color
 # hidden in a clear pixel bleeds into the edge next to it. Clear pixels take
 # the first color painted, which keeps a one-color icon's edges clean.
-$ matte : Design -> Rgb = \d =
-    let first = fold (\m l = if is_some m => m else l.color) d.background d.layers in
+$ matte : Design -> Rgb = \d =>
+    let first = fold (\m l => if is_some m => m else l.color) d.background d.layers in
     unwrap_or first Rgb.{ .r = 0, .g = 0, .b = 0 }
 
-$ push_rgb : @Str -> Rgb -> @Str = \acc c = @array_push (@array_push (@array_push acc c.r) c.g) c.b
+$ push_rgb : @Str -> Rgb -> @Str = \acc c => @array_push (@array_push (@array_push acc c.r) c.g) c.b
 
-$ push_rgba : Rgb -> @Str -> Option Rgb -> @Str = \m acc o =
-    is o
+$ push_rgba : Rgb -> @Str -> Option Rgb -> @Str = \m acc o =>
+    o |> \
     | Option.Some.{ c } => @array_push (push_rgb acc c) 255
     | Option.None       => @array_push (push_rgb acc m) 0
 
 # One row of the image as RGBA bytes. Rows are built separately and joined once,
 # since appending to a single growing string copies it on every byte.
-$ pam_row : Design -> @Int -> @Int -> @Str = \d n row =
+$ pam_row : Design -> @Int -> @Int -> @Str = \d n row =>
     let
         pixel = 1.0 / real_of_int n,
         m     = matte d,
         y     = (real_of_int row + 0.5) * pixel,
         go =
-            \col acc =
+            \col acc =>
                 if col == n =>
                     acc
                 else
@@ -195,31 +195,31 @@ $ pam_row : Design -> @Int -> @Int -> @Str = \d n row =
 # reads it directly, so no image library is needed. Each pixel is one hard
 # sample; the anti-aliasing comes from ffmpeg averaging many of them when it
 # scales down.
-$ pam : Design -> @Int -> @Str = \d n =
+$ pam : Design -> @Int -> @Str = \d n =>
     let
-        go     = \row rows = if row == n => rows else go (row + 1) (@vec_push rows (pam_row d n row)),
+        go     = \row rows => if row == n => rows else go (row + 1) (@vec_push rows (pam_row d n row)),
         header = "P7\nWIDTH ?(n)\nHEIGHT ?(n)\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n",
     in
         header ++ STR.join "" (go 0 (@vec_new {}))
 
 # ---- output ----
 
-$ ffmpeg : @Str -> @Int -> @Str -> <@IO> @Int = \src side dst =
+$ ffmpeg : @Str -> @Int -> @Str -> <@IO> @Int = \src side dst =>
     C.system "ffmpeg -loglevel error -y -i ?(src) -vf scale=?(side):?(side):flags=area ?(dst)"
 
-$ design_named : @Str -> Option Design = \name =
-    is name
+$ design_named : @Str -> Option Design = \name =>
+    name |> \
     | "site"     => Option.Some.{ site }
     | "pinwheel" => Option.Some.{ pinwheel }
     | _          => Option.None
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     let name = if @vec_len args > 1 => @vec_get args 1 else "site" in
-    is design_named name
+    design_named name |> \
     | Option.None       => eprintln "unknown design `?(name)`, expected `site` or `pinwheel`"; 2
     | Option.Some.{ d } => render d
 
-$ render : Design -> <@IO> @Int = \d =
+$ render : Design -> <@IO> @Int = \d =>
     let master = "site/favicon-master.pam" in
     write_file "site/favicon.svg" (svg d);
     write_file master (pam d 720);

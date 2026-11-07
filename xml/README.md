@@ -22,7 +22,7 @@ says the root is not named here.
 ```thrax
 $ with XML
 
-$ doc : Node = is parse src | Parsed.Ok.{ n } => n | _ => ...
+$ doc : Node = parse src |> \ | Parsed.Ok.{ n } => n | _ => ...
 
 $ titles : @Vec Node = find_all "title" doc
 $ english : @Vec Node = find_where "book" "lang" "en" doc
@@ -74,7 +74,7 @@ from this library: the parser never saves or restores a position, and never
 needs to.
 
 ```thrax
-$ element : {} -> <Scan, Choice, Soft, Hard> Node = \u =
+$ element : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
 	(lit "<" {} ;
 	 let n = xml_name {} in
 	 let a = attr_list (@vec_new {}) {} in
@@ -105,7 +105,7 @@ decide what "all the answers" means: `matches` resumes every branch and collects
 every outcome, `match_first` resumes until one survives.
 
 ```thrax
-$ by_hacker : @Vec @Str = matches <| \u =
+$ by_hacker : @Vec @Str = matches <| \u =>
 	let b = tagged "book" (anywhere root) in
 	let a = tagged "author" (child b) in
 	if text_of a == "A. Hacker" => unwrap_or (text_at "title" b) "" else no_match {}

@@ -7,7 +7,7 @@ $ @mod MAIN
 
 $ with HOST
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
 	print "hello, Thrax";
 	print "every definition has a type, and @main returns the exit code";
 	0

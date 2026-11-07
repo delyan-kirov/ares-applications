@@ -15,11 +15,11 @@ $ Diag : @effect =
     fail : Err -> a,
     warn : Err -> {},
 
-$ error_at : Pos -> @Str -> <Diag> a = \p m = Diag.fail Err.{ .pos = p, .msg = m }
-$ warn_at : Pos -> @Str -> <Diag> {} = \p m = Diag.warn Err.{ .pos = p, .msg = m }
+$ error_at : Pos -> @Str -> <Diag> a = \p m => Diag.fail Err.{ .pos = p, .msg = m }
+$ warn_at : Pos -> @Str -> <Diag> {} = \p m => Diag.warn Err.{ .pos = p, .msg = m }
 
 # `file:line:col: severity: message`, the shape editors and build tools parse.
-$ render : @Str -> Err -> @Str = \severity e =
+$ render : @Str -> Err -> @Str = \severity e =>
     if e.pos.line == 0 => "alec: " ++ severity ++ ": " ++ e.msg
     else
         e.pos.file

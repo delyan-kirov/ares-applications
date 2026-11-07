@@ -23,7 +23,7 @@ $ counts : { name: @Str, text: @Str } -> { @Int, @Int, @Int } =
     in
         { c.code, c.comments, c.blanks }
 
-$ same : { @Int, @Int, @Int } -> { @Int, @Int, @Int } -> @Bool = \a b =
+$ same : { @Int, @Int, @Int } -> { @Int, @Int, @Int } -> @Bool = \a b =>
     a.0 == b.0 && a.1 == b.1 && a.2 == b.2
 
 # ---- line classes ----
@@ -78,7 +78,7 @@ $ @e
 
 # ---- detection ----
 
-$ lang_of : @Str -> @Str = \name =
+$ lang_of : @Str -> @Str = \name =>
     let i = detect LANGS.table name in if i < 0 => "" else (@vec_get LANGS.table.langs i).name
 
 $ @e <| assert (lang_of "main.rs" == "Rust") "detect: by extension"
@@ -91,7 +91,7 @@ $ @e <| assert (lang_of "notes.unknown" == "") "detect: an unknown extension"
 
 $ @e <| assert (lang_of ".bashrc" == "") "detect: a dotfile has no extension"
 
-$ shebang_of : @Str -> @Str = \body =
+$ shebang_of : @Str -> @Str = \body =>
     let i = detect_shebang LANGS.table body in
     if i < 0 => "" else (@vec_get LANGS.table.langs i).name
 
@@ -119,8 +119,8 @@ $ rules : @Vec Rule =
 
 $ @e <| assert (@vec_len rules == 6) "rules: comments and blank lines hold none"
 
-$ ignored : @Str -> @Str -> @Bool -> @Bool = \path name dir =
-    is verdict rules path name dir | Verdict.Ignored => @true | _ => @false
+$ ignored : @Str -> @Str -> @Bool -> @Bool = \path name dir =>
+    verdict rules path name dir |> \ | Verdict.Ignored => @true | _ => @false
 
 $ @e <| assert (ignored "r/x/target" "target" @true) "rules: a name at any depth"
 

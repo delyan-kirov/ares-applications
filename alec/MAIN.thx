@@ -11,7 +11,7 @@ $ with IO
 $ with DRIVER
 $ with SHELL
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
-    is DRIVER.options args
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
+    DRIVER.options args |> \
     | Result.Err.{ msg } => (eprintln ("alec: error: " ++ msg); 1)
-    | Result.Ok.{ o } => is o.mode | Mode.Shell => SHELL.run o | _ => DRIVER.run o
+    | Result.Ok.{ o } => o.mode |> \ | Mode.Shell => SHELL.run o | _ => DRIVER.run o

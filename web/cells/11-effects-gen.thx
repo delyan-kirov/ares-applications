@@ -13,7 +13,7 @@ $ with HOST
 
 $ Yield : @effect = yield : @Int -> {},
 
-$ sumGen : ({} -> <Yield> {}) -> @Int = \gen =
+$ sumGen : ({} -> <Yield> {}) -> @Int = \gen =>
     do gen {}
     ctl k
     | Yield.yield v => v + k {}
@@ -25,6 +25,6 @@ $ gen3 : {} -> <Yield> {} =
     Yield.yield 12;
     {}
 
-$ @main : @Vec @Str -> <@IO> @Int = \args =
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
     print "sum of yields = ?(sumGen gen3)";
     0

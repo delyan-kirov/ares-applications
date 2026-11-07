@@ -74,7 +74,7 @@ $ Opts : @struct =
     verbose : @Bool,
     quiet : @Bool,
 
-$ parse_args : @Vec @Str -> @Int -> Opts -> Result Opts @Str = \a i o =
+$ parse_args : @Vec @Str -> @Int -> Opts -> Result Opts @Str = \a i o =>
     if i >= @vec_len a => Result.Ok.{ o }
     else
         let s = @vec_get a i, next = if i + 1 < @vec_len a => @vec_get a (i + 1) else "" in
@@ -124,23 +124,23 @@ $ parse_args : @Vec @Str -> @Int -> Opts -> Result Opts @Str = \a i o =
         else parse_args a (i + 1) Opts.{ .files = @vec_push o.files s | o }
 
 # `-D NAME=VALUE` is `#define NAME VALUE`; a bare `-D NAME` defines it as 1.
-$ define_line : @Str -> @Str = \s =
-    is STR.find s "="
+$ define_line : @Str -> @Str = \s =>
+    STR.find s "=" |> \
     | Option.Some.{ i } => "#define " ++ substr s 0 i ++ " " ++ substr s (i + 1) (STR.len s) ++ "\n"
     | _ => "#define " ++ s ++ " 1\n"
 
-$ dirname : @Str -> @Str = \p =
-    is last_slash p (STR.len p - 1)
+$ dirname : @Str -> @Str = \p =>
+    last_slash p (STR.len p - 1) |> \
     | Option.Some.{ i } => (if i == 0 => "/" else substr p 0 i)
     | _ => "."
 
 # alec's own `include` and `libc` sit beside MAIN.thx. Under `thrax run` that is
 # argv[0]'s directory; a compiled binary lands one level down, in `thrax-out/`.
-$ find_home : @Str -> <@IO> @Str = \argv0 =
+$ find_home : @Str -> <@IO> @Str = \argv0 =>
     let dir = dirname argv0 in
-    is read_file (dir ++ "/include/stddef.h") | Option.Some.{ _ } => dir | _ => dir ++ "/.."
+    read_file (dir ++ "/include/stddef.h") |> \ | Option.Some.{ _ } => dir | _ => dir ++ "/.."
 
-$ last_slash : @Str -> @Int -> Option @Int = \p i =
+$ last_slash : @Str -> @Int -> Option @Int = \p i =>
     if i < 0 => Option.None else if at p i == 47 => Option.Some.{ i } else last_slash p (i - 1)
 
 # -- the world the preprocessor sees ----------------------------------------
@@ -149,55 +149,55 @@ $ FileState : @struct = once : Set @Str, incs : @Vec @Str, sys : @Str,
 
 # Directory search for an include: a quoted name looks beside the including file
 # first; both forms then try each `-I` directory and finally alec's own headers.
-$ candidates : FileState -> Request -> @Vec @Str = \st r =
+$ candidates : FileState -> Request -> @Vec @Str = \st r =>
     if starts_with r.name "/" => [r.name]
     else
         let dirs = (if r.angled => [] else [r.dir]) ++ st.incs ++ [st.sys] in
-        VEC.map (\d = normalize (d ++ "/" ++ r.name)) dirs
+        VEC.map (\d => normalize (d ++ "/" ++ r.name)) dirs
 
 # Collapse `./` and `dir/../` so the same file reached two ways has one name,
 # which is what makes `#pragma once` reliable.
-$ normalize : @Str -> @Str = \p =
-    let parts = VEC.filter (\s = s != "" && s != ".") (split p "/") in
+$ normalize : @Str -> @Str = \p =>
+    let parts = VEC.filter (\s => s != "" && s != ".") (split p "/") in
     let kept = VEC.foldl (
-            \acc s =
+            \acc s =>
                 if s == ".." && @vec_len acc > 0 && @vec_get acc (@vec_len acc - 1) != ".." =>
                     @vec_slice acc 0 (@vec_len acc - 1)
                 else @vec_push acc s
         ) (@vec_new {}) parts in
     (if starts_with p "/" => "/" else "") ++ join "/" kept
 
-$ first_file : @Vec @Str -> @Int -> @Str -> <@IO> Option { @Str, @Str } = \cs i skip =
+$ first_file : @Vec @Str -> @Int -> @Str -> <@IO> Option { @Str, @Str } = \cs i skip =>
     if i >= @vec_len cs => Option.None
     else
         let path = @vec_get cs i in
         if path == skip => first_file cs (i + 1) skip
         else
-            is read_file path
+            read_file path |> \
             | Option.Some.{ src } => Option.Some.{ { path, src } }
             | _ => first_file cs (i + 1) skip
 
-$ with_files : FileState -> ({} -> <Files, Diag, @IO> a) -> <Diag, @IO> a = \st0 body =
+$ with_files : FileState -> ({} -> <Files, Diag, @IO> a) -> <Diag, @IO> a = \st0 body =>
     let go = do body {}
         ctl k
         | Files.include r =>
-            \st =
+            \st =>
                 (
-                    is first_file (candidates st r) 0 (if r.next => normalize r.from else "")
+                    first_file (candidates st r) 0 (if r.next => normalize r.from else "") |> \
                     | Option.Some.{ found } =>
                         if SET.has st.once found.0 => (k Loaded.Skip) st
                         else (k Loaded.Found.{ found.0, found.1 }) st
                     | _ => (k Loaded.Missing) st
                 )
-        | Files.has_file r => \st = (k (is_some (first_file (candidates st r) 0 ""))) st
+        | Files.has_file r => \st => (k (is_some (first_file (candidates st r) 0 ""))) st
         | Files.once path =>
-            \st = (k {}) FileState.{ .once = SET.add st.once (normalize path) | st }
-        | v => \st = v in
+            \st => (k {}) FileState.{ .once = SET.add st.once (normalize path) | st }
+        | v => \st => v in
     go st0
 
 # Diagnostics: a warning prints and resumes, an error prints and ends the run
 # with exit status 1.
-$ with_diag : Opts -> ({} -> <Diag, @IO> @Int) -> <@IO> @Int = \o body =
+$ with_diag : Opts -> ({} -> <Diag, @IO> @Int) -> <@IO> @Int = \o body =>
     do body {}
     ctl k
     | Diag.fail e => (eprintln (render "error" e); 1)
@@ -207,11 +207,11 @@ $ with_diag : Opts -> ({} -> <Diag, @IO> @Int) -> <@IO> @Int = \o body =
 
 # The preprocessed text: a newline where a token began a source line, a space
 # where it had space before it.
-$ emit_text : ({} -> <Files, Out, Diag, @IO> {}) -> <Files, Diag, @IO> @Str = \body =
-    let go = do body {}; \acc = acc
+$ emit_text : ({} -> <Files, Out, Diag, @IO> {}) -> <Files, Diag, @IO> @Str = \body =>
+    let go = do body {}; \acc => acc
         ctl k
         | Out.emit t =>
-            \acc =
+            \acc =>
                 (
                     k {}
                 ) (
@@ -222,36 +222,36 @@ $ emit_text : ({} -> <Files, Out, Diag, @IO> {}) -> <Files, Diag, @IO> @Str = \b
     go ""
 
 # Every token the preprocessor emits, in order.
-$ collect_tokens : ({} -> <Files, Out, Diag, @IO> {}) -> <Files, Diag, @IO> List Token = \body =
-    let go = do body {}; \acc = LIST.reverse acc
-        ctl k | Out.emit t => \acc = (k {}) List.Cons.{ t, acc } in
+$ collect_tokens : ({} -> <Files, Out, Diag, @IO> {}) -> <Files, Diag, @IO> List Token = \body =>
+    let go = do body {}; \acc => LIST.reverse acc
+        ctl k | Out.emit t => \acc => (k {}) List.Cons.{ t, acc } in
     go List.Nil
 
-$ main_tokens : Opts -> @Bool -> <@IO> @Int = \o pp =
-    with_diag o <| \u =
+$ main_tokens : Opts -> @Bool -> <@IO> @Int = \o pp =>
+    with_diag o <| \u =>
         with_files (
             file_state o
-        ) <| \u2 =
+        ) <| \u2 =>
             for o.files (
-                \f =
+                \f =>
                     if pp =>
                         for (
-                            collect_tokens (\u3 = with_macros initial_macros (\u4 = run_file o f))
-                        ) (\t = println (DUMP.token t))
+                            collect_tokens (\u3 => with_macros initial_macros (\u4 => run_file o f))
+                        ) (\t => println (DUMP.token t))
                     else
-                        is read_file f
-                        | Option.Some.{ src } => for (lex f src) (\t = println (DUMP.token t))
+                        read_file f |> \
+                        | Option.Some.{ src } => for (lex f src) (\t => println (DUMP.token t))
                         | _ => error_at nowhere (f ++ ": No such file or directory")
             );
             0
 
-$ main_preprocess : Opts -> <@IO> @Int = \o =
-    with_diag o <| \u =
+$ main_preprocess : Opts -> <@IO> @Int = \o =>
+    with_diag o <| \u =>
         with_files (
             file_state o
-        ) <| \u2 =
+        ) <| \u2 =>
             let text = emit_text (
-                    \u3 = for o.files (\f = with_macros initial_macros (\u4 = run_file o f))
+                    \u3 => for o.files (\f => with_macros initial_macros (\u4 => run_file o f))
                 ) in
             (
                 if o.out == "a.wasm" || o.out == "-" => println text
@@ -262,31 +262,31 @@ $ main_preprocess : Opts -> <@IO> @Int = \o =
 # One translation unit: the predefined macros, then the file. The root is read
 # through the same handler as its includes, so a missing root file reports the
 # way a missing header does.
-$ run_file : Opts -> @Str -> <PPfx> {} = \o f =
+$ run_file : Opts -> @Str -> <PPfx> {} = \o f =>
     preprocess "<built-in>" (lex "<built-in>" (predefined o.target ++ o.defs));
-    is Files.include Request.{ .name = f, .angled = @false, .dir = ".", .next = @false, .from = "" }
+    Files.include Request.{ .name = f, .angled = @false, .dir = ".", .next = @false, .from = "" } |> \
     | Loaded.Found.{ path, src } => preprocess path (lex path src)
     | _ => error_at nowhere (f ++ ": No such file or directory")
 
 # Preprocess and parse every file, each its own translation unit, numbered
 # from 1 (the number keeps their static names apart).
-$ parse_all : Opts -> <Files, Diag, @IO> @Vec TU = \o = parse_from o 0 0 (@vec_new {})
+$ parse_all : Opts -> <Files, Diag, @IO> @Vec TU = \o => parse_from o 0 0 (@vec_new {})
 
 # Units are numbered from 1 in parse order, `base` counting the ones before.
-$ parse_from : Opts -> @Int -> @Int -> @Vec TU -> <Files, Diag, @IO> @Vec TU = \o i base acc =
+$ parse_from : Opts -> @Int -> @Int -> @Vec TU -> <Files, Diag, @IO> @Vec TU = \o i base acc =>
     if i >= @vec_len o.files => acc
     else
         let f = @vec_get o.files i in
-        let pull = start (\u = with_macros initial_macros (\u2 = run_file o f)) in
+        let pull = start (\u => with_macros initial_macros (\u2 => run_file o f)) in
         let tu = parse_tu { o.target, base + i + 1, pull } in
         parse_from o (i + 1) base (@vec_push acc tu)
 
-$ main_syntax : Opts -> <@IO> @Int = \o =
-    with_diag o <| \u =
+$ main_syntax : Opts -> <@IO> @Int = \o =>
+    with_diag o <| \u =>
         with_files (
             file_state o
-        ) <| \u2 =
-            let tus = parse_all o in (if o.dump => for tus (\tu = print (DUMP.unit tu)) else {}); 0
+        ) <| \u2 =>
+            let tus = parse_all o in (if o.dump => for tus (\tu => print (DUMP.unit tu)) else {}); 0
 
 # The C library is compiled with the program, from `libc/` beside alec, but
 # only the files a program needs: `libc/INDEX` names the file that defines
@@ -294,31 +294,31 @@ $ main_syntax : Opts -> <@IO> @Int = \o =
 # is in it. Every library file is parsed once and kept, per target, in a cache
 # beside the sources (see CACHE), which is remade whenever anything it depends
 # on changes. `alec --index-libc` rebuilds the index and both caches.
-$ ms : @Int -> @Int -> @Str = \a b = to_string ((b - a) / 1000) ++ " ms"
+$ ms : @Int -> @Int -> @Str = \a b => to_string ((b - a) / 1000) ++ " ms"
 
-$ libc_dir : Opts -> @Str = \o = o.home ++ "/libc"
+$ libc_dir : Opts -> @Str = \o => o.home ++ "/libc"
 
-$ read_index : Opts -> <@IO> Map @Str @Str = \o =
+$ read_index : Opts -> <@IO> Map @Str @Str = \o =>
     let text = unwrap_or (read_file (libc_dir o ++ "/INDEX")) "" in
     VEC.foldl (
-        \m line =
-            is STR.find line " "
+        \m line =>
+            STR.find line " " |> \
             | Option.Some.{ i } =>
                 MAP.insert m (substr line 0 i) (substr line (i + 1) (STR.len line))
             | _ => m
     ) MAP.new_str (lines text)
 
-$ main_compile : Opts -> <@IO> @Int = \o =
+$ main_compile : Opts -> <@IO> @Int = \o =>
     let index = read_index o in
-    with_diag o <| \u =
-        let bytes = compile_with o (\v = library o) index in
+    with_diag o <| \u =>
+        let bytes = compile_with o (\v => library o) index in
         if write_file o.out bytes => 0 else (eprintln ("alec: error: cannot write " ++ o.out); 1)
 
 # Compile `o.files` into a module. `lib` is asked for the C library only when
 # the program links it.
-$ compile_with : Opts -> ({} -> <Diag, @IO> Map @Str ({} -> TU)) -> Map @Str @Str -> <Diag, @IO> @Str = \o lib index =
+$ compile_with : Opts -> ({} -> <Diag, @IO> Map @Str ({} -> TU)) -> Map @Str @Str -> <Diag, @IO> @Str = \o lib index =>
     let t0 = C.clock {} in
-    let user = with_files (file_state o) (\u = parse_all o) in
+    let user = with_files (file_state o) (\u => parse_all o) in
     let t1 = C.clock {} in
     let tus = if o.stdlib => load_libc o (lib {}) index user SET.new_str else user in
     let t2 = C.clock {} in
@@ -343,32 +343,32 @@ $ compile_with : Opts -> ({} -> <Diag, @IO> Map @Str ({} -> TU)) -> Map @Str @St
 
 # Compile and print the module as text; `.wasm` files given are printed as
 # they are.
-$ main_wasm : Opts -> <@IO> @Int = \o =
-    if VEC.all (\f = ends_with f ".wasm") o.files =>
+$ main_wasm : Opts -> <@IO> @Int = \o =>
+    if VEC.all (\f => ends_with f ".wasm") o.files =>
         (
             for o.files (
-                \f =
-                    is read_file f
-                    | Option.Some.{ bytes } => for (WAT.module_lines bytes) (\l = println l)
+                \f =>
+                    read_file f |> \
+                    | Option.Some.{ bytes } => for (WAT.module_lines bytes) (\l => println l)
                     | _ => eprintln ("alec: error: " ++ f ++ ": No such file or directory")
             );
             0
         )
     else
-        with_diag o <| \u =
+        with_diag o <| \u =>
             for (
-                WAT.module_lines (compile_with o (\v = library o) (read_index o))
-            ) (\l = println l);
+                WAT.module_lines (compile_with o (\v => library o) (read_index o))
+            ) (\l => println l);
             0
 
 # Add library units until nothing undefined is found in the index; `crt.c`
 # (the entry point) is always needed.
-$ load_libc : Opts -> Map @Str ({} -> TU) -> Map @Str @Str -> @Vec TU -> Set @Str -> <Diag, @IO> @Vec TU = \o lib index tus loaded =
+$ load_libc : Opts -> Map @Str ({} -> TU) -> Map @Str @Str -> @Vec TU -> Set @Str -> <Diag, @IO> @Vec TU = \o lib index tus loaded =>
     let missing = SET.add (undefined tus) "_start" in
     let files = SET.to_list (
             SET.fold (
-                \acc sym =
-                    is MAP.get index sym
+                \acc sym =>
+                    MAP.get index sym |> \
                     | Option.Some.{ f } => if SET.has loaded f => acc else SET.add acc f
                     | _ => acc
             ) SET.new_str missing
@@ -377,23 +377,23 @@ $ load_libc : Opts -> Map @Str ({} -> TU) -> Map @Str @Str -> @Vec TU -> Set @St
     else
         (if o.verbose => eprintln ("alec: loading " ++ join " " files) else {});
         let more = VEC.foldl (
-                \acc f =
-                    is MAP.get lib f | Option.Some.{ unit } => @vec_push acc (unit {}) | _ => acc
+                \acc f =>
+                    MAP.get lib f |> \ | Option.Some.{ unit } => @vec_push acc (unit {}) | _ => acc
             ) tus files in
-        load_libc o lib index more (VEC.foldl (\s f = SET.add s f) loaded files)
+        load_libc o lib index more (VEC.foldl (\s f => SET.add s f) loaded files)
 
 # Library units are numbered from here, each file by its place in name order,
 # so a unit is the same whether it was parsed now or read from the cache, and
 # never collides with the program's own units (numbered from 1).
 $ lib_base : @Int = 1000
 
-$ cache_path : Opts -> @Str = \o = libc_dir o ++ "/" ++ o.target.name ++ ".cache"
+$ cache_path : Opts -> @Str = \o => libc_dir o ++ "/" ++ o.target.name ++ ".cache"
 
 # Every library file's unit for `o.target`, by file name, each produced when
 # it is first needed.
-$ library : Opts -> <Diag, @IO> Map @Str ({} -> TU) = \o =
+$ library : Opts -> <Diag, @IO> Map @Str ({} -> TU) = \o =>
     let st = CACHE.stamp o.home in
-    let units = is CACHE.load (cache_path o) st o.target
+    let units = CACHE.load (cache_path o) st o.target |> \
         | Option.Some.{ cached } => cached
         | _ =>
             (
@@ -401,29 +401,29 @@ $ library : Opts -> <Diag, @IO> Map @Str ({} -> TU) = \o =
                 else {}
             );
             let parsed = parse_library o in
-            CACHE.save (cache_path o) st parsed; VEC.map (\u = { u.0, \v = u.1 }) parsed in
-    VEC.foldl (\m u = MAP.insert m u.0 u.1) MAP.new_str units
+            CACHE.save (cache_path o) st parsed; VEC.map (\u => { u.0, \v => u.1 }) parsed in
+    VEC.foldl (\m u => MAP.insert m u.0 u.1) MAP.new_str units
 
 # The library is its own world: only alec's headers, and none of the command
 # line's `-I`, `-D` or `-U`.
-$ parse_library : Opts -> <Diag, @IO> @Vec { @Str, TU } = \o =
-    let files = VEC.filter (\n = ends_with n ".c") (read_dir (libc_dir o)) in
+$ parse_library : Opts -> <Diag, @IO> @Vec { @Str, TU } = \o =>
+    let files = VEC.filter (\n => ends_with n ".c") (read_dir (libc_dir o)) in
     let lo = Opts.{
-            .files = VEC.map (\f = libc_dir o ++ "/" ++ f) files,
+            .files = VEC.map (\f => libc_dir o ++ "/" ++ f) files,
             .incs = @vec_new {},
             .defs = "" | o
         } in
-    let tus = with_files (file_state lo) (\u = parse_from lo 0 lib_base (@vec_new {})) in
+    let tus = with_files (file_state lo) (\u => parse_from lo 0 lib_base (@vec_new {})) in
     pair_up files tus 0 (@vec_new {})
 
-$ pair_up : @Vec @Str -> @Vec TU -> @Int -> @Vec { @Str, TU } -> @Vec { @Str, TU } = \files tus i acc =
+$ pair_up : @Vec @Str -> @Vec TU -> @Int -> @Vec { @Str, TU } -> @Vec { @Str, TU } = \files tus i acc =>
     if i >= @vec_len tus => acc
     else pair_up files tus (i + 1) (@vec_push acc { @vec_get files i, @vec_get tus i })
 
 # Parse the library for both targets, cache it, and write the index: every
 # library file's exported names, one `name file` line each.
-$ main_index : Opts -> <@IO> @Int = \o =
-    with_diag o <| \u =
+$ main_index : Opts -> <@IO> @Int = \o =>
+    with_diag o <| \u =>
         let st = CACHE.stamp o.home,
             o32 = Opts.{ .target = wasm32 | o },
             o64 = Opts.{ .target = wasm64 | o } in
@@ -431,17 +431,17 @@ $ main_index : Opts -> <@IO> @Int = \o =
         let u64 = parse_library o64 in
         let saved = CACHE.save (cache_path o32) st u32 && CACHE.save (cache_path o64) st u64 in
         let text = VEC.foldl (
-                \a u = VEC.foldl (\b n = b ++ n ++ " " ++ u.0 ++ "\n") a (exports u.1)
+                \a u => VEC.foldl (\b n => b ++ n ++ " " ++ u.0 ++ "\n") a (exports u.1)
             ) "" u32 in
         if !saved => (eprintln "alec: error: cannot write the library cache"; 1)
         else if write_file (libc_dir o ++ "/INDEX") text => 0
         else (eprintln "alec: error: cannot write the library index"; 1)
 
-$ file_state : Opts -> FileState = \o =
+$ file_state : Opts -> FileState = \o =>
     FileState.{ .once = SET.new_str, .incs = o.incs, .sys = o.home ++ "/include" }
 
 # The command line, `args` as `@main` receives it (the program first).
-$ options : @Vec @Str -> <@IO> Result Opts @Str = \args =
+$ options : @Vec @Str -> <@IO> Result Opts @Str = \args =>
     let home = find_home (@vec_get args 0) in
     parse_args args 1 Opts.{
         .target = wasm32,
@@ -458,14 +458,14 @@ $ options : @Vec @Str -> <@IO> Result Opts @Str = \args =
     }
 
 # Every mode but the shell, which MAIN runs.
-$ run : Opts -> <@IO> @Int = \o =
-    is o.mode
+$ run : Opts -> <@IO> @Int = \o =>
+    o.mode |> \
     | Mode.Help => (print usage; 0)
     | Mode.Index => main_index o
     | _ =>
         if @vec_len o.files == 0 => (eprintln "alec: error: no input files"; 1)
         else
-            is o.mode
+            o.mode |> \
             | Mode.Preprocess => main_preprocess o
             | Mode.Syntax => main_syntax o
             | Mode.Tokens.{ pp } => main_tokens o pp
