@@ -99,7 +99,7 @@ $ syntax : {
 # A UTF-8 byte-order mark is not part of the first line.
 $ count : Syntax -> @Str -> Counts = \syn s =>
     let start = if starts_with s "\xef\xbb\xbf" => 3 else 0 in
-    if syn.prose => prose syn s start 0 0 else lines syn s start 0 0 0 0
+    if syn.prose => scan_prose syn s start 0 0 else lines syn s start 0 0 0 0
 
 # ---- lines ----
 
@@ -111,7 +111,7 @@ $ lines : Syntax -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int
     if pos >= @array_len s =>
         Counts.{ code, comments, blanks }
     else
-        let r = line syn s pos st in
+        let r = scan_line syn s pos st in
         let next = r / 1048576 + 1 in
         let after = (r % 1048576) / 4 in
         r % 4 |> \
@@ -123,7 +123,7 @@ $ lines : Syntax -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int
 # state the next line starts in, packed as `eol * 2^20 + 4 * state + class`. A
 # line in code with nothing on it that could open a comment or a string is
 # settled here by two scans.
-$ line : Syntax -> @Str -> @Int -> @Int -> @Int = \syn s pos st =>
+$ scan_line : Syntax -> @Str -> @Int -> @Int -> @Int = \syn s pos st =>
     if st != 0 =>
         slow syn s pos st
     else
@@ -229,12 +229,12 @@ $ starts_at : @Str -> @Int -> @Str -> @Bool = \s j tok => @array_match s j tok
 # ---- prose ----
 
 # Markdown and plain text: a line with anything on it is a comment.
-$ prose : Syntax -> @Str -> @Int -> @Int -> @Int -> Counts = \syn s pos comments blanks =>
+$ scan_prose : Syntax -> @Str -> @Int -> @Int -> @Int -> Counts = \syn s pos comments blanks =>
     if pos >= @array_len s =>
         Counts.{ .code = 0, comments, blanks }
     else
         let eol = @array_scan s pos syn.nl in
         if @array_scan s pos syn.solid < eol =>
-            prose syn s (eol + 1) (comments + 1) blanks
+            scan_prose syn s (eol + 1) (comments + 1) blanks
         else
-            prose syn s (eol + 1) comments (blanks + 1)
+            scan_prose syn s (eol + 1) comments (blanks + 1)

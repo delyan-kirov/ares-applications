@@ -84,18 +84,18 @@ $ max_i32 : @Int32 -> @Int32 -> @Int32 = \a b => if a >= b => a else b
 $ min_i32 : @Int32 -> @Int32 -> @Int32 = \a b => if a < b => a else b
 
 # One list row is a button plus its trailing gap. `rows_fit` is how many rows fit
-# before `max_list_h`; `list_height` is the window height that shows `rows` of them.
+# before `max_list_h`; `list_height` is the window height that shows `n` of them.
 $ row_stride : @Int32 = btn_h + gap
 $ rows_fit : @Int = @cast ((max_list_h - top) / row_stride)
-$ list_height : @Int -> @Int32 = \rows => top + px rows * row_stride + pad
+$ list_height : @Int -> @Int32 = \n => top + px n * row_stride + pad
 $ row_y : @Int -> @Int32 = \i => top + px i * row_stride
 
 # The list row under (mx, my), if any. The gap below a row belongs to no row.
-$ row_at : @Int32 -> @Int32 -> @Int -> Option @Int = \mx my rows =>
+$ row_at : @Int32 -> @Int32 -> @Int -> Option @Int = \mx my n =>
     let r : @Int = @cast ((my - top) / row_stride) in
     if mx < pad || mx >= pad + btn_w || my < top =>
         Option.None
-    else if r < rows && (my - top) % row_stride < btn_h =>
+    else if r < n && (my - top) % row_stride < btn_h =>
         Option.Some.{ r }
     else
         Option.None

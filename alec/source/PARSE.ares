@@ -518,9 +518,9 @@ $ file_fn : @Int -> Fn = \tu =>
 
 $ at_file : Fn -> @Bool = \c => c.name == ""
 
-$ lay : {} -> <Tab> Layout = Tab.layout {}
+$ cur_layout : {} -> <Tab> Layout = Tab.layout {}
 $ sizeof_ty : Ty -> <Tab> @Int = \t => size_of (Tab.layout {}) t
-$ target : {} -> <Tab> Target = (Tab.layout {}).target
+$ cur_target : {} -> <Tab> Target = (Tab.layout {}).target
 $ tname : Ty -> <Tab> @Str = \t => ty_name (Tab.layout {}) t
 
 # -- constant evaluation ---------------------------------------------------------
@@ -829,7 +829,7 @@ $ need_scalar : Expr -> <Tab, Diag> Expr = \e0 =>
 $ assign_conv : { e0: Expr, t: Ty, what: @Str } -> <P> Expr =
     let e = rv e0 in
     if is_agg t || is_agg e.ty =>
-        if same_ty (lay {}) e.ty t =>
+        if same_ty (cur_layout {}) e.ty t =>
             e
         else
             error_at e.pos
@@ -913,7 +913,7 @@ $ elem_size : Ty -> <Tab> @Int = \t =>
  - generator sees byte arithmetic.
  -#
 $ scaled : { i: Expr, pt: Ty } -> <Tab> Expr =
-    let pd = t_ptrdiff (target {}) in
+    let pd = t_ptrdiff (cur_target {}) in
     let d = cast_to { i, pd } in
     if is_vla (base_of pt) =>
         let sz = with_ty (size_expr { base_of pt, i.pos }) pd in
@@ -927,7 +927,7 @@ $ scaled : { i: Expr, pt: Ty } -> <Tab> Expr =
  - length array the local its declaration computed.
  -#
 $ size_expr : { t: Ty, pos: Pos } -> <Tab> Expr =
-    let st = t_size (target {}) in
+    let st = t_size (cur_target {}) in
     t |> \
         | Ty.Vla.{ b, sz } => mk_expr ENode.Local.{ sz } st pos
         | _                => int_expr (sizeof_ty t) st pos
@@ -952,7 +952,7 @@ $ sub_e : { x: Expr, y: Expr, pos: Pos } -> <P> Expr =
     else if is_ptr a.ty && is_integer b.ty =>
         let s = scaled { b, a.ty } in mk_expr ENode.Bin.{ "-", a, s } a.ty pos
     else if is_ptr a.ty && is_ptr b.ty =>
-        let pd = t_ptrdiff (target {}) in
+        let pd = t_ptrdiff (cur_target {}) in
         let diff = mk_expr ENode.Bin.{ "-", with_ty a pd, with_ty b pd } pd pos in
         if is_vla (base_of a.ty) =>
             let sz = with_ty (size_expr { base_of a.ty, pos }) pd in
@@ -1009,7 +1009,7 @@ $ mk_cast : { e0: Expr, t: Ty, pos: Pos } -> <P> Expr =
         mk_expr ENode.Cast.{ e } t pos
     else if is_scalar t && is_scalar e.ty =>
         with_pos (cast_to { e, t }) pos
-    else if is_agg t && same_ty (lay {}) t e.ty =>
+    else if is_agg t && same_ty (cur_layout {}) t e.ty =>
         e
     else
         error_at pos ("conversion to non-scalar type '" ++ tname t ++ "' requested")
@@ -1036,7 +1036,7 @@ $ mk_cond : { c0: Expr, a0: Expr, b0: Expr, pos: Pos } -> <P> Expr =
             a.ty
         else if is_integer a.ty && is_ptr b.ty =>
             b.ty
-        else if is_agg a.ty && same_ty (lay {}) a.ty b.ty =>
+        else if is_agg a.ty && same_ty (cur_layout {}) a.ty b.ty =>
             a.ty
         else
             error_at pos
@@ -1060,7 +1060,7 @@ $ deref_e : { e0: Expr, pos: Pos } -> <P> Expr =
         (
             e.e |> \
                 | ENode.Addr.{ x } =>
-                    if same_ty (lay {}) x.ty (base_of e.ty) =>
+                    if same_ty (cur_layout {}) x.ty (base_of e.ty) =>
                         x
                     else
                         mk_expr ENode.Deref.{ e } (base_of e.ty) pos
@@ -1072,7 +1072,7 @@ $ deref_e : { e0: Expr, pos: Pos } -> <P> Expr =
 $ field_e : { e: Expr, name: @Str, pos: Pos } -> <P> Expr =
     e.ty |> \
         | Ty.Agg.{ id } =>
-            let l = lay {} in
+            let l = cur_layout {} in
             let a = agg_of l id in
             if !a.complete =>
                 error_at pos ("invalid use of incomplete type '" ++ tname e.ty ++ "'")
@@ -1176,7 +1176,7 @@ $ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <P> Spec =
                 next {};
                 expect "(";
                 let a =
-                    (if is_typename (peek {}) => align_of (lay {}) (typename c) else const_int c) in
+                    (if is_typename (peek {}) => align_of (cur_layout {}) (typename c) else const_int c) in
                 expect ")"; spec_go { c, storage, SpecSt.{ .spec = Spec.{ .align = a | sp } | st } }
             | "_Complex" | "__int128" => error_at t.pos ("'" ++ w ++ "' is not supported")
             | "struct" | "union" | "enum" | "typeof" | "typeof_unqual" =>
@@ -1233,7 +1233,7 @@ $ typeof_spec : Fn -> <P> Ty = \c =>
 
 $ spec_finish : SpecSt -> <P> Spec = \st =>
     let n = st.count in
-    let tg = target {} in
+    let tg = cur_target {} in
     let ty = (
         if n == k_other =>
             st.other
@@ -1490,13 +1490,13 @@ $ build_rt : { c: Fn, base: Ty, ds: List Deriv, pos: Pos } -> <P> { Ty, List Exp
             let inner = r.0 in
             d |> \
                 | Deriv.DVla.{ e } =>
-                    vla_dim { c, inner, cast_to { e, t_size (target {}) }, r.1, pos }
+                    vla_dim { c, inner, cast_to { e, t_size (cur_target {}) }, r.1, pos }
                 | Deriv.DArr.{ n } =>
                     if is_vla inner =>
                         vla_dim {
                             c,
                             inner,
-                            int_expr (if n < 0 => 0 else n) (t_size (target {})) pos,
+                            int_expr (if n < 0 => 0 else n) (t_size (cur_target {})) pos,
                             r.1,
                             pos
                         }
@@ -1508,7 +1508,7 @@ $ vla_dim : { c: Fn, inner: Ty, count: Expr, sets: List Expr, pos: Pos } -> <P> 
     if at_file c =>
         error_at pos "variable length array at file scope"
     else
-        let st = t_size (target {}) in
+        let st = t_size (cur_target {}) in
         let sid = new_local { "vla.size", st, @false } in
         let isz = size_expr { inner, pos } in
         let bytes = fold (mk_expr ENode.Bin.{ "*", count, isz } st pos) in
@@ -1589,7 +1589,7 @@ $ struct_decl : { c: Fn, union: @Bool } -> <P> Ty =
                     | Option.Some.{ b } => (
                         b |> \
                             | TagB.TAgg.{ old, u } =>
-                                if (agg_of (lay {}) old).complete =>
+                                if (agg_of (cur_layout {}) old).complete =>
                                     error_at t.pos ("redefinition of '" ++ tag ++ "'")
                                 else if u != union =>
                                     wrong_kind {}
@@ -1605,7 +1605,7 @@ $ struct_decl : { c: Fn, union: @Bool } -> <P> Ty =
         let ms = members { c, @vec_new {} } in
         let attrs = LIST.append pre2 (attr_names c) in
         let agg =
-            layout_struct (lay {}) tag union (LIST.any (\a => a == "packed") attrs)
+            layout_struct (cur_layout {}) tag union (LIST.any (\a => a == "packed") attrs)
                 (attr_align attrs) ms
         in
         Tab.set_agg { id, agg }; Ty.Agg.{ id }
@@ -1653,7 +1653,7 @@ $ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl } -> <P> @Vec MemberDec
             else
                 (
                     when
-                        (!(is_complete (lay {}) ty) && !(is_array ty && array_len ty < 0)) <| \_ =>
+                        (!(is_complete (cur_layout {}) ty) && !(is_array ty && array_len ty < 0)) <| \_ =>
                             error_at d.pos ("field '" ++ d.name ++ "' has incomplete type")
                 );
                 MemberDecl.{ .name = d.name, .ty = ty, .width = 0 - 1, .align = sp.align }
@@ -1993,7 +1993,7 @@ $ auto_local : { c: Fn, d: Decl, ty: Ty, align: @Int, acc: List Stmt } -> <P> Li
         else
             (
                 when
-                    (!(is_complete (lay {}) ty)) <| \_ =>
+                    (!(is_complete (cur_layout {}) ty)) <| \_ =>
                         error_at d.pos ("storage size of '" ++ d.name ++ "' isn't known")
             );
             acc
@@ -2088,7 +2088,7 @@ $ init2 : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item } -> <P>
             InitR.{ .items = agg_unbraced { c, ty, off, Option.None, acc }, .ty = ty }
         else
             let e = (pend |> \ | Option.Some.{ x } => x | _ => assign c) in
-            if is_agg e.ty && same_ty (lay {}) e.ty ty =>
+            if is_agg e.ty && same_ty (cur_layout {}) e.ty ty =>
                 InitR.{
                     .items = List.Cons.{ Item.{ .m = whole { ty, off }, .e = e }, acc },
                     .ty = ty
@@ -2226,7 +2226,7 @@ $ designation : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <P> List Item =
         (accept "="; (init2 { c, ty, off, Option.None, acc }).items)
 
 $ member_named : { ty: Ty, t: Token } -> <P> Member =
-    let l = lay {} in
+    let l = cur_layout {} in
     ty |> \
         | Ty.Agg.{ id } => (
             find_member l (agg_of l id) t.text |> \
@@ -2272,7 +2272,7 @@ $ arr_un : {
 
 $ agg_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <P> InitR =
     next {};
-    let a = (ty |> \ | Ty.Agg.{ id } => agg_of (lay {}) id | _ => agg_of (lay {}) 0) in
+    let a = (ty |> \ | Ty.Agg.{ id } => agg_of (cur_layout {}) id | _ => agg_of (cur_layout {}) 0) in
     InitR.{ .items = agg_items { c, ty, a, off, 0, @true, @false, acc }, .ty = ty }
 
 $ agg_items : {
@@ -2328,7 +2328,7 @@ $ top_member : { a: Agg, name: @Str, i: @Int } -> <Tab> @Int =
             i
         else if m.name == ""
             && is_agg m.ty
-            && is_some (find_member (lay {}) (agg_of (lay {}) (agg_id m.ty)) name) =>
+            && is_some (find_member (cur_layout {}) (agg_of (cur_layout {}) (agg_id m.ty)) name) =>
             i
         else
             top_member { a, name, i + 1 }
@@ -2354,7 +2354,7 @@ $ init_member : { c: Fn, m: Member, off: @Int, pend: Option Expr, acc: List Item
         (init2 { c, m.ty, off + m.offset, pend, acc }).items
 
 $ agg_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item } -> <P> List Item =
-    agg_un { c, agg_of (lay {}) (agg_id ty), off, 0, @true, pend, acc }
+    agg_un { c, agg_of (cur_layout {}) (agg_id ty), off, 0, @true, pend, acc }
 
 $ agg_un : { c: Fn, a: Agg, off: @Int, idx: @Int, first: @Bool, pend: Option Expr, acc: List Item }
     -> <P> List Item =
@@ -2391,7 +2391,7 @@ $ init_stmts : { var: Expr, ty: Ty, items: List Item } -> List Stmt =
  -#
 $ global_data : { ty: Ty, items: List Item } -> <P> { @Str, @Vec Reloc } =
     let base = sizeof_ty ty in
-    let l = lay {} in
+    let l = cur_layout {} in
     let n =
         LIST.foldl (\m it => let e = it.m.offset + size_of l it.m.ty in if e > m => e else m) base
             items
@@ -2421,7 +2421,7 @@ $ data_go : { items: List Item, bytes: @Str, rs: @Vec Reloc, n: @Int } -> <P> { 
                             (m.ty |> \ | Ty.Float => f32_bits (f64_to_f32 f) | _ => f64_bits f) in
                         data_go { rest, put_le { bytes, m.offset, sz, bits }, rs, n }
                     | CVal.CAddr.{ s, o } =>
-                        if sz != (target {}).ptr =>
+                        if sz != (cur_target {}).ptr =>
                             error_at it.e.pos "initializer element is not computable at load time"
                         else
                             data_go {
@@ -2638,7 +2638,7 @@ $ unary : Fn -> <P> Expr = \c =>
             else
                 (unary c).ty
         ) in
-        int_expr (align_of (lay {}) ty) (t_size (target {})) t.pos
+        int_expr (align_of (cur_layout {}) ty) (t_size (cur_target {})) t.pos
     else
         postfix c
 
@@ -2675,10 +2675,10 @@ $ sized_ty : { ty: Ty, pos: Pos } -> <P> Expr =
         size_expr { ty, pos }
     else if is_func ty =>
         error_at pos "invalid application of 'sizeof' to a function type"
-    else if !(is_complete (lay {}) ty) && !(is_void ty) =>
+    else if !(is_complete (cur_layout {}) ty) && !(is_void ty) =>
         error_at pos ("invalid application of 'sizeof' to incomplete type '" ++ tname ty ++ "'")
     else
-        int_expr (sizeof_ty ty) (t_size (target {})) pos
+        int_expr (sizeof_ty ty) (t_size (cur_target {})) pos
 
 $ sized : { e: Expr, pos: Pos } -> <P> Expr = sized_ty { e.ty, pos }
 
@@ -2716,9 +2716,9 @@ $ postfix_rest : { c: Fn, e: Expr } -> <P> Expr =
         (when (!(is_scalar e.ty)) <| \_ => error_at t.pos "wrong type argument to increment");
         let delta = (
             if is_ptr e.ty && is_vla (base_of e.ty) =>
-                with_ty (size_expr { base_of e.ty, t.pos }) (t_ptrdiff (target {}))
+                with_ty (size_expr { base_of e.ty, t.pos }) (t_ptrdiff (cur_target {}))
             else if is_ptr e.ty =>
-                int_expr (elem_size e.ty) (t_ptrdiff (target {})) t.pos
+                int_expr (elem_size e.ty) (t_ptrdiff (cur_target {})) t.pos
             else
                 cast_to { int_expr 1 t_int t.pos, e.ty }
         ) in
@@ -2863,7 +2863,7 @@ $ ident_expr : { c: Fn, t: Token } -> <P> Expr =
             expect "(";
             let e = assign c in
             expect ")";
-            let sz = cast_to { rv e, t_size (target {}) } in
+            let sz = cast_to { rv e, t_size (cur_target {}) } in
             mk_expr ENode.Alloca.{ sz } (ptr_to t_void) t.pos
         | "__builtin_expect"      =>
             expect "("; let e = assign c in expect ","; assign c; expect ")"; e
@@ -2913,7 +2913,7 @@ $ builtin_offsetof : { c: Fn, t: Token } -> <P> Expr =
     expect "(";
     let ty = typename c in
     expect ",";
-    let off = offset_path { c, ty, 0 } in expect ")"; int_expr off (t_size (target {})) t.pos
+    let off = offset_path { c, ty, 0 } in expect ")"; int_expr off (t_size (cur_target {})) t.pos
 
 $ offset_path : { c: Fn, ty: Ty, off: @Int } -> <P> @Int =
     let n = expect_ident "a member name" in
@@ -2974,7 +2974,7 @@ $ generic_match : { a: Ty, b: Ty } -> <Tab> @Bool =
                         && x.plain == y.plain
                 | _ => @false
         )
-        | _            => same_ty (lay {}) a b
+        | _            => same_ty (cur_layout {}) a b
 
 #-
  - An integer constant's type is the first of a list that can represent it: the
@@ -2994,7 +2994,7 @@ $ number : Token -> <P> Expr = \t =>
     else
         int_lit t.text |> \
             | Option.Some.{ n } =>
-                let tg = target {} in
+                let tg = cur_target {} in
                 let cands = (
                     if n.unsigned =>
                         n.longs |> \
@@ -3201,7 +3201,7 @@ $ keyword_stmt : { c: Fn, t: Token } -> <P> Stmt =
                         let lo = const_int c in
                         let hi = (if accept "..." => const_int c else lo) in
                         expect ":";
-                        let l = lay {} in
+                        let l = cur_layout {} in
                         let s = (if at_p "}" => Stmt.Empty else stmt c) in
                         Stmt.Case.{ wrap_ty { l, ty, lo }, wrap_ty { l, ty, hi }, s }
                     | _ => error_at t.pos "case label not within a switch statement"

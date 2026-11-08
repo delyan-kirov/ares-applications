@@ -201,9 +201,9 @@ $ chunk : @Int = 16
 
 $ finish : Walker s -> s -> @Vec Found -> @Vec (Future s) -> <@IO> s = \w st files pending =>
     let n = @vec_len files in
-    let own = if n <= chunk => w.visit st files 0 n else st in
+    let mine = if n <= chunk => w.visit st files 0 n else st in
     let tasks = if n <= chunk => pending else spawn_chunks w files 0 pending in
-    foldl (\acc f => w.merge acc (PAR.get f)) own tasks
+    foldl (\acc f => w.merge acc (PAR.get f)) mine tasks
 
 $ spawn_chunks : Walker s -> @Vec Found -> @Int -> @Vec (Future s)
     -> <@IO> @Vec (Future s) = \w files lo acc =>
@@ -263,18 +263,18 @@ $ rule : @Str -> @Str -> Option Rule = \base line =>
         let dir_only = ends_with body "/" in
         let stem = if dir_only => substr body 0 (@array_len body - 1) else body in
         let anchored = STR.contains stem "/" in
-        let glob = if starts_with stem "/" => substr stem 1 (@array_len stem) else stem in
-        if STR.is_empty glob =>
+        let pat = if starts_with stem "/" => substr stem 1 (@array_len stem) else stem in
+        if STR.is_empty pat =>
             Option.None
         else
-            let k = shape glob anchored in
-            let n = @array_len glob in
-            let first = @array_scan glob 0 metas in
-            let last = last_meta glob (n - 1) in
-            let pre = substr glob 0 first in
-            let post = if last < 0 => "" else substr glob (last + 1) n in
+            let k = shape pat anchored in
+            let n = @array_len pat in
+            let first = @array_scan pat 0 metas in
+            let last = last_meta pat (n - 1) in
+            let pre = substr pat 0 first in
+            let post = if last < 0 => "" else substr pat (last + 1) n in
             Option.Some.{
-                Rule.{ base, glob, negate, dir_only, anchored, .shape = k.0, .lit = k.1, pre, post }
+                Rule.{ base, .glob = pat, negate, dir_only, anchored, .shape = k.0, .lit = k.1, pre, post }
             }
 
 $ last_meta : @Str -> @Int -> @Int = \g i =>

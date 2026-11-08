@@ -118,13 +118,13 @@ $ gen_func : Ctx -> Func -> TypeTab -> <Diag> { Body, TypeTab } = \ctx fn tt =>
     do gen_body ctx fn fn.body @false tt
     ctl k
     | Bail.unstructured why =>
-        let flat = flatten_with ".L" fn.body in
-        do gen_body ctx fn flat @true tt
+        let flattened = flatten_with ".L" fn.body in
+        do gen_body ctx fn flattened @true tt
         ctl k2
         | Bail.unstructured why2 => error_at fn.pos ("cannot compile '" ++ fn.name ++ "': " ++ why2)
 
 $ gen_body : Ctx -> Func -> Stmt -> @Bool -> TypeTab
-    -> <Diag, Bail> { Body, TypeTab } = \ctx fn body flat tt =>
+    -> <Diag, Bail> { Body, TypeTab } = \ctx fn body is_flat tt =>
     let p = ptr_vt ctx.tg in
     let sret = is_agg fn.ty.ret in
     let nfixed = LIST.length fn.params in
@@ -151,7 +151,7 @@ $ gen_body : Ctx -> Func -> Stmt -> @Bool -> TypeTab
                 .fp = fp,
                 .saved = saved,
                 .name = fn.name,
-                .flat = flat
+                .flat = is_flat
             } in
             let code = with_code (\u3 =>
                 stmt ctx f body;

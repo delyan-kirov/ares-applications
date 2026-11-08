@@ -62,8 +62,8 @@ $ Parsed : @union a = Ok : { a }, Bad : { Err },
 # -- accessors --------------------------------------------------------------
 
 # Build an element. The struct payload makes this worth having as a function.
-$ elem : @Str -> @Vec Attr -> List Node -> Node = \name attrs kids =>
-    Node.Elem.{ Element.{ .name = name, .attrs = attrs, .kids = kids } }
+$ elem : @Str -> @Vec Attr -> List Node -> Node = \name attributes children =>
+    Node.Elem.{ Element.{ .name = name, .attrs = attributes, .kids = children } }
 
 $ tag : Node -> @Str = \n => n |> \ | Node.Elem.{ e } => e.name | _ => ""
 
