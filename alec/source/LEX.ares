@@ -14,8 +14,8 @@ $ @mod LEX
 #       message, and the preprocessor reports it only if the token is actually
 #       used, so a broken line inside `#if 0` stays harmless, as C requires.
 
-$ with STR
-$ with OPT
+$ @import STR
+$ @import OPT
 
 $ Kind : @union =
     Ident: {},

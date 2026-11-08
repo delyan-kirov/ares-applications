@@ -15,21 +15,21 @@ $ @mod TEST
 #       The C library comes from alec's cache (parsed once per target if the
 #       cache is out of date) and is shared by all the tests.
 
-$ with IO
-$ with STR
-$ with OPT
-$ with VEC
-$ with SET
-$ with MAP
-$ with LEX
-$ with DIAG
-$ with PP
-$ with CFG
-$ with TYPE
-$ with AST
-$ with PARSE
-$ with LINK
-$ with DRIVER
+$ @import IO
+$ @import STR
+$ @import OPT
+$ @import VEC
+$ @import SET
+$ @import MAP
+$ @import LEX
+$ @import DIAG
+$ @import PP
+$ @import CFG
+$ @import TYPE
+$ @import AST
+$ @import PARSE
+$ @import LINK
+$ @import DRIVER
 
 $ scratch : @Str = "tests/out"
 

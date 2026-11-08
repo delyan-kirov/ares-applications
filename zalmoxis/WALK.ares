@@ -18,12 +18,12 @@ $ @mod WALK
  -       read.
  -#
 
-$ with IO
-$ with STR
-$ with VEC
-$ with OPT
-$ with PAR
-$ with LANGS
+$ @import IO
+$ @import STR
+$ @import VEC
+$ @import OPT
+$ @import PAR
+$ @import LANGS
 
 # One ignore-file rule. `base` is the directory of its file, with a trailing
 # `/`. An `anchored` rule (one with a `/` that is not trailing) matches the

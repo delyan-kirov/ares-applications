@@ -5,7 +5,7 @@
 
 $ @mod MAIN
 
-$ with HOST
+$ @import HOST
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     print "hello, Ares"; print "every definition has a type, and @main returns the exit code"; 0

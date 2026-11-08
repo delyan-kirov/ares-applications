@@ -2,8 +2,8 @@
 
 $ @mod MAIN
 
-$ with STR
-$ with HOST
+$ @import STR
+$ @import HOST
 
 $ fib : @Int -> @Int = \n => if n < 2 => n else fib (n - 1) + fib (n - 2)
 

@@ -150,7 +150,7 @@ pub extern "C" fn arx_out_len() -> usize {
 // -- the language server ---------------------------------------------------
 
 /// Where the page's documents live. The browser has no filesystem, so these
-/// paths are names only; `HOST` sits beside the cells so `$ with HOST` resolves
+/// paths are names only; `HOST` sits beside the cells so `$ @import HOST` resolves
 /// to it the way a sibling file would.
 const LSP_ROOT: &str = "/playground";
 
@@ -232,11 +232,11 @@ mod tests {
         let names = ares::stdlib::MODULES.iter().map(|(n, _)| *n).chain(["HOST"]);
         for name in names {
             let src = format!(
-                "$ @mod MAIN\n$ with {name}\n\
+                "$ @mod MAIN\n$ @import {name}\n\
                  $ @main : @Vec @Str -> <@IO> @Int = \\args => 0\n"
             );
             let out = run_source(&src);
-            assert_eq!(out, "exit 0", "`$ with {name}` does not compile:\n{out}");
+            assert_eq!(out, "exit 0", "`$ @import {name}` does not compile:\n{out}");
         }
     }
 
@@ -252,7 +252,7 @@ mod tests {
     fn language_server_checks_a_cell() {
         let server = super::lsp();
         let uri = "file:///playground/cell.ares";
-        let src = "$ @mod MAIN\n$ with HOST\n$ n : @Int = 1\n$ @main : @Vec @Str -> <@IO> @Int = \\args => HOST.print \"x\"; n + \"y\"\n";
+        let src = "$ @mod MAIN\n$ @import HOST\n$ n : @Int = 1\n$ @main : @Vec @Str -> <@IO> @Int = \\args => HOST.print \"x\"; n + \"y\"\n";
         send(server, r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
         let open = Json::obj([
             ("jsonrpc", Json::str("2.0")),
@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn imports_the_bundled_stdlib() {
         let src = "$ @mod MAIN\n\
-                   $ with STR\n\
+                   $ @import STR\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args =>\n\
                    \tif STR.from_int 123 == \"123\" => 0 else 1\n";
         assert_eq!(run_source(src), "exit 0");
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn imports_under_an_alias() {
         let src = "$ @mod MAIN\n\
-                   $ with S = STR\n\
+                   $ @import S = STR\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args =>\n\
                    \tif S.from_int 123 == \"123\" => 0 else 1\n";
         assert_eq!(run_source(src), "exit 0");
@@ -331,7 +331,7 @@ mod tests {
         // natively. Checking the IR still exercises parsing, resolution, and
         // type-checking of the bundled `HOST` module end to end.
         let src = "$ @mod MAIN\n\
-                   $ with HOST\n\
+                   $ @import HOST\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args => HOST.print \"hi\"; 0\n";
         let ir = super::compile(src, 2);
         assert!(!ir.to_lowercase().contains("error"), "{ir}");

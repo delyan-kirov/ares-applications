@@ -6,7 +6,7 @@ lead the query with a sigil to run a command, search the web, or invoke a tool.
 
 The whole raylib API is imported from `RAYLIB.ares`, which is **generated** by the
 cbindgen tool (`applications/cbindgen`) from raylib's header. `MAIN.ares` just does
-`$ with RAYLIB` and calls the bindings. It showcases Ares's **C-struct FFI**:
+`$ @import RAYLIB` and calls the bindings. It showcases Ares's **C-struct FFI**:
 raylib's `Color` is a real `@struct @extern "C"` passed **by value**, built with
 an ordinary struct literal.
 
@@ -15,7 +15,7 @@ A C function is never curried, so a raylib call with several parameters takes a
 one-parameter call stays `A -> B`, and a `void`-taking call takes unit:
 
 ```
-$ with RAYLIB
+$ @import RAYLIB
 ...
 clearBackground (Color.{ .r = 24, .g = 24, .b = 32, .a = 255 })      # one arg
 drawRectangle { .p0 = x, .p1 = y, .p2 = w, .p3 = h, .p4 = col }      # a record

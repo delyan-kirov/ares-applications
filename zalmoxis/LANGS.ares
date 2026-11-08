@@ -7,9 +7,9 @@ $ @mod LANGS
  -       exact name first (`Makefile`), then by extension, compared lowercase.
  -#
 
-$ with STR
-$ with VEC
-$ with OPT
+$ @import STR
+$ @import VEC
+$ @import OPT
 
 $ Lang : @struct =
     name: @Str,

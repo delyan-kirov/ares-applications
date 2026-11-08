@@ -16,18 +16,18 @@ $ @mod GEN
 #       and every aggregate, live in a shadow-stack frame addressed through a
 #       frame pointer; the shadow stack pointer is wasm global 0.
 
-$ with LEX
-$ with DIAG
-$ with TYPE
-$ with AST
-$ with CFG
-$ with WASM
-$ with OPT
-$ with MAP
-$ with BITS
-$ with LIST
-$ with VEC
-$ with STR
+$ @import LEX
+$ @import DIAG
+$ @import TYPE
+$ @import AST
+$ @import CFG
+$ @import WASM
+$ @import OPT
+$ @import MAP
+$ @import BITS
+$ @import LIST
+$ @import VEC
+$ @import STR
 
 # What every function's code generation reads: layout, the symbol tables the
 # linker built, and the target.

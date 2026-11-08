@@ -15,11 +15,11 @@ $ @mod MAIN
 #       ask for. Run from web/, optionally naming a design (default `site`):
 #           ares build FAVICON.ares && ares-out/FAVICON [site|pinwheel]
 
-$ with STR
-$ with IO
-$ with MATH
-$ with VEC
-$ with OPT
+$ @import STR
+$ @import IO
+$ @import MATH
+$ @import VEC
+$ @import OPT
 
 $ Rgb : @struct =
     r: @Int,

@@ -26,9 +26,9 @@ $ @mod XML
 #       code into every match of it.
 #       See README.md for the design notes and the cost model.
 
-$ with STR
-$ with VEC
-$ with OPT
+$ @import STR
+$ @import VEC
+$ @import OPT
 
 # ==========================================================================
 # The document model

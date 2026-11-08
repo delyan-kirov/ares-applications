@@ -20,20 +20,20 @@ $ @mod CACHE
 #       without that. So a program pays only for the library functions it
 #       reaches.
 
-$ with IO
-$ with STR
-$ with OPT
-$ with VEC
-$ with LIST
-$ with MAP
-$ with BITS
-$ with LEX
-$ with CFG
-$ with TYPE
-$ with AST
-$ with PARSE
-$ with LINK
-$ with WASM
+$ @import IO
+$ @import STR
+$ @import OPT
+$ @import VEC
+$ @import LIST
+$ @import MAP
+$ @import BITS
+$ @import LEX
+$ @import CFG
+$ @import TYPE
+$ @import AST
+$ @import PARSE
+$ @import LINK
+$ @import WASM
 
 $ magic : @Str = "alec-tu 3\n"
 

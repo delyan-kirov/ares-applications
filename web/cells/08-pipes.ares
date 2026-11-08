@@ -6,8 +6,8 @@
 
 $ @mod MAIN
 
-$ with STR
-$ with HOST
+$ @import STR
+$ @import HOST
 
 $ inc : @Int -> @Int = \x => x + 1
 $ dbl : @Int -> @Int = \x => x + x

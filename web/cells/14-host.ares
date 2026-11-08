@@ -6,8 +6,8 @@
 
 $ @mod MAIN
 
-$ with STR
-$ with HOST
+$ @import STR
+$ @import HOST
 
 # Flip to true and re-run to start seeing the colors.
 $ animate : @Bool = @false

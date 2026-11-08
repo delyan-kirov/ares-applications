@@ -9,9 +9,9 @@ $ @mod WASM
 #       places, all here: the memory's limits flag, the width of a load or
 #       store's offset, and the address type the code generator pushes.
 
-$ with BITS
-$ with VEC
-$ with STR
+$ @import BITS
+$ @import VEC
+$ @import STR
 
 $ ValT : @union = I32 : {}, I64 : {}, F32 : {}, F64 : {},
 

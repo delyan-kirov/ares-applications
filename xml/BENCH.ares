@@ -1,10 +1,10 @@
 $ @mod BENCH
 
-$ with XML
-$ with IO
-$ with VEC
-$ with OPT
-$ with STR
+$ @import XML
+$ @import IO
+$ @import VEC
+$ @import OPT
+$ @import STR
 
 # Parse only: no rendering, no text extraction, no printing of the tree.
 $ @main : @Vec @Str -> <@IO> @Int = \args =>

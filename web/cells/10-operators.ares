@@ -5,8 +5,8 @@
 
 $ @mod MAIN
 
-$ with STR
-$ with HOST
+$ @import STR
+$ @import HOST
 
 $ Money : @struct =
     cents: @Int,

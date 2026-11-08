@@ -13,21 +13,21 @@ $ @mod LINK
 #         4. lay out the data, then the shadow stack, then the heap;
 #         5. generate each function and assemble the module.
 
-$ with LEX
-$ with DIAG
-$ with TYPE
-$ with AST
-$ with CFG
-$ with WASM
-$ with GEN
-$ with PARSE
-$ with OPT
-$ with MAP
-$ with SET
-$ with BITS
-$ with LIST
-$ with VEC
-$ with STR
+$ @import LEX
+$ @import DIAG
+$ @import TYPE
+$ @import AST
+$ @import CFG
+$ @import WASM
+$ @import GEN
+$ @import PARSE
+$ @import OPT
+$ @import MAP
+$ @import SET
+$ @import BITS
+$ @import LIST
+$ @import VEC
+$ @import STR
 
 $ stack_size : @Int = 1048576
 $ data_base : @Int = 1024

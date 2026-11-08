@@ -5,8 +5,8 @@
 
 $ @mod MAIN
 
-$ with STR
-$ with HOST
+$ @import STR
+$ @import HOST
 
 $ swap : { a, b } -> { b, a } = \t => { t.1, t.0 }
 

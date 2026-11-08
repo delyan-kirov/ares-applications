@@ -18,10 +18,10 @@ $ @mod MAIN
 #           LIB=bin/libraylib.so MOD=RAYLIB OUT=RAYLIB.ares \
 #             ares run ../cbindgen/MAIN.ares <path-to>/raylib.h
 
-$ with RAYLIB
-$ with STR
-$ with OPT
-$ with VEC
+$ @import RAYLIB
+$ @import STR
+$ @import OPT
+$ @import VEC
 
 # Spawn a program (fire-and-forget) via libc. The `&` in the command returns at
 # once. Not part of raylib, so it stays a local `@extern`.

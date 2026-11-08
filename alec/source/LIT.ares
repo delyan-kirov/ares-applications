@@ -7,9 +7,9 @@ $ @mod LIT
 #       preprocessor's `#if` evaluator and the parser read numbers through here,
 #       so the two always agree on what a spelling means.
 
-$ with STR
-$ with OPT
-$ with BITS
+$ @import STR
+$ @import OPT
+$ @import BITS
 
 # `longs` counts the `l` suffixes (0, 1 or 2); `decimal` matters because an
 # unsuffixed decimal constant never becomes unsigned on its own, while an octal

@@ -7,24 +7,24 @@ $ @mod DRIVER
 #       decides what those effects mean. MAIN is its command-line entry and
 #       TEST reuses it in-process.
 
-$ with IO
-$ with STR
-$ with OPT
-$ with VEC
-$ with SET
-$ with MAP
-$ with LEX
-$ with DIAG
-$ with PP
-$ with CFG
-$ with TYPE
-$ with AST
-$ with PARSE
-$ with DUMP
-$ with LINK
-$ with CACHE
-$ with WAT
-$ with LIST
+$ @import IO
+$ @import STR
+$ @import OPT
+$ @import VEC
+$ @import SET
+$ @import MAP
+$ @import LEX
+$ @import DIAG
+$ @import PP
+$ @import CFG
+$ @import TYPE
+$ @import AST
+$ @import PARSE
+$ @import DUMP
+$ @import LINK
+$ @import CACHE
+$ @import WAT
+$ @import LIST
 
 $ usage : @Str =
     "usage: alec [options] file.c...\n"

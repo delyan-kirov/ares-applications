@@ -7,9 +7,9 @@ $ @mod MAIN
 #           node run.mjs a.wasm
 #       See README.md, DRIVER for the pipeline, and SHELL for `--shell`.
 
-$ with IO
-$ with DRIVER
-$ with SHELL
+$ @import IO
+$ @import DRIVER
+$ @import SHELL
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     DRIVER.options args |> \

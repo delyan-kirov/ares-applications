@@ -6,8 +6,8 @@
 
 $ @mod MAIN
 
-$ with STR
-$ with HOST
+$ @import STR
+$ @import HOST
 
 $ IArea : @struct t =
     area: t -> @Int,

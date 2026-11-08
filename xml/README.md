@@ -20,7 +20,7 @@ says the root is not named here.
 ## The surface
 
 ```ares
-$ with XML
+$ @import XML
 
 $ doc : Node = parse src |> \ | Parsed.Ok.{ n } => n | _ => ...
 

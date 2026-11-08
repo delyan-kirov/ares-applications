@@ -7,11 +7,11 @@ $ @mod MAIN
 #           ares run MAIN.ares sample.xml
 #           ares run MAIN.ares            # uses the built-in sample
 
-$ with XML
-$ with IO
-$ with STR
-$ with VEC
-$ with OPT
+$ @import XML
+$ @import IO
+$ @import STR
+$ @import VEC
+$ @import OPT
 
 $ sample : @Str =
     "<?xml version=\"1.0\"?>\n"
@@ -41,8 +41,7 @@ $ ck_books : @Int = if @vec_len (find_all "book" root) == 2 => 0 else 1
 $ ck_entity_attr : @Int = if attr_or root "name" "" == "Ada & Co" => 0 else 1
 
 # `&lt;` and `&gt;` in text come back as the characters they stand for.
-$ ck_entity_text : @Int =
-    if unwrap_or (text_at "title" root) "" == "Ares <in practice>" => 0 else 1
+$ ck_entity_text : @Int = if unwrap_or (text_at "title" root) "" == "Ares <in practice>" => 0 else 1
 
 # CDATA is text, markup inside it is not markup.
 $ ck_cdata : @Int = if unwrap_or (text_at "note" root) "" == "raw <not markup> here" => 0 else 1

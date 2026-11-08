@@ -5,12 +5,12 @@ $ @mod DUMP
 #       expression shows its type, so the conversions the parser inserted are
 #       visible.
 
-$ with LEX
-$ with TYPE
-$ with AST
-$ with PARSE
-$ with LIST
-$ with VEC
+$ @import LEX
+$ @import TYPE
+$ @import AST
+$ @import PARSE
+$ @import LIST
+$ @import VEC
 
 $ unit : TU -> @Str = \tu =>
     VEC.foldl (\acc g => acc ++ global tu.layout g) "" tu.globals

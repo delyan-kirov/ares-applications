@@ -7,7 +7,7 @@ $ @mod DIAG
 #       installs the one handler that knows how to print, so no stage formats or
 #       prints anything itself.
 
-$ with LEX
+$ @import LEX
 
 $ Err : @struct = pos : Pos, msg : @Str,
 

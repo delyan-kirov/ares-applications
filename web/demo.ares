@@ -5,7 +5,7 @@ $ @mod MAIN
 # layer fixes per target) so the same source visibly reports the target it was
 # built for.
 
-$ with STR
+$ @import STR
 
 # `puts` returns a C `int`. Declaring that width matters on wasm32, where the
 # linker checks signatures and a mismatched one becomes a trapping stub; `C.puts`

@@ -10,8 +10,8 @@ $ @mod AST
 #       Expressions and statements are recursive, so their slots are lazy and
 #       their collections are `List`s.
 
-$ with LEX
-$ with TYPE
+$ @import LEX
+$ @import TYPE
 
 $ Expr : @struct = e : ENode, ty : Ty, pos : Pos,
 

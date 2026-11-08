@@ -21,23 +21,23 @@ $ @mod SHELL
 #       pattern), and the shell formats it, so a double prints as its
 #       shortest form.
 
-$ with IO
-$ with STR
-$ with OPT
-$ with VEC
-$ with LIST
-$ with MAP
-$ with LEX
-$ with DIAG
-$ with CFG
-$ with TYPE
-$ with AST
-$ with PARSE
-$ with PP
-$ with WASM
-$ with WAT
-$ with DUMP
-$ with DRIVER
+$ @import IO
+$ @import STR
+$ @import OPT
+$ @import VEC
+$ @import LIST
+$ @import MAP
+$ @import LEX
+$ @import DIAG
+$ @import CFG
+$ @import TYPE
+$ @import AST
+$ @import PARSE
+$ @import PP
+$ @import WASM
+$ @import WAT
+$ @import DUMP
+$ @import DRIVER
 
 $ Sh : @struct =
     o : Opts,

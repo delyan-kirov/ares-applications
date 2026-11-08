@@ -12,14 +12,14 @@ $ @mod MAIN
  -       pool.
  -#
 
-$ with IO
-$ with STR
-$ with VEC
-$ with OPT
-$ with PAR
-$ with COUNT
-$ with WALK
-$ with LANGS
+$ @import IO
+$ @import STR
+$ @import VEC
+$ @import OPT
+$ @import PAR
+$ @import COUNT
+$ @import WALK
+$ @import LANGS
 
 $ usage : @Str =
     "usage: zalmoxis [-f] [-e GLOB]... [PATH]...\n"

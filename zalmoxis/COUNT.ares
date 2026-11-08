@@ -14,8 +14,8 @@ $ @mod COUNT
  -       which the native backend keeps unboxed, so a line allocates nothing.
  -#
 
-$ with STR
-$ with VEC
+$ @import STR
+$ @import VEC
 
 # A language's comment and string syntax, with the scan masks built once.
 # Block comments and quotes are parallel vectors: `opens[k]` ends at

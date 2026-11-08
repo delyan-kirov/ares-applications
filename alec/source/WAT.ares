@@ -9,13 +9,13 @@ $ @mod WAT
 #       The text is a list of lines, printed one at a time, so a large module
 #       is never joined into one string.
 
-$ with STR
-$ with OPT
-$ with VEC
-$ with LIST
-$ with MAP
-$ with BITS
-$ with WASM
+$ @import STR
+$ @import OPT
+$ @import VEC
+$ @import LIST
+$ @import MAP
+$ @import BITS
+$ @import WASM
 
 # The whole module.
 $ module_lines : @Str -> List @Str = \s => render s (\n => @true) @true

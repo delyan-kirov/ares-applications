@@ -20,19 +20,19 @@ $ @mod PARSE
  -       threads state by hand.
  -#
 
-$ with LEX
-$ with DIAG
-$ with LIT
-$ with TYPE
-$ with AST
-$ with CFG
-$ with PP
-$ with STR
-$ with OPT
-$ with MAP
-$ with BITS
-$ with LIST
-$ with VEC
+$ @import LEX
+$ @import DIAG
+$ @import LIT
+$ @import TYPE
+$ @import AST
+$ @import CFG
+$ @import PP
+$ @import STR
+$ @import OPT
+$ @import MAP
+$ @import BITS
+$ @import LIST
+$ @import VEC
 
 # -- the effects ---------------------------------------------------------------
 

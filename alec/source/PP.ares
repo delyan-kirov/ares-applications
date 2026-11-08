@@ -17,15 +17,15 @@ $ @mod PP
 #       algorithm: every token carries a hide set, the macros whose expansion
 #       produced it, which may not expand it again.
 
-$ with LEX
-$ with DIAG
-$ with LIT
-$ with STR
-$ with OPT
-$ with BITS
-$ with LIST
-$ with VEC
-$ with MAP
+$ @import LEX
+$ @import DIAG
+$ @import LIT
+$ @import STR
+$ @import OPT
+$ @import BITS
+$ @import LIST
+$ @import VEC
+$ @import MAP
 
 $ Macro : @struct =
     name : @Str,

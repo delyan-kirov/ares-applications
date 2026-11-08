@@ -6,11 +6,11 @@ $ @mod TEST
  -       test run. The line counts are the ones tokei gives for the same text.
  -#
 
-$ with STR
-$ with VEC
-$ with COUNT
-$ with LANGS
-$ with WALK
+$ @import STR
+$ @import VEC
+$ @import COUNT
+$ @import LANGS
+$ @import WALK
 
 # The counts of `text` read as the language of a file named `name`, as
 # { code, comments, blanks }.
@@ -71,7 +71,8 @@ $ @e <| assert (same (counts { "h.md", "# Title\n\ntext `code`\n" }) { 0, 2, 1 }
 
 # Ares: `#` lines and nesting `#- -#` blocks.
 $ @e
-    <| assert (same (counts { "i.ares", "#- a #- b -# c -#\n$ x : @Int = 1 # one\n\n" }) { 1, 1, 1 })
+    <| assert
+        (same (counts { "i.ares", "#- a #- b -# c -#\n$ x : @Int = 1 # one\n\n" }) { 1, 1, 1 })
         "Ares: comments"
 
 # ---- detection ----

@@ -11,11 +11,11 @@ $ @mod TYPE
 #       a recursive type's slots are lazy and a lazy slot is only forced by a
 #       match or a field read, never by a `@Vec` primitive.
 
-$ with CFG
-$ with OPT
-$ with MAP
-$ with BITS
-$ with VEC
+$ @import CFG
+$ @import OPT
+$ @import MAP
+$ @import BITS
+$ @import VEC
 
 # `rank` orders the integer types for the usual arithmetic conversions:
 # 0 _Bool, 1 char, 2 short, 3 int, 4 long, 5 long long. `plain` marks plain
