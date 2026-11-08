@@ -1,6 +1,6 @@
 name: Pages
 
-# Build the browser playground (the Thrax compiler crates to wasm) and publish
+# Build the browser playground (the Ares compiler crates to wasm) and publish
 # web/site/ to GitHub Pages. The compiler is checked out alongside this repo and
 # this repo is nested where a submodule would sit (compiler/applications), so the
 # playground's relative path to the compiler crates resolves.
@@ -33,7 +33,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the Thrax compiler
+      - name: Check out the Ares compiler
         uses: actions/checkout@v4
         with:
           repository: delyan-kirov/BC

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- A catalogue, for the demo: thrax run MAIN.thx sample.xml -->
+<!-- A catalogue, for the demo: ares run MAIN.ares sample.xml -->
 <library name="Ada &amp; Co" open="true">
   <book id="1" lang="en">
-    <title>Thrax &lt;in practice&gt;</title>
+    <title>Ares &lt;in practice&gt;</title>
     <author>A. Hacker</author>
     <tags><tag/><tag>effects</tag><tag>parsing</tag></tags>
     <note><![CDATA[CDATA keeps <markup> literal & unescaped]]></note>

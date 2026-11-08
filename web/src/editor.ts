@@ -98,7 +98,7 @@ export class Editor {
       <div class="ed-inner">
         <pre class="ed-view" aria-hidden="true"></pre>
         <textarea class="ed-input" spellcheck="false" autocapitalize="off" autocomplete="off"
-          autocorrect="off" aria-label="Thrax program"></textarea>
+          autocorrect="off" aria-label="Ares program"></textarea>
       </div>
       <ul class="ed-problems"></ul>`;
     parent.appendChild(this.root);
@@ -446,7 +446,7 @@ export class Editor {
     }
   }
 
-  /// Reformat with the compiler's formatter (`thrax fmt`).
+  /// Reformat with the compiler's formatter (`ares fmt`).
   format(): void {
     this.activate(this);
     const edits = this.client.formatting(this.uri);

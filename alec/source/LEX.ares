@@ -1,0 +1,330 @@
+$ @mod LEX
+
+# \file LEX.ares
+# \info The C preprocessing-token lexer (translation phases 1 to 3). `lex` is a
+#       PURE function from a source text to a lazy `List Token`: each cell is
+#       built when the preprocessor looks at it, so a file streams through the
+#       pipeline a token at a time and is never held as a token vector.
+#
+#       Line splices (backslash-newline) and CRLF line ends are removed up front
+#       by `splice`, which keeps line numbers right by re-inserting the newlines a
+#       splice swallowed at the end of the logical line. Comments become the
+#       whitespace they stand for. A malformed token (an unterminated literal or
+#       comment) is not an error here: it becomes a `Bad` token carrying the
+#       message, and the preprocessor reports it only if the token is actually
+#       used, so a broken line inside `#if 0` stays harmless, as C requires.
+
+$ with STR
+$ with OPT
+
+$ Kind : @union =
+    Ident: {},
+    Num: {},
+    Chr: {},
+    Str: {},
+    Punct: {},
+    Other: {},
+    Bad: {},
+
+$ Pos : @struct = file : @Str, line : @Int, col : @Int,
+
+# `space`: whitespace or a comment came before the token. `bol`: it is the first
+# token on its line, which is what makes a `#` a directive. `hide` is the token's
+# hide set, the macros that may not expand it again (Prosser's algorithm).
+$ Token : @struct =
+    kind : Kind,
+    text : @Str,
+    pos : Pos,
+    space : @Bool,
+    bol : @Bool,
+    hide : List @Str,
+
+$ is_ident : Token -> @Bool = \t => t.kind |> \ | Kind.Ident => @true | _ => @false
+$ is_punct : Token -> @Str -> @Bool = \t p =>
+    t.kind |> \ | Kind.Punct => @seq t.text p | _ => @false
+$ is_str : Token -> @Bool = \t => t.kind |> \ | Kind.Str => @true | _ => @false
+$ is_num : Token -> @Bool = \t => t.kind |> \ | Kind.Num => @true | _ => @false
+
+$ nowhere : Pos = Pos.{ .file = "<built-in>", .line = 0, .col = 0 }
+
+$ mk : Kind -> @Str -> Pos -> Token = \k s p =>
+    Token.{ .kind = k, .text = s, .pos = p, .space = @false, .bol = @false, .hide = List.Nil }
+
+# The whole file as a token stream.
+$ lex : @Str -> @Str -> List Token = \file src => let s = splice src in go file s 0 1 0 @true @false
+
+# Exactly one token spelled by `s`, or `None` when `s` lexes as zero or several
+# tokens. This is how `##` checks that a paste formed a valid token.
+$ lex_one : @Str -> Option Token = \s =>
+    lex "<paste>" s |> \
+        | List.Cons.{ h, t } => (
+            t |> \
+                | List.Nil => (h.kind |> \ | Kind.Bad => Option.None | _ => Option.Some.{ h })
+                | _        => Option.None
+        )
+        | _                  => Option.None
+
+# Phase 2: delete each backslash-newline. The newlines a logical line swallowed
+# are put back after it, so every later line keeps its physical number.
+$ splice : @Str -> @Str = \src => if needs_splice src 0 => splice_go src 0 "" 0 else src
+
+$ @private
+
+$ needs_splice : @Str -> @Int -> @Bool = \s i =>
+    if i >= @array_len s =>
+        @false
+    else
+        @array_get s i |> \
+            | 13 => @true
+            | 92 => (
+                if i + 1 < @array_len s && @array_get s (i + 1) == 10 =>
+                    @true
+                else
+                    needs_splice s (i + 1)
+            )
+            | _  => needs_splice s (i + 1)
+
+$ splice_go : @Str -> @Int -> @Str -> @Int -> @Str = \s i acc owed =>
+    if i >= @array_len s =>
+        pad_newlines acc owed
+    else
+        let c = @array_get s i in
+        if c == 92 && peek s (i + 1) == 10 =>
+            splice_go s (i + 2) acc (owed + 1)
+        else if c == 92 && peek s (i + 1) == 13 && peek s (i + 2) == 10 =>
+            splice_go s (i + 3) acc (owed + 1)
+        else if c == 13 && peek s (i + 1) == 10 =>
+            splice_go s (i + 1) acc owed
+        else if c == 10 =>
+            splice_go s (i + 1) (pad_newlines (@array_push acc 10) owed) 0
+        else
+            splice_go s (i + 1) (@array_push acc c) owed
+
+$ pad_newlines : @Str -> @Int -> @Str = \acc n =>
+    if n <= 0 => acc else pad_newlines (@array_push acc 10) (n - 1)
+
+$ peek : @Str -> @Int -> @Int = \s i => if i < @array_len s => @array_get s i else 0 - 1
+
+# Byte classes, so the hot loops do one table read per byte: 1 blank, 2
+# newline, 3 identifier start, 4 digit, 5 `"`, 6 `'`, 7 `/`, 8 `.`, 0 anything
+# else (a punctuator or a stray byte).
+$ classes : @Str = class_table 0 ""
+
+$ class_table : @Int -> @Str -> @Str = \c acc =>
+    if c >= 256 =>
+        acc
+    else
+        let k =
+            if c == 32 || c == 9 || c == 11 || c == 12 || c == 13 =>
+                1
+            else if c == 10 =>
+                2
+            else if (c >= 65 && c <= 90)
+                || (c >= 97 && c <= 122)
+                || c == 95
+                || c == 36
+                || c >= 128 =>
+                3
+            else if c >= 48 && c <= 57 =>
+                4
+            else if c == 34 =>
+                5
+            else if c == 39 =>
+                6
+            else if c == 47 =>
+                7
+            else if c == 46 =>
+                8
+            else
+                0
+        in
+        class_table (c + 1) (@array_push acc k)
+
+$ cls : @Int -> @Int = \c => @array_get classes c
+
+# `ls` is the offset where the current line starts, so a column is `i - ls + 1`.
+$ go : @Str -> @Str -> @Int -> @Int -> @Int -> @Bool -> @Bool
+    -> List Token = \file s i line ls bol space =>
+    if i >= @array_len s =>
+        List.Nil
+    else
+        let c = @array_get s i in
+        cls c |> \
+            | 1 => go file s (i + 1) line ls bol @true
+            | 2 => go file s (i + 1) (line + 1) (i + 1) @true @false
+            | 7 => (
+                peek s (i + 1) |> \
+                    | 47 => go file s (skip_line s i) line ls bol @true
+                    | 42 => block_comment file s i (i + 2) line ls bol
+                    | _  => token file s i c 7 line ls bol space
+            )
+            | k => token file s i c k line ls bol space
+
+$ token : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Bool
+    -> List Token = \file s i c k line ls bol space =>
+    let p = Pos.{ .file = file, .line = line, .col = i - ls + 1 } in
+    let r = scan s i c k in
+    List.Cons.{
+        Token.{
+            .kind = r.kind,
+            .text = r.text,
+            .pos = p,
+            .space = space,
+            .bol = bol,
+            .hide = List.Nil
+        },
+        go file s r.end line ls @false @false
+    }
+
+$ skip_line : @Str -> @Int -> @Int = \s i =>
+    if i >= @array_len s || @array_get s i == 10 => i else skip_line s (i + 1)
+
+# A block comment is one space. It may span lines, which moves the line count on.
+$ block_comment : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Bool
+    -> List Token = \file s start i line ls bol =>
+    let c = peek s i in
+    if c < 0 =>
+        let p = Pos.{ .file = file, .line = line, .col = start - ls + 1 } in
+        List.Cons.{
+            Token.{
+                .kind = Kind.Bad,
+                .text = "unterminated comment",
+                .pos = p,
+                .space = @true,
+                .bol = bol,
+                .hide = List.Nil
+            },
+            List.Nil
+        }
+    else if c == 42 && peek s (i + 1) == 47 =>
+        go file s (i + 2) line ls bol @true
+    else if c == 10 =>
+        block_comment file s start (i + 1) (line + 1) (i + 1) bol
+    else
+        block_comment file s start (i + 1) line ls bol
+
+# One scanned token: its kind, its spelling, and the offset just past it.
+$ Scanned : @struct = kind : Kind, text : @Str, end : @Int,
+
+$ scan : @Str -> @Int -> @Int -> @Int -> Scanned = \s i c k =>
+    k |> \
+        | 3 => scan_ident s i
+        | 4 => scan_number s i
+        | 5 => scan_quoted s i i 34 Kind.Str
+        | 6 => scan_quoted s i i 39 Kind.Chr
+        | _ =>
+            if k == 8 && cls (peek s (i + 1)) == 4 =>
+                scan_number s i
+            else
+                let n = punct_len s i c in
+                if n == 0 =>
+                    Scanned.{ .kind = Kind.Other, .text = @array_slice s i (i + 1), .end = i + 1 }
+                else
+                    let t = @array_slice s i (i + n) in
+                    Scanned.{
+                        .kind = Kind.Punct,
+                        .text = (c |> \ | 60 | 37 | 58 => digraph t | _ => t),
+                        .end = i + n
+                    }
+
+$ ident_end : @Str -> @Int -> @Int = \s i =>
+    if i >= @array_len s => i else cls (@array_get s i) |> \ | 3 | 4 => ident_end s (i + 1) | _ => i
+
+$ scan_ident : @Str -> @Int -> Scanned = \s i =>
+    let e = ident_end s (i + 1) in
+    let q = peek s e in
+    let word = @array_slice s i e in
+    if (q == 34 || q == 39) && (word == "L" || word == "u" || word == "U" || word == "u8") =>
+        scan_quoted s i e q (if q == 34 => Kind.Str else Kind.Chr)
+    else
+        Scanned.{ .kind = Kind.Ident, .text = word, .end = e }
+
+$ scan_number : @Str -> @Int -> Scanned = \s i =>
+    let e = number_end s (i + 1) in
+    Scanned.{ .kind = Kind.Num, .text = @array_slice s i e, .end = e }
+
+$ number_end : @Str -> @Int -> @Int = \s i =>
+    if i >= @array_len s =>
+        i
+    else
+        let c = @array_get s i in
+        let k = cls c in
+        if k == 3 || k == 4 || k == 8 =>
+            number_end s (i + 1)
+        else if (c == 43 || c == 45)
+            && (let b = @array_get s (i - 1) in b == 101 || b == 69 || b == 112 || b == 80) =>
+            number_end s (i + 1)
+        else if c == 39
+            && i + 1 < @array_len s
+            && (let n = cls (@array_get s (i + 1)) in n == 3 || n == 4) =>
+            number_end s (i + 1)
+        else
+            i
+
+# `start` is where the token begins (before any prefix), `q` where its opening
+# quote is. A newline or the end of the input before the closing quote is a
+# malformed token.
+$ scan_quoted : @Str -> @Int -> @Int -> @Int -> Kind -> Scanned = \s start q quote k =>
+    let e = quoted_end s (q + 1) quote in
+    if e < 0 =>
+        Scanned.{
+            .kind = Kind.Bad,
+            .text = (
+                if quote == 34 =>
+                    "missing terminating \" character"
+                else
+                    "missing terminating ' character"
+            ),
+            .end = skip_line s q
+        }
+    else
+        Scanned.{ .kind = k, .text = @array_slice s start e, .end = e }
+
+$ quoted_end : @Str -> @Int -> @Int -> @Int = \s i quote =>
+    let c = peek s i in
+    if c < 0 || c == 10 =>
+        0 - 1
+    else if c == 92 =>
+        (if peek s (i + 1) < 0 => 0 - 1 else quoted_end s (i + 2) quote)
+    else if c == quote =>
+        i + 1
+    else
+        quoted_end s (i + 1) quote
+
+# The length of the punctuator at `i` (maximal munch), or 0. `c` is its first
+# byte; the bytes after it decide among the punctuators that share it.
+$ punct_len : @Str -> @Int -> @Int -> @Int = \s i c =>
+    let d = peek s (i + 1) in
+    let e = peek s (i + 2) in
+    c |> \
+        | 60                     =>
+            if d == 60 => (if e == 61 => 3 else 2) else if d == 61 || d == 58 || d == 37 => 2 else 1
+        | 62                     =>
+            if d == 62 => (if e == 61 => 3 else 2) else if d == 61 => 2 else 1
+        | 46                     => if d == 46 && e == 46 => 3 else 1
+        | 37 =>
+            if d == 58 && e == 37 && peek s (i + 3) == 58 =>
+                4
+            else if d == 61 || d == 62 || d == 58 =>
+                2
+            else
+                1
+        | 45                     => if d == 62 || d == 45 || d == 61 => 2 else 1
+        | 43                     => if d == 43 || d == 61 => 2 else 1
+        | 38                     => if d == 38 || d == 61 => 2 else 1
+        | 124                    => if d == 124 || d == 61 => 2 else 1
+        | 61 | 33 | 42 | 47 | 94 => if d == 61 => 2 else 1
+        | 35                     => if d == 35 => 2 else 1
+        | 58                     => if d == 62 => 2 else 1
+        | 91 | 93 | 40 | 41 | 123 | 125 | 126 | 63 | 59 | 44 => 1
+        | _                      => 0
+
+$ digraph : @Str -> @Str = \p =>
+    p |> \
+        | "<:"   => "["
+        | ":>"   => "]"
+        | "<%"   => "{"
+        | "%>"   => "}"
+        | "%:"   => "#"
+        | "%:%:" => "##"
+        | _      => p

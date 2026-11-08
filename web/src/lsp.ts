@@ -1,5 +1,5 @@
-// A language-server client for `thrax lsp` running inside the playground wasm.
-// The server is the real one (crates/thrax/src/lsp), driven one message at a
+// A language-server client for `ares lsp` running inside the playground wasm.
+// The server is the real one (crates/ares/src/lsp), driven one message at a
 // time: a call into wasm returns every message the server sent, so a request's
 // reply is available synchronously. Deferred work (the debounced check after
 // typing, held-back errors, error ranking) runs on a timer the server sets.
@@ -101,7 +101,7 @@ export class Client {
 
   open(uri: string, text: string): void {
     this.versions.set(uri, 1);
-    this.notify("textDocument/didOpen", { textDocument: { uri, languageId: "thrax", version: 1, text } });
+    this.notify("textDocument/didOpen", { textDocument: { uri, languageId: "ares", version: 1, text } });
   }
 
   change(uri: string, text: string): void {

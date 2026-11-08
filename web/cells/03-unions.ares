@@ -1,0 +1,18 @@
+# Sum types and pattern matching
+#
+# A `@union` creates a sum type. You can match over its variants with `\ | ...`
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ Shape : @union =
+    Circle: @Int,
+    Rect: { @Int, @Int },
+
+$ area : Shape -> @Int = \s =>
+    s |> \ | Shape.Circle.{ r } => 3 * r * r | Shape.Rect.{ w, h } => w * h
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
+    print "circle r=2: ?(area (.Circle.{2}))"; print "rect 3x4:   ?(area (.Rect.{3, 4}))"; 0

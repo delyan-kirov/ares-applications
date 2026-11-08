@@ -1,21 +1,21 @@
 {
-  description = "Thrax program launcher -- a raylib app using the C-struct FFI";
+  description = "Ares program launcher -- a raylib app using the C-struct FFI";
 
-  # The Thrax compiler, pinned from GitHub. `nix flake update thrax` bumps it.
-  inputs.thrax.url = "github:delyan-kirov/Thrax";
-  # Thrax's own nixpkgs, not a second pin. When the launcher runs on the
-  # interpreter, `thrax`, raylib, GLFW and the GL driver all share one process
+  # The Ares compiler, pinned from GitHub. `nix flake update ares` bumps it.
+  inputs.ares.url = "github:delyan-kirov/Ares";
+  # Ares's own nixpkgs, not a second pin. When the launcher runs on the
+  # interpreter, `ares`, raylib, GLFW and the GL driver all share one process
   # and so one glibc, which must be at least as new as every library loaded into
   # it. One nixpkgs for all of them makes that hold by construction.
-  inputs.nixpkgs.follows = "thrax/nixpkgs";
+  inputs.nixpkgs.follows = "ares/nixpkgs";
 
   outputs =
-    { self, nixpkgs, thrax }:
+    { self, nixpkgs, ares }:
     let
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
 
-      thraxc = thrax.packages.${system}.thrax;
+      aresc = ares.packages.${system}.ares;
       font = "${pkgs.jetbrains-mono}/share/fonts/truetype/JetBrainsMono-Regular.ttf";
 
       # The GL driver comes from this flake's nixpkgs too, not the host's
@@ -55,12 +55,12 @@
       ];
 
       launcher = pkgs.stdenv.mkDerivation {
-        pname = "thrax-launcher";
+        pname = "ares-launcher";
         version = "0.1.0";
         src = self;
 
         nativeBuildInputs = [
-          thraxc
+          aresc
           pkgs.gcc
           pkgs.makeWrapper
         ];
@@ -72,25 +72,25 @@
 
           # Recreate the shell-linked deps the dev shell sets up (both gitignored,
           # so not in `src`): the standard library from the pinned compiler, and
-          # the raylib the `@extern "bin/libraylib.so"` paths name (`thrax build`
+          # the raylib the `@extern "bin/libraylib.so"` paths name (`ares build`
           # canonicalizes this symlink and bakes its store dir as an rpath, so the
           # binary finds raylib from anywhere).
-          ln -sf ${thrax}/library library
+          ln -sf ${ares}/library library
           mkdir -p bin
           ln -sf ${pkgs.raylib}/lib/libraylib.so bin/libraylib.so
 
           # `loadFontEx "bin/font.ttf"` is read at runtime; bake the store path so
           # the binary needs no working directory.
-          substituteInPlace MAIN.thx --replace-fail '"bin/font.ttf"' '"${font}"'
+          substituteInPlace MAIN.ares --replace-fail '"bin/font.ttf"' '"${font}"'
 
-          thrax build MAIN.thx
+          ares build MAIN.ares
           runHook postBuild
         '';
 
         installPhase = ''
           runHook preInstall
-          install -Dm755 thrax-out/MAIN $out/libexec/thrax-launcher
-          makeWrapper $out/libexec/thrax-launcher $out/bin/thrax-launcher \
+          install -Dm755 ares-out/MAIN $out/libexec/ares-launcher
+          makeWrapper $out/libexec/ares-launcher $out/bin/ares-launcher \
             --prefix PATH : ${runtimeTools} \
             --prefix LD_LIBRARY_PATH : ${mesaLib} \
             ${pkgs.lib.concatStringsSep " " (
@@ -100,8 +100,8 @@
         '';
 
         meta = {
-          description = "A raylib program launcher written in Thrax";
-          mainProgram = "thrax-launcher";
+          description = "A raylib program launcher written in Ares";
+          mainProgram = "ares-launcher";
         };
       };
     in
@@ -130,10 +130,10 @@
         ];
 
         # Make this directory self-contained: `bin/libraylib.so` is the library
-        # the `@extern` paths name (relative to here), and `library/` is the Thrax
-        # standard library the interpreter resolves `CORE` from. The `thrax`
+        # the `@extern` paths name (relative to here), and `library/` is the Ares
+        # standard library the interpreter resolves `CORE` from. The `ares`
         # binary comes from the repo build (see README), whose dev shell uses the
-        # same nixpkgs pin as long as `nix flake update thrax` keeps up with it.
+        # same nixpkgs pin as long as `nix flake update ares` keeps up with it.
         # `-n` on the directory link: without it a second entry follows the
         # existing link and creates `library/library` inside the repo.
         shellHook = ''
@@ -145,8 +145,8 @@
           # The UI font `loadFont "bin/font.ttf"` names, provided by nixpkgs so
           # the directory stays self-contained (like bin/libraylib.so).
           ln -sf ${pkgs.jetbrains-mono}/share/fonts/truetype/JetBrainsMono-Regular.ttf bin/font.ttf
-          echo "launcher shell ready. Build thrax once in the repo, then:"
-          echo "    thrax run MAIN.thx      # or: ../../target/debug/thrax run MAIN.thx"
+          echo "launcher shell ready. Build ares once in the repo, then:"
+          echo "    ares run MAIN.ares      # or: ../../target/debug/ares run MAIN.ares"
         '';
       });
     };

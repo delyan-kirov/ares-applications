@@ -1,12 +1,12 @@
 # cbindgen
 
-A C-header binding generator, **written in Thrax**. It reads a C header and emits
-Thrax `@extern` bindings, exercising the C FFI (structs, unions, enums) from the
+A C-header binding generator, **written in Ares**. It reads a C header and emits
+Ares `@extern` bindings, exercising the C FFI (structs, unions, enums) from the
 language side. Macros are not supported (they are stripped, like comments).
 
 ## What it generates
 
-| C construct | Thrax binding |
+| C construct | Ares binding |
 | --- | --- |
 | `typedef enum { RED, GREEN = 5 } E;` | `$ E : @alias = @Int32` plus `$ red : @Int32 = 0`, `$ green : @Int32 = 5` |
 | `typedef struct { int x; float y; } S;` | `$ S : @struct @extern "C" = x: @Int32, y: @Float32,` |
@@ -22,14 +22,14 @@ record `{p0: A, p1: B} -> Ret` (fields in C order, so the call site is `getThing
 {a, b}` or, reordered, `getThing {.p1 = b, .p0 = a}`); a `void`-taking function
 takes unit, `{} -> Ret`.
 
-Naming: Thrax requires value and function names to be lowercase (uppercase names
+Naming: Ares requires value and function names to be lowercase (uppercase names
 are types/constructors). So a C function name is lowercased at its first letter
 (`GetThing` becomes `getThing`) and an enum constant is fully lowercased (`RED`
 becomes `red`); the C symbol in the `@extern` string keeps its original case, and
 type names (structs, unions, aliases, the enum type) stay capitalized.
 
 Type mapping: `int`/`unsigned`/`short`/`long` and `char`/`float`/`double`/`bool`
-map to the matching sized Thrax numerics; `void` is `{}`; a single `char*` is `@Str`
+map to the matching sized Ares numerics; `void` is `{}`; a single `char*` is `@Str`
 in a signature; any other pointer (including `char**`) is `Ptr`; in a struct field
 every pointer is `Ptr`. A struct or union with an **array or bit-field member** is
 skipped with a `# skipped ...` note, and any function passing/returning such a type
@@ -43,7 +43,7 @@ path(s) are the command-line arguments to `@main`; the rest stays configured by
 environment variables.
 
 ```
-LIB=libfoo.so  MOD=Foo  OUT=foo.thx  thrax run MAIN.thx header.h [more.h ...]
+LIB=libfoo.so  MOD=Foo  OUT=foo.ares  ares run MAIN.ares header.h [more.h ...]
 ```
 
 - Positional args: the input header(s). With none given, defaults to `test.h`.
@@ -61,10 +61,10 @@ returns an exit code, and its `<@IO>` row covers the file IO.
 Example against the bundled `test.h`:
 
 ```
-LIB=libfoo.so MOD=FOO OUT=foo.thx thrax run MAIN.thx test.h
+LIB=libfoo.so MOD=FOO OUT=foo.ares ares run MAIN.ares test.h
 ```
 
-The emitted module type-checks on its own (`thrax check foo.thx`).
+The emitted module type-checks on its own (`ares check foo.ares`).
 
 ## Limitations
 

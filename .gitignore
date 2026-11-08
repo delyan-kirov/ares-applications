@@ -9,7 +9,7 @@
 /web/site/apple-touch-icon.png
 
 .*
-thrax-out
+ares-out
 
 # alec: test outputs and compiled modules
 /alec/tests/out

@@ -1,31 +1,31 @@
-//! The browser playground: the Thrax compiler (frontend + interpreter) built to
+//! The browser playground: the Ares compiler (frontend + interpreter) built to
 //! `wasm32-unknown-unknown` as a `cdylib` and driven from hand-written JS over
 //! linear memory (no wasm-bindgen, no external crates).
 //!
-//! [`thx_eval`] takes UTF-8 Thrax source, runs the same pipeline the native
-//! `thrax run` does (parse -> check -> lower -> IR -> interpret) against an
+//! [`arx_eval`] takes UTF-8 Ares source, runs the same pipeline the native
+//! `ares run` does (parse -> check -> lower -> IR -> interpret) against an
 //! in-memory copy of the standard library, and returns the program's output (or
 //! a rendered diagnostic). The `@extern` FFI is stubbed on wasm (no host libc),
 //! so pure programs run fully and a foreign call reports a clear message.
 //!
-//! [`thx_lsp`] is the language server (`thrax lsp`) over the same calls: the
+//! [`arx_lsp`] is the language server (`ares lsp`) over the same calls: the
 //! page passes it one JSON-RPC message at a time and reads back what it sent.
 
 use frontend::core::CoreProgram as LoweredProgram;
 
 /// The playground-only module: routes I/O to JavaScript host imports (no libc
 /// on wasm). Everything else comes from the standard library the compiler
-/// carries ([`thrax::stdlib::MODULES`]), so the two can never drift apart.
-const HOST: &str = include_str!("host.thx");
+/// carries ([`ares::stdlib::MODULES`]), so the two can never drift apart.
+const HOST: &str = include_str!("host.ares");
 
 /// A module's diagnostic path and source. The browser has no filesystem, so
 /// these are `HOST` and the embedded standard library.
 fn fetch(name: &str) -> Result<(String, String), String> {
     if name == "HOST" {
-        return Ok(("HOST.thx".to_string(), HOST.to_string()));
+        return Ok(("HOST.ares".to_string(), HOST.to_string()));
     }
-    match thrax::stdlib::source(name) {
-        Some(src) => Ok((thrax::stdlib::path(name), src.to_string())),
+    match ares::stdlib::source(name) {
+        Some(src) => Ok((ares::stdlib::path(name), src.to_string())),
         None => Err(format!("cannot find module `{name}`")),
     }
 }
@@ -98,38 +98,38 @@ fn dump_ast(user_src: &str) -> Result<String, String> {
 /// Load, check and lower `user_src` and every module it imports, root first,
 /// through the same pipeline as the native compiler.
 fn pipeline(user_src: &str) -> Result<Vec<LoweredProgram>, String> {
-    thrax::driver::compile_program(user_src, &fetch)
+    ares::driver::compile_program(user_src, &fetch)
 }
 
 // -- the wasm C-ABI seam ----------------------------------------------------
 
 /// Reserve `n` bytes in the module's linear memory and return the offset; the JS
-/// host writes the source there before calling [`thx_eval`].
+/// host writes the source there before calling [`arx_eval`].
 #[no_mangle]
-pub extern "C" fn thx_alloc(n: usize) -> *mut u8 {
+pub extern "C" fn arx_alloc(n: usize) -> *mut u8 {
     let mut buf = Vec::<u8>::with_capacity(n.max(1));
     let ptr = buf.as_mut_ptr();
     std::mem::forget(buf);
     ptr
 }
 
-/// Release a buffer [`thx_alloc`] returned, once the call that read it is done.
+/// Release a buffer [`arx_alloc`] returned, once the call that read it is done.
 #[no_mangle]
-pub extern "C" fn thx_free(ptr: *mut u8, n: usize) {
-    // SAFETY: `ptr` came from `thx_alloc(n)`, which leaked exactly this Vec.
+pub extern "C" fn arx_free(ptr: *mut u8, n: usize) {
+    // SAFETY: `ptr` came from `arx_alloc(n)`, which leaked exactly this Vec.
     unsafe { drop(Vec::from_raw_parts(ptr, 0, n.max(1))) }
 }
 
-/// The result of the most recent [`thx_eval`], kept alive for the host to read
-/// via [`thx_out_ptr`]/[`thx_out_len`]. Single-threaded (wasm), so a plain
+/// The result of the most recent [`arx_eval`], kept alive for the host to read
+/// via [`arx_out_ptr`]/[`arx_out_len`]. Single-threaded (wasm), so a plain
 /// static is sound.
 static mut OUTPUT: Vec<u8> = Vec::new();
 
 /// Compile the `len` source bytes at `ptr` in `mode` (0 run, 1 C, 2 IR, 3 AST);
-/// the output is staged for [`thx_out_ptr`]/[`thx_out_len`]. Returns the output
+/// the output is staged for [`arx_out_ptr`]/[`arx_out_len`]. Returns the output
 /// length for convenience.
 #[no_mangle]
-pub extern "C" fn thx_compile(ptr: *const u8, len: usize, mode: i32) -> usize {
+pub extern "C" fn arx_compile(ptr: *const u8, len: usize, mode: i32) -> usize {
     let src = unsafe { std::slice::from_raw_parts(ptr, len) };
     let source = String::from_utf8_lossy(src).into_owned();
     stage(compile(&source, mode).into_bytes())
@@ -137,13 +137,13 @@ pub extern "C" fn thx_compile(ptr: *const u8, len: usize, mode: i32) -> usize {
 
 /// The offset of the staged output in linear memory.
 #[no_mangle]
-pub extern "C" fn thx_out_ptr() -> *const u8 {
+pub extern "C" fn arx_out_ptr() -> *const u8 {
     unsafe { (*std::ptr::addr_of!(OUTPUT)).as_ptr() }
 }
 
 /// The length of the staged output.
 #[no_mangle]
-pub extern "C" fn thx_out_len() -> usize {
+pub extern "C" fn arx_out_len() -> usize {
     unsafe { (*std::ptr::addr_of!(OUTPUT)).len() }
 }
 
@@ -154,15 +154,15 @@ pub extern "C" fn thx_out_len() -> usize {
 /// to it the way a sibling file would.
 const LSP_ROOT: &str = "/playground";
 
-static mut LSP: Option<thrax::lsp::server::Server> = None;
+static mut LSP: Option<ares::lsp::server::Server> = None;
 
-fn lsp() -> &'static mut thrax::lsp::server::Server {
+fn lsp() -> &'static mut ares::lsp::server::Server {
     // SAFETY: wasm is single-threaded and every caller is a top-level export,
     // so no two references are ever live at once.
     let slot = unsafe { &mut *std::ptr::addr_of_mut!(LSP) };
     slot.get_or_insert_with(|| {
-        let mut server = thrax::lsp::server::Server::queued();
-        server.provide(std::path::PathBuf::from(format!("{LSP_ROOT}/HOST.thx")), HOST.to_string());
+        let mut server = ares::lsp::server::Server::queued();
+        server.provide(std::path::PathBuf::from(format!("{LSP_ROOT}/HOST.ares")), HOST.to_string());
         server
     })
 }
@@ -189,23 +189,23 @@ fn input(ptr: *const u8, len: usize) -> String {
 /// Hand the server one JSON-RPC message (no `Content-Length` framing) and stage
 /// every message it sent in response, a reply included, as a JSON array.
 #[no_mangle]
-pub extern "C" fn thx_lsp(ptr: *const u8, len: usize) -> usize {
+pub extern "C" fn arx_lsp(ptr: *const u8, len: usize) -> usize {
     let msg = utilities::Json::parse(&input(ptr, len)).unwrap_or(utilities::Json::Null);
     let _ = lsp().handle(msg);
     stage_outbox()
 }
 
 /// Run the server's deferred work (debounced checks, held-back errors, error
-/// ranking) and stage what it sent, as [`thx_lsp`] does.
+/// ranking) and stage what it sent, as [`arx_lsp`] does.
 #[no_mangle]
-pub extern "C" fn thx_lsp_tick() -> usize {
+pub extern "C" fn arx_lsp_tick() -> usize {
     lsp().tick();
     stage_outbox()
 }
 
-/// Milliseconds until [`thx_lsp_tick`] has work, or -1 when it has none.
+/// Milliseconds until [`arx_lsp_tick`] has work, or -1 when it has none.
 #[no_mangle]
-pub extern "C" fn thx_lsp_wake() -> f64 {
+pub extern "C" fn arx_lsp_wake() -> f64 {
     match lsp().wake_in() {
         Some(d) => d.as_secs_f64() * 1000.0,
         None => -1.0,
@@ -215,8 +215,8 @@ pub extern "C" fn thx_lsp_wake() -> f64 {
 /// Semantic tokens (the LSP's encoding) for a buffer that is not open, so the
 /// page can color every cell without checking each one.
 #[no_mangle]
-pub extern "C" fn thx_highlight(ptr: *const u8, len: usize) -> usize {
-    stage(thrax::lsp::server::highlight(&input(ptr, len)).to_string().into_bytes())
+pub extern "C" fn arx_highlight(ptr: *const u8, len: usize) -> usize {
+    stage(ares::lsp::server::highlight(&input(ptr, len)).to_string().into_bytes())
 }
 
 #[cfg(test)]
@@ -229,7 +229,7 @@ mod tests {
     // the JS host.
     #[test]
     fn every_bundled_module_is_importable() {
-        let names = thrax::stdlib::MODULES.iter().map(|(n, _)| *n).chain(["HOST"]);
+        let names = ares::stdlib::MODULES.iter().map(|(n, _)| *n).chain(["HOST"]);
         for name in names {
             let src = format!(
                 "$ @mod MAIN\n$ with {name}\n\
@@ -240,7 +240,7 @@ mod tests {
         }
     }
 
-    fn send(server: &mut thrax::lsp::server::Server, msg: &str) -> Vec<Json> {
+    fn send(server: &mut ares::lsp::server::Server, msg: &str) -> Vec<Json> {
         server.handle(Json::parse(msg).expect("valid JSON"));
         server.take_outbox()
     }
@@ -251,7 +251,7 @@ mod tests {
     #[test]
     fn language_server_checks_a_cell() {
         let server = super::lsp();
-        let uri = "file:///playground/cell.thx";
+        let uri = "file:///playground/cell.ares";
         let src = "$ @mod MAIN\n$ with HOST\n$ n : @Int = 1\n$ @main : @Vec @Str -> <@IO> @Int = \\args => HOST.print \"x\"; n + \"y\"\n";
         send(server, r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#);
         let open = Json::obj([
@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn highlights_without_opening() {
-        let tokens = thrax::lsp::server::highlight("$ x : @Int = 1 # one\n");
+        let tokens = ares::lsp::server::highlight("$ x : @Int = 1 # one\n");
         assert!(!tokens.get("data").as_arr().is_empty());
     }
 

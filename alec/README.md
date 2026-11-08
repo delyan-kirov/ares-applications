@@ -1,14 +1,14 @@
 # alec
 
-A C compiler **written in Thrax**, run on the Thrax interpreter, that compiles
+A C compiler **written in Ares**, run on the Ares interpreter, that compiles
 C11 (with the common GNU extensions) to **WebAssembly**, either memory model:
 **wasm32** (ILP32) or **wasm64** (LP64, memory64). It writes the binary module
 itself, with no assembler or linker underneath, and compiles its own C library
 alongside every program.
 
 ```
-thrax run MAIN.thx -- hello.c                # a.wasm, wasm32
-thrax run MAIN.thx -- -m64 -o hello.wasm hello.c
+ares run MAIN.ares -- hello.c                # a.wasm, wasm32
+ares run MAIN.ares -- -m64 -o hello.wasm hello.c
 node run.mjs hello.wasm arg1 arg2            # run it
 ```
 
@@ -35,8 +35,8 @@ Several `.c` files compile into one module, each its own translation unit.
 
 ## The shell
 
-`alec --shell` (`thrax-out/MAIN --shell` when built natively) is an
-interactive C shell in the manner of `thrax repl`. Each entry is C:
+`alec --shell` (`ares-out/MAIN --shell` when built natively) is an
+interactive C shell in the manner of `ares repl`. Each entry is C:
 
 ```
 c> int sq(int x) { return x * x; }
@@ -62,7 +62,7 @@ about half a second natively.
 
 ## The design: effects all the way down
 
-Every stage is written against algebraic effects, and `source/DRIVER.thx` is the one
+Every stage is written against algebraic effects, and `source/DRIVER.ares` is the one
 place that decides what those effects mean. Nothing threads state by hand.
 
 **Lexing** (`LEX`) is a pure function from source text to a lazy `List Token`.
@@ -168,10 +168,10 @@ nothing undefined is left.
 ## Testing
 
 ```
-thrax run TEST.thx                          # tests/run/*.c, both targets
-thrax run TEST.thx -- NAME...               # some of them
-thrax run TEST.thx -- --regen               # re-record expectations with gcc
-thrax run TEST.thx -- --suite DIR           # an external suite (c-testsuite layout)
+ares run TEST.ares                          # tests/run/*.c, both targets
+ares run TEST.ares -- NAME...               # some of them
+ares run TEST.ares -- --regen               # re-record expectations with gcc
+ares run TEST.ares -- --suite DIR           # an external suite (c-testsuite layout)
 ```
 
 Each `tests/run/NAME.c` is checked differentially: its expected stdout and
@@ -213,14 +213,14 @@ arrays.
 
 ## Performance
 
-alec is slow by compiler standards. Built natively (`thrax build MAIN.thx`,
-then `thrax-out/MAIN`), lexing and preprocessing cost about 40 µs a token and
+alec is slow by compiler standards. Built natively (`ares build MAIN.ares`,
+then `ares-out/MAIN`), lexing and preprocessing cost about 40 µs a token and
 parsing about 120; on the interpreter, several times that.
 
 The C library is therefore parsed once, not per compile. Each target's parsed
 library units are kept in `libc/wasm32.cache` and `libc/wasm64.cache`
-(`source/CACHE.thx`), stamped with a checksum of the library sources, alec's headers
-and alec's own `.thx` files. A compile whose stamp does not match parses the
+(`source/CACHE.ares`), stamped with a checksum of the library sources, alec's headers
+and alec's own `.ares` files. A compile whose stamp does not match parses the
 library afresh and rewrites the cache; `--index-libc` rebuilds both. Reading
 a unit back skips its function bodies, which are decoded only for the
 functions the program reaches, so a native hello world takes about 1.5 s.
@@ -231,34 +231,34 @@ the command line's `-I`, `-D` or `-U`.
 
 | | |
 | --- | --- |
-| `BUILD.thx` | puts `source/` on the module search for every entry point |
-| `MAIN.thx` | the command-line entry |
-| `source/DRIVER.thx` | options and the handlers: files, macros, diagnostics, library loading |
-| `source/LEX.thx` | the preprocessing-token lexer |
-| `source/LIT.thx` | integer, float, character and string literal decoding |
-| `source/PP.thx` | the preprocessor |
-| `source/PARSE.thx` | the parser and type checker, with its handlers and the pipe |
-| `source/TYPE.thx`, `source/AST.thx` | C types and layout; the typed tree |
-| `source/GEN.thx` | code generation, including the flattening fallback |
-| `source/LINK.thx` | linking, layout, imports |
-| `source/CACHE.thx` | the parsed C library, saved and read back |
-| `source/SHELL.thx` | `--shell` |
-| `source/WAT.thx` | a module as text, for `--dump-wasm` and `:wasm` |
-| `source/WASM.thx` | the binary format |
-| `source/CFG.thx` | targets and predefined macros |
-| `source/DIAG.thx` | the diagnostics effect |
-| `source/DUMP.thx` | `--dump-ast`, `--dump-tokens` |
-| `TEST.thx` | the differential test runner |
-| `BENCH.thx` | phase timings |
+| `BUILD.ares` | puts `source/` on the module search for every entry point |
+| `MAIN.ares` | the command-line entry |
+| `source/DRIVER.ares` | options and the handlers: files, macros, diagnostics, library loading |
+| `source/LEX.ares` | the preprocessing-token lexer |
+| `source/LIT.ares` | integer, float, character and string literal decoding |
+| `source/PP.ares` | the preprocessor |
+| `source/PARSE.ares` | the parser and type checker, with its handlers and the pipe |
+| `source/TYPE.ares`, `source/AST.ares` | C types and layout; the typed tree |
+| `source/GEN.ares` | code generation, including the flattening fallback |
+| `source/LINK.ares` | linking, layout, imports |
+| `source/CACHE.ares` | the parsed C library, saved and read back |
+| `source/SHELL.ares` | `--shell` |
+| `source/WAT.ares` | a module as text, for `--dump-wasm` and `:wasm` |
+| `source/WASM.ares` | the binary format |
+| `source/CFG.ares` | targets and predefined macros |
+| `source/DIAG.ares` | the diagnostics effect |
+| `source/DUMP.ares` | `--dump-ast`, `--dump-tokens` |
+| `TEST.ares` | the differential test runner |
+| `BENCH.ares` | phase timings |
 | `run.mjs` | the node host |
 | `include/`, `libc/` | the C library |
 | `tests/run/` | the test programs and their recorded expectations |
 
-## Thrax issues found while writing it
+## Ares issues found while writing it
 
 #304 (an effect inside a lazy constructor slot escapes its handler), #305
 (a curried two-argument state handler clause is rejected), #306 (documented
-import forms fail), #307 (`thrax run` eats the program's `--target=`), #308
+import forms fail), #307 (`ares run` eats the program's `--target=`), #308
 (`@cast` target not propagated), #309 (bitwise intrinsics), #310 (record
 update on an unforced lazy value), #311 (types through a non-imported module),
 #312 (the dead `ext` keyword). The standard library gained `BITS` and `LIST`,

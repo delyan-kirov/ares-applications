@@ -1,15 +1,15 @@
 # zalmoxis
 
-A line counter **written in Thrax**, in the manner of
+A line counter **written in Ares**, in the manner of
 [tokei](https://github.com/XAMPPRocky/tokei): for every language in a tree, how
 many files, lines, lines of code, comment lines and blank lines it holds. The
 name is the Thracian god's, as tokei's is a Japanese word.
 
 ```
-thrax check TEST.thx            # the test suite: the checks run at compile time
-thrax build MAIN.thx            # a native binary, thrax-out/MAIN
-thrax-out/MAIN [-f] [-e GLOB]... [PATH]...
-thrax run MAIN.thx -- PATH      # the same on the interpreter (much slower)
+ares check TEST.ares            # the test suite: the checks run at compile time
+ares build MAIN.ares            # a native binary, ares-out/MAIN
+ares-out/MAIN [-f] [-e GLOB]... [PATH]...
+ares run MAIN.ares -- PATH      # the same on the interpreter (much slower)
 ```
 
 With no `PATH` it counts the current directory. `-e`/`--exclude` adds a
@@ -30,7 +30,7 @@ Each line is one of three things, by the rules tokei uses:
 
 A backslash escapes the next byte, in a string and out of one (so the quote in
 `'\"'` opens no string). Block comments nest where the language's do (Rust,
-Haskell, Swift, Thrax, ...). Markdown, plain text and reStructuredText are
+Haskell, Swift, Ares, ...). Markdown, plain text and reStructuredText are
 prose: every non-blank line is a comment. An empty Rust doc comment (`///`) is
 blank.
 
@@ -42,7 +42,7 @@ compared in lowercase, then, when it has no extension, by its `#!` line.
 
 ## Where it differs from tokei
 
-Per file, it agrees with tokei across the Thrax repository, a raylib checkout
+Per file, it agrees with tokei across the Ares repository, a raylib checkout
 and nixpkgs, except here:
 
 - Tokei counts code embedded in another language as a child of it (CSS in a
@@ -52,7 +52,7 @@ and nixpkgs, except here:
   `wc -l`); zalmoxis's line counts are exact.
 - `.y` is Yacc (tokei: Happy), and `.inc` is not counted (tokei: Bitbake).
 - `#! /bin/sh`, with a space, is recognized.
-- Thrax (`.thx`) is a language here.
+- Ares (`.ares`) is a language here.
 
 ## Speed
 
@@ -61,7 +61,7 @@ Wall time against tokei 15.0 (best of 15, 12 threads, warm cache):
 | tree | files | tokei | zalmoxis |
 | --- | ---: | ---: | ---: |
 | raylib | 894 | 34 ms | 43 ms |
-| Thrax repository | 940 | 12 ms | 16 ms |
+| Ares repository | 940 | 12 ms | 16 ms |
 | nixpkgs | 48,500 | 355 ms | 830 ms |
 | one 4 MB C file | 1 | 22 ms | 20 ms |
 | one 16 MB Nix file | 1 | 80 ms | 115 ms |
@@ -86,8 +86,8 @@ How it gets there:
 
 | | |
 | --- | --- |
-| `MAIN.thx` | arguments, the counting fold, the report |
-| `COUNT.thx` | the line scanner |
-| `LANGS.thx` | the language table and file detection |
-| `WALK.thx` | the parallel walk and gitignore rules |
-| `TEST.thx` | the checks |
+| `MAIN.ares` | arguments, the counting fold, the report |
+| `COUNT.ares` | the line scanner |
+| `LANGS.ares` | the language table and file detection |
+| `WALK.ares` | the parallel walk and gitignore rules |
+| `TEST.ares` | the checks |

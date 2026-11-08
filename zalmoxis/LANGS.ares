@@ -1,0 +1,310 @@
+$ @mod LANGS
+
+#-
+ - \file LANGS.ares
+ - \info The languages zalmoxis knows: each one's file extensions and exact
+ -       file names, and its comment and string syntax. A file is matched by
+ -       exact name first (`Makefile`), then by extension, compared lowercase.
+ -#
+
+$ with STR
+$ with VEC
+$ with OPT
+
+$ Lang : @struct =
+    name: @Str,
+    exts: @Vec @Str,
+    files: @Vec @Str,
+    line: @Vec @Str,
+    docs: @Vec @Str,
+    blocks: @Vec { @Str, @Str },
+    nested: @Bool,
+    quotes: @Vec { @Str, @Str },
+    prose: @Bool,
+
+$ Table : @struct =
+    langs: @Vec Lang,
+    by_ext: @Vec { @Str, @Int },
+    by_file: @Vec { @Str, @Int },
+
+# ---- building blocks ----
+
+$ code : {
+    name: @Str,
+    exts: @Vec @Str,
+    line: @Vec @Str,
+    blocks: @Vec { @Str, @Str },
+    quotes: @Vec { @Str, @Str }
+} -> Lang =
+    Lang.{
+        name,
+        exts,
+        .files = [],
+        line,
+        .docs = [],
+        blocks,
+        .nested = @false,
+        quotes,
+        .prose = @false
+    }
+
+# Every non-blank line is a comment (prose has no code).
+$ text : { name: @Str, exts: @Vec @Str } -> Lang = Lang.{
+    name,
+    exts,
+    .files = [],
+    .line = [],
+    .docs = [],
+    .blocks = [],
+    .nested = @false,
+    .quotes = [],
+    .prose = @true
+}
+
+$ nesting : Lang -> Lang = \l => .{ .nested = @true | l }
+
+$ named : @Vec @Str -> Lang -> Lang = \files l => .{ .files = files | l }
+
+# Line comments that are documentation: one with nothing after it is blank.
+$ documented : @Vec @Str -> Lang -> Lang = \docs l => .{ .docs = docs | l }
+
+$ c_block : @Vec { @Str, @Str } = [{ "/*", "*/" }]
+
+$ xml_block : @Vec { @Str, @Str } = [{ "<!--", "-->" }]
+
+$ dq : @Vec { @Str, @Str } = [{ "\"", "\"" }]
+
+$ dq_sq : @Vec { @Str, @Str } = [{ "\"", "\"" }, { "'", "'" }]
+
+$ js_quotes : @Vec { @Str, @Str } = [{ "\"", "\"" }, { "'", "'" }, { "`", "`" }]
+
+# Longest first: `"""` must win over `"`.
+$ py_quotes : @Vec { @Str, @Str } =
+    [{ "\"\"\"", "\"\"\"" }, { "'''", "'''" }, { "\"", "\"" }, { "'", "'" }]
+
+$ c_like : { name: @Str, exts: @Vec @Str } -> Lang = code { name, exts, ["//"], c_block, dq }
+
+$ hash : { name: @Str, exts: @Vec @Str } -> Lang = code { name, exts, ["#"], [], dq_sq }
+
+# ---- the table ----
+
+$ all : @Vec Lang = [
+    code { "Assembly", ["asm"], [";"], [], dq },
+    code { "Autoconf", ["in"], ["#", "dnl"], [], [] },
+    code { "Automake", ["am"], ["#"], [], dq_sq },
+    code { "GNU Style Assembly", ["s"], ["//"], c_block, dq },
+    hash { "BASH", ["bash"] },
+    code { "Batch", ["bat", "cmd"], ["REM", "rem", "::"], [], [] },
+    c_like { "C", ["c"] },
+    c_like { "C Header", ["h"] },
+    c_like { "C++", ["cc", "cpp", "cxx", "c++", "cp"] },
+    c_like { "C++ Header", ["hh", "hpp", "hxx", "inl", "ipp"] },
+    c_like { "C#", ["cs"] },
+    code { "Cabal", ["cabal"], ["--"], [{ "{-", "-}" }], dq } |> nesting,
+    code { "Clojure", ["clj", "cljs", "cljc", "edn"], [";"], [], dq },
+    named ["CMakeLists.txt"] <| hash { "CMake", ["cmake"] },
+    code { "CSS", ["css"], [], c_block, dq_sq },
+    code { "Dart", ["dart"], ["//"], c_block, dq_sq } |> nesting,
+    named ["Dockerfile"] <| hash { "Dockerfile", ["dockerfile"] },
+    code { "Elixir", ["ex", "exs"], ["#"], [], [{ "\"\"\"", "\"\"\"" }, { "\"", "\"" }] },
+    code { "Elm", ["elm"], ["--"], [{ "{-", "-}" }], dq } |> nesting,
+    code { "Emacs Lisp", ["el"], [";"], [], dq },
+    code { "Erlang", ["erl", "hrl"], ["%"], [], dq },
+    hash { "Fish", ["fish"] },
+    code { "F#", ["fs", "fsi", "fsx"], ["//"], [{ "(*", "*)" }], dq },
+    code { "FORTRAN Modern", ["f90", "f95", "f03", "f08"], ["!"], [], dq_sq },
+    c_like { "GLSL", ["glsl", "vert", "frag", "geom", "comp", "tesc", "tese"] },
+    code { "Go", ["go"], ["//"], c_block, [{ "\"", "\"" }, { "`", "`" }] },
+    code { "GraphQL", ["graphql", "gql"], ["#"], [], [{ "\"\"\"", "\"\"\"" }, { "\"", "\"" }] },
+    code { "Groovy", ["groovy", "gradle"], ["//"], c_block, dq_sq },
+    code { "Haskell", ["hs"], ["--"], [{ "{-", "-}" }], dq } |> nesting,
+    code { "HCL", ["tf", "hcl"], ["#", "//"], c_block, dq },
+    code { "HTML", ["html", "htm"], [], xml_block, dq },
+    code { "INI", ["ini"], [";", "#"], [], [] },
+    c_like { "Java", ["java"] },
+    code { "JavaScript", ["js", "mjs", "cjs"], ["//"], c_block, js_quotes },
+    code { "JSON", ["json"], [], [], dq },
+    code { "JSX", ["jsx"], ["//"], c_block, js_quotes },
+    code { "Julia", ["jl"], ["#"], [{ "#=", "=#" }], [{ "\"\"\"", "\"\"\"" }, { "\"", "\"" }] }
+        |> nesting,
+    code { "Kotlin", ["kt", "kts"], ["//"], c_block, [{ "\"\"\"", "\"\"\"" }, { "\"", "\"" }] }
+        |> nesting,
+    code { "M4", ["m4"], ["#", "dnl"], [], [{ "`", "'" }] },
+    code { "Lisp", ["lisp", "lsp", "cl"], [";"], [{ "#|", "|#" }], dq } |> nesting,
+    code { "Lua", ["lua"], ["--"], [{ "--[[", "]]" }], dq_sq },
+    named ["Makefile", "makefile", "GNUmakefile"] <| code {
+        "Makefile",
+        ["mk", "mak"],
+        ["#"],
+        [],
+        []
+    },
+    text { "Markdown", ["md", "markdown"] },
+    named ["meson.build", "meson_options.txt"] <| code { "Meson", [], ["#"], [], [{ "'", "'" }] },
+    code { "Nim", ["nim"], ["#"], [{ "#[", "]#" }], [{ "\"\"\"", "\"\"\"" }, { "\"", "\"" }] }
+        |> nesting,
+    code { "Nix", ["nix"], ["#"], c_block, dq },
+    c_like { "Objective-C", ["m"] },
+    c_like { "Objective-C++", ["mm"] },
+    code { "OCaml", ["ml", "mli"], [], [{ "(*", "*)" }], dq } |> nesting,
+    code { "Pascal", ["pas"], ["//"], [{ "{", "}" }, { "(*", "*)" }], [{ "'", "'" }] },
+    hash { "Perl", ["pl", "pm"] },
+    code { "PHP", ["php"], ["#", "//"], c_block, dq_sq },
+    text { "Plain Text", ["txt"] },
+    code { "PowerShell", ["ps1", "psm1", "psd1"], ["#"], [{ "<#", "#>" }], dq_sq },
+    c_like { "Protocol Buffers", ["proto"] },
+    code { "Python", ["py", "pyw", "pyi"], ["#"], [], py_quotes },
+    hash { "R", ["r"] },
+    code { "Racket", ["rkt"], [";"], [{ "#|", "|#" }], dq } |> nesting,
+    text { "ReStructuredText", ["rst"] },
+    named ["Rakefile", "Gemfile"] <| code {
+        "Ruby",
+        ["rb", "rake", "gemspec"],
+        ["#"],
+        [{ "=begin", "=end" }],
+        dq_sq
+    },
+    code { "Rust", ["rs"], ["//"], c_block, dq } |> nesting |> documented ["///", "//!"],
+    code { "Sass", ["sass", "scss"], ["//"], c_block, dq_sq },
+    code { "Scala", ["scala", "sc"], ["//"], c_block, [{ "\"\"\"", "\"\"\"" }, { "\"", "\"" }] }
+        |> nesting,
+    code { "Scheme", ["scm", "ss"], [";"], [{ "#|", "|#" }], dq } |> nesting,
+    hash { "Shell", ["sh"] },
+    c_like { "Solidity", ["sol"] },
+    code { "SQL", ["sql"], ["--"], c_block, [{ "'", "'" }] },
+    code { "SVG", ["svg"], [], xml_block, dq },
+    code { "Svelte", ["svelte"], ["//"], [{ "<!--", "-->" }, { "/*", "*/" }], js_quotes },
+    code { "Swift", ["swift"], ["//"], c_block, [{ "\"\"\"", "\"\"\"" }, { "\"", "\"" }] }
+        |> nesting,
+    hash { "Tcl", ["tcl"] },
+    code { "TeX", ["tex", "sty", "cls"], ["%"], [], [] },
+    code { "Ares", ["ares"], ["#"], [{ "#-", "-#" }], dq } |> nesting,
+    code {
+        "TOML",
+        ["toml"],
+        ["#"],
+        [],
+        [{ "\"\"\"", "\"\"\"" }, { "'''", "'''" }, { "\"", "\"" }, { "'", "'" }]
+    },
+    code { "TSX", ["tsx"], ["//"], c_block, js_quotes },
+    code { "TypeScript", ["ts", "mts", "cts"], ["//"], c_block, js_quotes },
+    code { "Vim Script", ["vim"], ["\""], [], [{ "'", "'" }] },
+    code { "Visual Basic", ["vb"], ["'"], [], dq },
+    code { "Visual Studio Project", ["vcxproj", "csproj", "vbproj"], [], xml_block, [] },
+    code { "Visual Studio Solution", ["sln"], [], [], [] },
+    code { "Vue", ["vue"], ["//"], [{ "<!--", "-->" }, { "/*", "*/" }], js_quotes },
+    code { "XML", ["xml", "xsd", "xsl", "xslt", "plist"], [], xml_block, dq },
+    code { "Yacc", ["y", "yy"], ["//"], c_block, dq },
+    code { "YAML", ["yaml", "yml"], ["#"], [], dq_sq },
+    code { "Zig", ["zig"], ["//"], [], dq },
+    hash { "Zsh", ["zsh"] },
+]
+
+# The lookups are sorted `{ key, language }` vectors searched by bisection: a
+# lookup calls nothing unknown, so detection compiles to plain C.
+$ table : Table =
+    let keyed =
+        \keys =>
+            foldl_index (\acc i l => foldl (\acc k => @vec_push acc { k, i }) acc (keys l)) [] all
+    in
+    let sorted = \pairs => sort_by (\x y => cmp_str x.0 y.0) pairs in
+    Table.{
+        .langs = all,
+        .by_ext = sorted <| keyed (\l => l.exts),
+        .by_file = sorted <| keyed (\l => l.files)
+    }
+
+# The language of a file named `name` (no directories), as an index into
+# `t.langs`, or -1.
+$ detect : Table -> @Str -> @Int = \t name =>
+    let exact = lookup t.by_file name 0 (@vec_len t.by_file) in
+    if exact >= 0 =>
+        exact
+    else
+        let dot = last_dot name (@array_len name - 1) in
+        if dot <= 0 =>
+            0 - 1
+        else
+            lookup t.by_ext (lower <| substr name (dot + 1) (@array_len name)) 0 (@vec_len t.by_ext)
+
+# The language `key` maps to in `pairs[lo, hi)` (sorted by key), or -1.
+$ lookup : @Vec { @Str, @Int } -> @Str -> @Int -> @Int -> @Int = \pairs key lo hi =>
+    if lo >= hi =>
+        0 - 1
+    else
+        let mid = (lo + hi) / 2 in
+        let p = @vec_get pairs mid in
+        let c = cmp_str key p.0 in
+        if c == 0 => p.1 else if c < 0 => lookup pairs key lo mid else lookup pairs key (mid + 1) hi
+
+# The language a `#!` line names, by the interpreter's base name (or the
+# command `env` runs), or -1.
+$ detect_shebang : Table -> @Str -> @Int = \t body =>
+    if !(starts_with body "#!") =>
+        0 - 1
+    else
+        let line = substr body 2 (first_line_end body 0) in
+        let words = non_empty (split line " ") 0 [] in
+        let prog = if @vec_len words == 0 => "" else base_name (@vec_get words 0) in
+        let cmd = if prog == "env" && @vec_len words > 1 => @vec_get words 1 else prog in
+        interpreter t cmd
+
+$ @private
+
+$ non_empty : @Vec @Str -> @Int -> @Vec @Str -> @Vec @Str = \ws i acc =>
+    if i >= @vec_len ws =>
+        acc
+    else if STR.is_empty (@vec_get ws i) =>
+        non_empty ws (i + 1) acc
+    else
+        non_empty ws (i + 1) (@vec_push acc (@vec_get ws i))
+
+$ interpreter : Table -> @Str -> @Int = \t cmd =>
+    cmd |> \
+        | "sh" | "dash" | "ash"            => index_of_lang t "Shell"
+        | "bash"                           => index_of_lang t "BASH"
+        | "zsh"                            => index_of_lang t "Zsh"
+        | "fish"                           => index_of_lang t "Fish"
+        | "python" | "python2" | "python3" => index_of_lang t "Python"
+        | "perl"                           => index_of_lang t "Perl"
+        | "ruby"                           => index_of_lang t "Ruby"
+        | "node" | "nodejs"                => index_of_lang t "JavaScript"
+        | "lua"                            => index_of_lang t "Lua"
+        | "tclsh"                          => index_of_lang t "Tcl"
+        | "Rscript"                        => index_of_lang t "R"
+        | _                                => 0 - 1
+
+$ index_of_lang : Table -> @Str -> @Int = \t name => index_from t.langs name 0
+
+$ index_from : @Vec Lang -> @Str -> @Int -> @Int = \langs name i =>
+    if i >= @vec_len langs =>
+        0 - 1
+    else if (@vec_get langs i).name == name =>
+        i
+    else
+        index_from langs name (i + 1)
+
+$ first_line_end : @Str -> @Int -> @Int = \s i =>
+    if i >= @array_len s || at s i == 10 => i else first_line_end s (i + 1)
+
+$ base_name : @Str -> @Str = \p => base_from p (@array_len p - 1)
+
+$ base_from : @Str -> @Int -> @Str = \p i =>
+    if i < 0 => p else if at p i == 47 => substr p (i + 1) (@array_len p) else base_from p (i - 1)
+
+$ foldl_index : (a -> @Int -> t -> a) -> a -> @Vec t -> a = \f acc v => foldl_index_from f acc v 0
+
+$ foldl_index_from : (a -> @Int -> t -> a) -> a -> @Vec t -> @Int -> a = \f acc v i =>
+    if i >= @vec_len v => acc else foldl_index_from f (f acc i (@vec_get v i)) v (i + 1)
+
+$ last_dot : @Str -> @Int -> @Int = \s i =>
+    if i < 0 => 0 - 1 else if at s i == 46 => i else last_dot s (i - 1)
+
+$ lower : @Str -> @Str = \s => lower_from s 0 ""
+
+$ lower_from : @Str -> @Int -> @Str -> @Str = \s i acc =>
+    if i >= @array_len s =>
+        acc
+    else
+        let c = at s i in
+        lower_from s (i + 1) (@array_push acc (if c >= 65 && c <= 90 => c + 32 else c))

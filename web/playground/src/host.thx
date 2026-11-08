@@ -1,5 +1,0 @@
-$ @mod HOST
-
-
-#- \frief Write string on webpage panel -#
-$ print : @Str -> {} = @extern "WASM" "print" ""

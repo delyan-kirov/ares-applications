@@ -6,7 +6,7 @@
 linker = "wasm-ld"
 # panic = abort so a panicking program traps cleanly instead of pulling in
 # unwinding imports the bare wasm host would have to supply.
-# --import-undefined turns the interpreter's undefined `thx_host_*` symbols (the
+# --import-undefined turns the interpreter's undefined `arx_host_*` symbols (the
 # JS host-call interface, an `extern "C"` block with no import attribute) into
 # wasm function imports the embedder supplies at instantiation, instead of a
 # link error. Without it the documented plain build command fails to link.

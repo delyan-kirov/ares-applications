@@ -12,5 +12,5 @@ license = "MIT"
 # Applications depend on the compiler, never the reverse: the compiler workspace
 # (crates/) does not know this directory exists. The playground reaches the
 # compiler crates by relative path (../../crates/...), which resolves when this
-# directory sits inside a Thrax checkout (as a submodule). Building it therefore
+# directory sits inside a Ares checkout (as a submodule). Building it therefore
 # requires the surrounding compiler tree; that is the intended, one-way coupling.

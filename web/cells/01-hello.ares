@@ -1,0 +1,11 @@
+# Hello, Ares
+#
+# A program is a list of declarations starting with `$`
+# Your program will start from the special function `@main`
+
+$ @mod MAIN
+
+$ with HOST
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
+    print "hello, Ares"; print "every definition has a type, and @main returns the exit code"; 0

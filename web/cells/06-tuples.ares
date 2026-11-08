@@ -1,0 +1,16 @@
+# Tuples
+#
+# `{A, B}` is a tuple, which is just a record with
+# fields `0`, `1`, etc.
+
+$ @mod MAIN
+
+$ with STR
+$ with HOST
+
+$ swap : { a, b } -> { b, a } = \t => { t.1, t.0 }
+
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
+    let p = { 42, "answer" } in
+    let q = swap p in
+    print "p.0        = ?(p.0)"; print "swapped .0 = ?(q.0)"; 0

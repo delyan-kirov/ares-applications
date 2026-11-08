@@ -1,4 +1,4 @@
 # Shell-linked stdlib and generated output.
 /library
-/generated.thx
-*.gen.thx
+/generated.ares
+*.gen.ares

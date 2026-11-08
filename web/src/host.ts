@@ -8,19 +8,19 @@
 export type HostValue = bigint | number | string | undefined;
 export type HostFn = (...args: HostValue[]) => HostValue | void;
 
-/// The wasm module's exports: a raw C ABI over linear memory. Every `thx_*`
-/// call that produces text stages it for `thx_out_ptr`/`thx_out_len`.
+/// The wasm module's exports: a raw C ABI over linear memory. Every `arx_*`
+/// call that produces text stages it for `arx_out_ptr`/`arx_out_len`.
 interface Exports {
   memory: WebAssembly.Memory;
-  thx_alloc(n: number): number;
-  thx_free(ptr: number, n: number): void;
-  thx_compile(ptr: number, len: number, mode: number): number;
-  thx_lsp(ptr: number, len: number): number;
-  thx_lsp_tick(): number;
-  thx_lsp_wake(): number;
-  thx_highlight(ptr: number, len: number): number;
-  thx_out_ptr(): number;
-  thx_out_len(): number;
+  arx_alloc(n: number): number;
+  arx_free(ptr: number, n: number): void;
+  arx_compile(ptr: number, len: number, mode: number): number;
+  arx_lsp(ptr: number, len: number): number;
+  arx_lsp_tick(): number;
+  arx_lsp_wake(): number;
+  arx_highlight(ptr: number, len: number): number;
+  arx_out_ptr(): number;
+  arx_out_len(): number;
 }
 
 /// What `compile` produces: 0 runs the program, the others show a stage.
@@ -104,7 +104,7 @@ export function createHost(): Host {
   let retBytes: Uint8Array | null = null;
 
   const env = {
-    thx_host_call(symPtr: number, symLen: number, argsPtr: number, argsLen: number): number {
+    arx_host_call(symPtr: number, symLen: number, argsPtr: number, argsLen: number): number {
       const name = dec.decode(mem().subarray(symPtr, symPtr + symLen));
       const fn = registry[name];
       if (typeof fn !== "function") return -1;
@@ -118,11 +118,11 @@ export function createHost(): Host {
       if (typeof r === "string") { retBytes = enc.encode(r); return 3; }
       return 0;
     },
-    thx_host_ret_int: () => retInt,
-    thx_host_ret_real: () => retReal,
-    thx_host_ret_len: () => (retBytes ? retBytes.length : 0),
-    thx_host_ret_copy(dst: number): void { if (retBytes) mem().set(retBytes, dst); },
-    thx_host_now_ms: () => performance.now(),
+    arx_host_ret_int: () => retInt,
+    arx_host_ret_real: () => retReal,
+    arx_host_ret_len: () => (retBytes ? retBytes.length : 0),
+    arx_host_ret_copy(dst: number): void { if (retBytes) mem().set(retBytes, dst); },
+    arx_host_now_ms: () => performance.now(),
   };
 
   // Any import other than `env`'s is answered with a no-op, so an unrelated
@@ -135,18 +135,18 @@ export function createHost(): Host {
 
   function staged(): string {
     const w = exp();
-    return dec.decode(mem().subarray(w.thx_out_ptr(), w.thx_out_ptr() + w.thx_out_len()));
+    return dec.decode(mem().subarray(w.arx_out_ptr(), w.arx_out_ptr() + w.arx_out_len()));
   }
 
   /// Copy `text` into wasm memory for the length of `call`.
   function withInput(text: string, call: (ptr: number, len: number) => void): string {
     const bytes = enc.encode(text);
-    const ptr = exp().thx_alloc(bytes.length);
+    const ptr = exp().arx_alloc(bytes.length);
     mem().set(bytes, ptr);
     try {
       call(ptr, bytes.length);
     } finally {
-      exp().thx_free(ptr, bytes.length);
+      exp().arx_free(ptr, bytes.length);
     }
     return staged();
   }
@@ -157,7 +157,7 @@ export function createHost(): Host {
     playbackDelay = 180;
     if (colorTimer) { clearInterval(colorTimer); colorTimer = null; }
     if (hasDom) document.documentElement.style.removeProperty("--card");
-    const out = withInput(src, (p, n) => exp().thx_compile(p, n, mode));
+    const out = withInput(src, (p, n) => exp().arx_compile(p, n, mode));
     playColors();
     return printed + out;
   }
@@ -167,9 +167,9 @@ export function createHost(): Host {
     bind: (exports) => { wasm = exports as unknown as Exports; },
     register: (name, fn) => { registry[name] = fn; },
     compile,
-    lsp: (message) => withInput(message, (p, n) => exp().thx_lsp(p, n)),
-    lspTick: () => { exp().thx_lsp_tick(); return staged(); },
-    lspWake: () => exp().thx_lsp_wake(),
-    highlight: (src) => withInput(src, (p, n) => exp().thx_highlight(p, n)),
+    lsp: (message) => withInput(message, (p, n) => exp().arx_lsp(p, n)),
+    lspTick: () => { exp().arx_lsp_tick(); return staged(); },
+    lspWake: () => exp().arx_lsp_wake(),
+    highlight: (src) => withInput(src, (p, n) => exp().arx_highlight(p, n)),
   };
 }

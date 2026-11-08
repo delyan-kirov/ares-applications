@@ -1,5 +1,5 @@
 {
-  description = "Thrax web playground: the compiler built to wasm32-unknown-unknown, run in the browser";
+  description = "Ares web playground: the compiler built to wasm32-unknown-unknown, run in the browser";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -25,7 +25,7 @@
           # browser loads; nothing from npm reaches the page. `libffi` is for
           # the playground's native tests (`cargo test -p playground`), which
           # build the interpreter for the host, where `@extern` needs it.
-          # `ffmpeg` scales the icon FAVICON.thx renders down to its PNG sizes.
+          # `ffmpeg` scales the icon FAVICON.ares renders down to its PNG sizes.
           pkgs.rustc
           pkgs.cargo
           pkgs.lld

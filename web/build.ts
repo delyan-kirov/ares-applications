@@ -3,10 +3,10 @@
 //   node web/build.ts          (from the applications workspace, in the web shell)
 //
 // 1. the compiler and its language server to wasm (site/playground.wasm),
-// 2. the site icon, by compiling and running FAVICON.thx with the native
+// 2. the site icon, by compiling and running FAVICON.ares with the native
 //    compiler from the enclosing tree (site/favicon.svg, favicon.png and
 //    apple-touch-icon.png),
-// 3. the tour cells, web/cells/*.thx, to site/cells.json,
+// 3. the tour cells, web/cells/*.ares, to site/cells.json,
 // 4. the page's TypeScript, web/src/*.ts, to site/*.js with tsc,
 // 5. the smoke test, which runs every cell and drives the language server.
 //
@@ -41,9 +41,9 @@ run("cargo", ["build", "-p", "playground", "--target", "wasm32-unknown-unknown",
 copyFileSync(built, shipped);
 console.log(`+ site/playground.wasm  (${(statSync(shipped).size / 1024).toFixed(0)} KiB)`);
 
-run("cargo", ["build", "-p", "thrax", "--release"], compiler);
-run(`${compiler}target/release/thrax`, ["build", "FAVICON.thx"], web);
-run(`${web}thrax-out/FAVICON`, [], web);
+run("cargo", ["build", "-p", "ares", "--release"], compiler);
+run(`${compiler}target/release/ares`, ["build", "FAVICON.ares"], web);
+run(`${web}ares-out/FAVICON`, [], web);
 
 const cells = readCells();
 writeFileSync(`${web}site/cells.json`, JSON.stringify(cells, null, 1) + "\n");

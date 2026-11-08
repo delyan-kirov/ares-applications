@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
 
-# The applications build against the Thrax compiler, so CI checks the compiler
+# The applications build against the Ares compiler, so CI checks the compiler
 # out alongside this repo and nests this repo where a submodule would sit
 # (compiler/applications). The playground crate reaches the compiler crates by
 # the same relative path it uses in a normal submodule checkout.
@@ -12,7 +12,7 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out the Thrax compiler
+      - name: Check out the Ares compiler
         uses: actions/checkout@v4
         with:
           repository: delyan-kirov/BC

@@ -1,25 +1,25 @@
 # xml
 
-An XML parser, serializer and query engine **written in Thrax**, built on
+An XML parser, serializer and query engine **written in Ares**, built on
 algebraic effects with multi-shot continuations. The parser is the point of the
 exercise: it manages no control flow by hand, and every piece of control it
 needs (where the cursor is, what to try next, how to give up) is an effect that a
 handler supplies.
 
 ```
-thrax check MAIN.thx            # the test suite: the checks run at compile time
-thrax run MAIN.thx sample.xml   # the demo
-thrax run -- sample.xml         # the same, letting the root be inferred
-thrax build MAIN.thx            # a native binary in thrax-out/
+ares check MAIN.ares            # the test suite: the checks run at compile time
+ares run MAIN.ares sample.xml   # the demo
+ares run -- sample.xml         # the same, letting the root be inferred
+ares build MAIN.ares            # a native binary in ares-out/
 ```
 
-`thrax run sample.xml` is NOT the same thing: the driver takes a first argument
+`ares run sample.xml` is NOT the same thing: the driver takes a first argument
 that names an existing file as the root source and tries to compile it. `--`
 says the root is not named here.
 
 ## The surface
 
-```thrax
+```ares
 $ with XML
 
 $ doc : Node = parse src |> \ | Parsed.Ok.{ n } => n | _ => ...
@@ -46,13 +46,13 @@ Entities (`&lt;` `&gt;` `&amp;` `&quot;` `&apos;` `&#60;` `&#x3c;`) are decoded 
 the way in and escaped on the way out. Comments and processing instructions are
 kept as nodes; CDATA becomes text, so it re-renders escaped rather than as
 CDATA. Numeric references outside the single-byte range are left alone, because
-a Thrax string is a byte vector and this library does not encode UTF-8 yet.
+a Ares string is a byte vector and this library does not encode UTF-8 yet.
 
 ## The design
 
 Four effects, and nothing else, carry the parser:
 
-```thrax
+```ares
 $ Scan   : @effect = view : {} -> View, bump : @Int -> {},
 $ Choice : @effect = fork : {} -> @Bool,
 $ Soft   : @effect = reject : Err -> a,
@@ -73,7 +73,7 @@ had at the fork, **the cursor rewinds itself**. That is the one thing to take
 from this library: the parser never saves or restores a position, and never
 needs to.
 
-```thrax
+```ares
 $ element : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
 	(lit "<" {} ;
 	 let n = xml_name {} in
@@ -104,7 +104,7 @@ expression needs. Write the query as straight-line code and let the handler
 decide what "all the answers" means: `matches` resumes every branch and collects
 every outcome, `match_first` resumes until one survives.
 
-```thrax
+```ares
 $ by_hacker : @Vec @Str = matches <| \u =>
 	let b = tagged "book" (anywhere root) in
 	let a = tagged "author" (child b) in
@@ -148,7 +148,7 @@ matched the one that gets reported.
 
 ## Costs, measured
 
-On the native backend (`thrax build`), parsing is **linear** in the input: 23KB
+On the native backend (`ares build`), parsing is **linear** in the input: 23KB
 in 0.85s, 92KB in 4.0s, 185KB in 10.1s.
 
 The interesting part is what that time is *not* spent on. A variant of this
@@ -161,7 +161,7 @@ profile puts the time in the runtime instead:
 | | share of instructions |
 | --- | --- |
 | `strcmp` (global lookup by name) | 28% |
-| `THxRT_glob` | 7% |
+| `ARESxRT_glob` | 7% |
 | `calloc` / `memset` / `free` / refcounting | ~30% |
 
 So the library is a useful measurement of the *runtime*, not of the technique:
@@ -178,7 +178,7 @@ That is what `commit` is for.
 
 | | |
 | --- | --- |
-| `XML.thx` | the library. Public surface above `$ @private`, grammar and handlers below |
-| `MAIN.thx` | the test suite (compile-time `assert`s) and the demo entry point |
-| `BENCH.thx` | parse-only timing harness |
+| `XML.ares` | the library. Public surface above `$ @private`, grammar and handlers below |
+| `MAIN.ares` | the test suite (compile-time `assert`s) and the demo entry point |
+| `BENCH.ares` | parse-only timing harness |
 | `sample.xml` | the demo document |

@@ -19,13 +19,13 @@
     "root": {
       "inputs": {
         "nixpkgs": [
-          "thrax",
+          "ares",
           "nixpkgs"
         ],
-        "thrax": "thrax"
+        "ares": "ares"
       }
     },
-    "thrax": {
+    "ares": {
       "inputs": {
         "nixpkgs": "nixpkgs"
       },
@@ -33,13 +33,13 @@
         "lastModified": 1788710058,
         "narHash": "sha256-aqqIg2oySUMPz4jtJUvihHdUAEpAckUf1zKSiue7T10=",
         "owner": "delyan-kirov",
-        "repo": "Thrax",
+        "repo": "Ares",
         "rev": "077b447ea5d34e44332f2608b6b8e3142e0313bc",
         "type": "github"
       },
       "original": {
         "owner": "delyan-kirov",
-        "repo": "Thrax",
+        "repo": "Ares",
         "type": "github"
       }
     }

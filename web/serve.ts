@@ -43,4 +43,4 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end("not found");
   }
-}).listen(port, () => console.log(`Thrax playground on http://localhost:${port}  (Ctrl-C to stop)`));
+}).listen(port, () => console.log(`Ares playground on http://localhost:${port}  (Ctrl-C to stop)`));

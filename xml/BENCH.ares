@@ -1,0 +1,16 @@
+$ @mod BENCH
+
+$ with XML
+$ with IO
+$ with VEC
+$ with OPT
+$ with STR
+
+# Parse only: no rendering, no text extraction, no printing of the tree.
+$ @main : @Vec @Str -> <@IO> @Int = \args =>
+    let src = if @vec_len args > 1 => unwrap_or (read_file (@vec_get args 1)) "" else "" in
+    (
+        println ("bytes=" ++ from_int (@array_len src)); parse src |> \
+            | Parsed.Ok.{ n }   => (println ("kids=" ++ from_int (kid_count n)); 0)
+            | Parsed.Bad.{ er } => (eprint (report (@vec_get args 1) src er); 1)
+    )

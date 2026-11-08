@@ -1,0 +1,381 @@
+$ @mod TYPE
+
+# \file TYPE.ares
+# \info C types and their layout. A struct or union is referred to by id: its
+#       members live in an aggregate table (`Layout.aggs`), which is what lets a
+#       type refer to itself through a pointer and lets `struct s;` be completed
+#       later. Everything here is pure; the parser keeps the table in a handler
+#       and hands out snapshots.
+#
+#       Collections inside a type (a function's parameters) are `List`s, because
+#       a recursive type's slots are lazy and a lazy slot is only forced by a
+#       match or a field read, never by a `@Vec` primitive.
+
+$ with CFG
+$ with OPT
+$ with MAP
+$ with BITS
+$ with VEC
+
+# `rank` orders the integer types for the usual arithmetic conversions:
+# 0 _Bool, 1 char, 2 short, 3 int, 4 long, 5 long long. `plain` marks plain
+# `char`, a distinct type from `signed char` with the same representation.
+$ IntK : @struct = size : @Int, unsigned : @Bool, rank : @Int, plain : @Bool,
+
+$ FnTy : @struct = ret : Ty, params : List Ty, variadic : @Bool, proto : @Bool,
+
+$ Ty : @union =
+    Void : {},
+    Int : { IntK },
+    Float : {},
+    Double : {},
+    Ptr : { Ty },
+    Arr : { Ty, @Int },
+    Vla : { Ty, @Int },
+    Func : { FnTy },
+    Agg : { @Int },
+    Enum : { @Int },
+
+# A variable length array type `Vla elem size` names the local that holds its
+# byte size, computed where the type was declared; `sizeof` reads it there.
+
+# `bit_width` 0 is an ordinary member; otherwise a bit-field of that many bits
+# starting `bit_off` bits into the storage unit at `offset`.
+$ Member : @struct = name : @Str, ty : Ty, offset : @Int, bit_off : @Int, bit_width : @Int,
+
+$ Agg : @struct =
+    tag : @Str,
+    union : @Bool,
+    members : @Vec Member,
+    size : @Int,
+    align : @Int,
+    complete : @Bool,
+    flexible : @Bool,
+
+$ Layout : @struct = target : Target, aggs : Map @Int Agg,
+
+# -- constructors ------------------------------------------------------------
+
+$ ik : @Int -> @Bool -> @Int -> Ty = \size u rank =>
+    Ty.Int.{ IntK.{ .size = size, .unsigned = u, .rank = rank, .plain = @false } }
+
+$ t_void : Ty = Ty.Void
+$ t_bool : Ty = ik 1 @true 0
+$ t_char : Ty = Ty.Int.{ IntK.{ .size = 1, .unsigned = @false, .rank = 1, .plain = @true } }
+$ t_schar : Ty = ik 1 @false 1
+$ t_uchar : Ty = ik 1 @true 1
+$ t_short : Ty = ik 2 @false 2
+$ t_ushort : Ty = ik 2 @true 2
+$ t_int : Ty = ik 4 @false 3
+$ t_uint : Ty = ik 4 @true 3
+$ t_long : Target -> Ty = \t => ik t.long @false 4
+$ t_ulong : Target -> Ty = \t => ik t.long @true 4
+$ t_llong : Ty = ik 8 @false 5
+$ t_ullong : Ty = ik 8 @true 5
+$ t_float : Ty = Ty.Float
+$ t_double : Ty = Ty.Double
+$ t_size : Target -> Ty = \t => t_ulong t
+$ t_ptrdiff : Target -> Ty = \t => t_long t
+$ ptr_to : Ty -> Ty = \t => Ty.Ptr.{ t }
+$ array_of : Ty -> @Int -> Ty = \t n => Ty.Arr.{ t, n }
+$ func_ty : Ty -> List Ty -> @Bool -> @Bool -> Ty = \r ps va pr =>
+    Ty.Func.{ FnTy.{ .ret = r, .params = ps, .variadic = va, .proto = pr } }
+
+# -- predicates --------------------------------------------------------------
+
+$ is_void : Ty -> @Bool = \t => t |> \ | Ty.Void => @true | _ => @false
+$ is_integer : Ty -> @Bool = \t =>
+    t |> \
+        | Ty.Int.{ k }  => @true
+        | Ty.Enum.{ i } => @true
+        | _             => @false
+$ is_flonum : Ty -> @Bool = \t =>
+    t |> \
+        | Ty.Float  => @true
+        | Ty.Double => @true
+        | _         => @false
+$ is_arith : Ty -> @Bool = \t => is_integer t || is_flonum t
+$ is_ptr : Ty -> @Bool = \t => t |> \ | Ty.Ptr.{ b } => @true | _ => @false
+$ is_array : Ty -> @Bool = \t =>
+    t |> \
+        | Ty.Arr.{ b, n }  => @true
+        | Ty.Vla.{ b, sz } => @true
+        | _                => @false
+$ is_vla : Ty -> @Bool = \t => t |> \ | Ty.Vla.{ b, sz } => @true | _ => @false
+$ is_func : Ty -> @Bool = \t => t |> \ | Ty.Func.{ f } => @true | _ => @false
+$ is_agg : Ty -> @Bool = \t => t |> \ | Ty.Agg.{ i } => @true | _ => @false
+$ is_scalar : Ty -> @Bool = \t => is_arith t || is_ptr t
+$ is_bool : Ty -> @Bool = \t => t |> \ | Ty.Int.{ k } => k.rank == 0 | _ => @false
+
+# Pointer-like after decay: something `*` and `[]` apply to.
+$ is_pointerish : Ty -> @Bool = \t => is_ptr t || is_array t
+
+$ is_unsigned : Ty -> @Bool = \t => t |> \ | Ty.Int.{ k } => k.unsigned | _ => @false
+
+# The pointed-to (or element) type.
+$ base_of : Ty -> Ty = \t =>
+    t |> \
+        | Ty.Ptr.{ b }     => b
+        | Ty.Arr.{ b, n }  => b
+        | Ty.Vla.{ b, sz } => b
+        | _                => Ty.Void
+
+$ fn_of : Ty -> Option FnTy = \t =>
+    t |> \
+        | Ty.Func.{ f } => Option.Some.{ f }
+        | Ty.Ptr.{ b }  => (b |> \ | Ty.Func.{ f } => Option.Some.{ f } | _ => Option.None)
+        | _             => Option.None
+
+$ array_len : Ty -> @Int = \t => t |> \ | Ty.Arr.{ b, n } => n | _ => 0 - 1
+
+# -- layout ------------------------------------------------------------------
+
+$ agg_of : Layout -> @Int -> Agg = \lay id => unwrap_or (MAP.get lay.aggs id)
+    Agg.{
+        .tag = "",
+        .union = @false,
+        .members = @vec_new {},
+        .size = 0,
+        .align = 1,
+        .complete = @false,
+        .flexible = @false
+    }
+
+$ size_of : Layout -> Ty -> @Int = \lay t =>
+    t |> \
+        | Ty.Void          => 1
+        | Ty.Int.{ k }     => k.size
+        | Ty.Float         => 4
+        | Ty.Double        => 8
+        | Ty.Ptr.{ b }     => lay.target.ptr
+        | Ty.Arr.{ b, n }  => if n < 0 => 0 else n * size_of lay b
+        | Ty.Vla.{ b, sz } => lay.target.ptr
+        | Ty.Func.{ f }    => 1
+        | Ty.Agg.{ i }     => (agg_of lay i).size
+        | Ty.Enum.{ i }    => 4
+
+$ align_of : Layout -> Ty -> @Int = \lay t =>
+    t |> \
+        | Ty.Arr.{ b, n }  => align_of lay b
+        | Ty.Vla.{ b, sz } => align_of lay b
+        | Ty.Agg.{ i }     => (agg_of lay i).align
+        | _                => size_of lay t
+
+$ align_to : @Int -> @Int -> @Int = \n a => if a <= 1 => n else ((n + a - 1) / a) * a
+
+$ is_complete : Layout -> Ty -> @Bool = \lay t =>
+    t |> \
+        | Ty.Void         => @false
+        | Ty.Arr.{ b, n } => n >= 0
+        | Ty.Agg.{ i }    => (agg_of lay i).complete
+        | _               => @true
+
+# Lay out members declared in order. `Decl` is what the parser collected:
+# name, type, bit width (-1 for an ordinary member). Unnamed struct or union
+# members are flattened into the enclosing aggregate, offsets adjusted, so a
+# member lookup is one search.
+$ MemberDecl : @struct = name : @Str, ty : Ty, width : @Int, align : @Int,
+
+# `packed` lays members out at byte alignment; `min_align` (from an
+# `aligned(N)` attribute, else 0) raises the aggregate's alignment.
+$ layout_struct : Layout -> @Str -> @Bool -> @Bool -> @Int -> @Vec MemberDecl
+    -> Agg = \lay tag union packed min_align ds =>
+    let r = place lay union packed ds 0 0 0 1 (@vec_new {}) in
+    let align = if r.2 < min_align => min_align else r.2 in
+    let bytes = (if union => r.1 else (r.0 + 7) / 8) in
+    Agg.{
+        .tag = tag,
+        .union = union,
+        .members = r.3,
+        .size = align_to bytes align,
+        .align = align,
+        .complete = @true,
+        .flexible = flexible_last ds
+    }
+
+$ find_member : Layout -> Agg -> @Str -> Option Member = \lay a name =>
+    find_member_go lay a.members name 0
+
+$ int_kind : Ty -> IntK = \t => t |>
+    \ | Ty.Int.{ k } => k | _ => IntK.{ .size = 4, .unsigned = @false, .rank = 3, .plain = @false }
+
+# The integer promotions: anything narrower than int becomes int.
+$ promote : Ty -> Ty = \t =>
+    t |> \
+        | Ty.Int.{ k }  => if k.rank < 3 => t_int else t
+        | Ty.Enum.{ i } => t_int
+        | _             => t
+
+# The usual arithmetic conversions.
+$ common : Ty -> Ty -> Ty = \a b =>
+    if is_flonum a || is_flonum b =>
+        (
+            if (a |> \ | Ty.Double => @true | _ => @false)
+                || (b |> \ | Ty.Double => @true | _ => @false) =>
+                t_double
+            else
+                t_float
+        )
+    else
+        let x = int_kind (promote a) in
+        let y = int_kind (promote b) in
+        if x.size != y.size =>
+            (if x.size > y.size => Ty.Int.{ x } else Ty.Int.{ y })
+        else if x.unsigned =>
+            Ty.Int.{ x }
+        else if y.unsigned =>
+            Ty.Int.{ y }
+        else if x.rank >= y.rank =>
+            Ty.Int.{ x }
+        else
+            Ty.Int.{ y }
+
+# Type compatibility, loosely: what an assignment or redeclaration checks.
+$ same_ty : Layout -> Ty -> Ty -> @Bool = \lay a b =>
+    a |> \
+        | Ty.Void          => is_void b
+        | Ty.Int.{ x }     => (
+            b |> \
+                | Ty.Int.{ y }  => x.size == y.size && x.unsigned == y.unsigned && x.rank == y.rank
+                | Ty.Enum.{ i } => x.size == 4
+                | _             => @false
+        )
+        | Ty.Float         => (b |> \ | Ty.Float => @true | _ => @false)
+        | Ty.Double        => (b |> \ | Ty.Double => @true | _ => @false)
+        | Ty.Ptr.{ p }     => (b |> \ | Ty.Ptr.{ q } => same_ty lay p q | _ => @false)
+        | Ty.Arr.{ p, n }  => (
+            b |> \ | Ty.Arr.{ q, m } => same_ty lay p q && (n < 0 || m < 0 || n == m) | _ => @false
+        )
+        | Ty.Vla.{ p, sz } => is_array b
+        | Ty.Func.{ f }    => (
+            b |> \
+                | Ty.Func.{ g } => same_ty lay f.ret g.ret
+                    && (
+                        !(f.proto && g.proto)
+                            || (f.variadic == g.variadic && same_list lay f.params g.params)
+                    )
+                | _             => @false
+        )
+        | Ty.Agg.{ i }     => (b |> \ | Ty.Agg.{ j } => i == j | _ => @false)
+        | Ty.Enum.{ i }    => is_integer b
+
+# A readable spelling for diagnostics.
+$ ty_name : Layout -> Ty -> @Str = \lay t =>
+    t |> \
+        | Ty.Void          => "void"
+        | Ty.Int.{ k } =>
+            if k.rank == 0 =>
+                "_Bool"
+            else
+                let base = (
+                    k.rank |> \
+                        | 1 => "char"
+                        | 2 => "short"
+                        | 3 => "int"
+                        | 4 => "long"
+                        | _ => "long long"
+                ) in
+                if k.plain => "char" else if k.unsigned => "unsigned " ++ base else base
+        | Ty.Float         => "float"
+        | Ty.Double        => "double"
+        | Ty.Ptr.{ b }     => (
+            b |> \
+                | Ty.Func.{ f } => ty_name lay f.ret ++ " (*)(" ++ param_names lay f.params ++ ")"
+                | _             => ty_name lay b ++ " *"
+        )
+        | Ty.Arr.{ b, n }  => ty_name lay b ++ " [" ++ (if n < 0 => "" else to_string n) ++ "]"
+        | Ty.Vla.{ b, sz } => ty_name lay b ++ " [*]"
+        | Ty.Func.{ f }    => ty_name lay f.ret ++ " (" ++ param_names lay f.params ++ ")"
+        | Ty.Agg.{ i } =>
+            let a = agg_of lay i in
+            (if a.union => "union " else "struct ") ++ (if a.tag == "" => "<anonymous>" else a.tag)
+        | Ty.Enum.{ i }    => "enum"
+
+$ same_list : Layout -> List Ty -> List Ty -> @Bool = \lay a b =>
+    a |> \
+        | List.Cons.{ x, xs } =>
+            (b |> \ | List.Cons.{ y, ys } => same_ty lay x y && same_list lay xs ys | _ => @false)
+        | _                   => (b |> \ | List.Nil => @true | _ => @false)
+
+$ @private
+
+$ param_names : Layout -> List Ty -> @Str = \lay ps =>
+    ps |> \
+        | List.Cons.{ h, t } =>
+            ty_name lay h ++ (t |> \ | List.Nil => "" | _ => ", " ++ param_names lay t)
+        | _                  => ""
+
+$ flexible_last : @Vec MemberDecl -> @Bool = \ds =>
+    @vec_len ds > 0
+        && array_len (@vec_get ds (@vec_len ds - 1)).ty < 0
+        && is_array (@vec_get ds (@vec_len ds - 1)).ty
+
+# `bits` is the running struct size in bits, `ubytes` the largest union member,
+# `align` the largest alignment so far.
+$ place : Layout -> @Bool -> @Bool -> @Vec MemberDecl -> @Int -> @Int -> @Int -> @Int -> @Vec Member
+    -> { @Int, @Int, @Int, @Vec Member } = \lay union packed ds i bits ubytes align acc =>
+    if i >= @vec_len ds =>
+        { bits, ubytes, align, acc }
+    else
+        let d = @vec_get ds i in
+        let sz = size_of lay d.ty in
+        let al =
+            if packed => 1 else if d.align > align_of lay d.ty => d.align else align_of lay d.ty
+        in
+        let at = if union => 0 else bits in
+        if d.width >= 0 =>
+            let unit = sz * 8 in
+            if d.width == 0 =>
+                place lay union packed ds (i + 1) (if union => bits else align_to at unit) ubytes
+                    align acc
+            else
+                let start =
+                    if (at / unit) != ((at + d.width - 1) / unit) => align_to at unit else at
+                in
+                let off = (start / 8 / sz) * sz in
+                let m = Member.{
+                    .name = d.name,
+                    .ty = d.ty,
+                    .offset = off,
+                    .bit_off = start - off * 8,
+                    .bit_width = d.width
+                } in
+                place lay union packed ds (i + 1) (if union => bits else start + d.width)
+                    (max_i ubytes sz) (max_i align al) (@vec_push acc m)
+        else
+            let start = align_to at (al * 8) in
+            let off = start / 8 in
+            let acc2 = @vec_push acc
+                Member.{
+                    .name = d.name,
+                    .ty = d.ty,
+                    .offset = off,
+                    .bit_off = 0,
+                    .bit_width = 0
+                } in
+            place lay union packed ds (i + 1) (if union => bits else start + sz * 8)
+                (max_i ubytes sz) (max_i align al) acc2
+
+$ max_i : @Int -> @Int -> @Int = \a b => if a > b => a else b
+
+# An unnamed struct or union member is searched too, its members' offsets
+# taken relative to the enclosing aggregate.
+$ find_member_go : Layout -> @Vec Member -> @Str -> @Int -> Option Member = \lay ms name i =>
+    if i >= @vec_len ms =>
+        Option.None
+    else
+        let m = @vec_get ms i in
+        if m.name == name =>
+            Option.Some.{ m }
+        else if m.name == "" && is_agg m.ty =>
+            (
+                find_member_go lay (agg_members lay m.ty) name 0 |> \
+                    | Option.Some.{ inner } =>
+                        Option.Some.{ Member.{ .offset = inner.offset + m.offset | inner } }
+                    | _                     => find_member_go lay ms name (i + 1)
+            )
+        else
+            find_member_go lay ms name (i + 1)
+
+$ agg_members : Layout -> Ty -> @Vec Member = \lay t =>
+    t |> \ | Ty.Agg.{ id } => (agg_of lay id).members | _ => @vec_new {}

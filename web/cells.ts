@@ -1,4 +1,4 @@
-// The tour cells are Thrax programs, one file each in web/cells/, read in name
+// The tour cells are Ares programs, one file each in web/cells/, read in name
 // order. A file's leading comment is its card: the first line is the title,
 // the rest the blurb. The program shown starts at `$ @mod`.
 
@@ -9,7 +9,7 @@ export interface Cell { id: string; title: string; blurb: string; src: string }
 export function readCells(): Cell[] {
   const dir = new URL("./cells/", import.meta.url);
   return readdirSync(dir)
-    .filter((f) => f.endsWith(".thx"))
+    .filter((f) => f.endsWith(".ares"))
     .sort()
     .map((file) => {
       const lines = readFileSync(new URL(file, dir), "utf8").split("\n");
@@ -21,6 +21,6 @@ export function readCells(): Cell[] {
         throw new Error(`cells/${file}: expected a "# Title" comment, then the program from "$ @mod"`);
       }
       const blurb = header.slice(1).join("\n").trim().split(/\n\s*\n/).map((p) => p.replace(/\n/g, " ")).join("\n\n");
-      return { id: file.replace(/^\d+-/, "").replace(/\.thx$/, ""), title: header[0], blurb, src };
+      return { id: file.replace(/^\d+-/, "").replace(/\.ares$/, ""), title: header[0], blurb, src };
     });
 }

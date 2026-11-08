@@ -8,7 +8,7 @@ import { Client } from "./lsp.ts";
 import { Editor } from "./editor.ts";
 import { showOutput } from "./card.ts";
 
-/// A tour cell, as web/build.ts writes it from web/cells/*.thx.
+/// A tour cell, as web/build.ts writes it from web/cells/*.ares.
 interface Cell { id: string; title: string; blurb: string; src: string }
 
 /// How many cells the language server keeps checked at once. Each holds its
@@ -34,7 +34,7 @@ try {
   host.bind(instance.exports);
 } catch (e) {
   boot.innerHTML =
-    "The Thrax compiler failed to load. Serve this page over http:// after building it " +
+    "The Ares compiler failed to load. Serve this page over http:// after building it " +
     "(<code>node web/build.ts</code> from the applications workspace).";
   throw e;
 }
@@ -119,7 +119,7 @@ cells.forEach((cell, i) => {
   } as Runner;
   r.editor = new Editor(pane, {
     client,
-    uri: `file:///playground/${cell.id}.thx`,
+    uri: `file:///playground/${cell.id}.ares`,
     text: cell.src,
     activate: () => activate(r),
   });
@@ -134,6 +134,6 @@ cells.forEach((cell, i) => {
 });
 
 boot.innerHTML =
-  "Ready. This page is powered by the Thrax compiler running as WebAssembly in your " +
+  "Ready. This page is powered by the Ares compiler running as WebAssembly in your " +
   "browser, language server included: the colors, squiggles, hovers and completions " +
-  "come from it. <a href=\"https://github.com/delyan-kirov/Thrax\">Read the source</a>.";
+  "come from it. <a href=\"https://github.com/delyan-kirov/Ares\">Read the source</a>.";
