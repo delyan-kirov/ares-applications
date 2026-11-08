@@ -98,7 +98,7 @@ fn dump_ast(user_src: &str) -> Result<String, String> {
 /// Load, check and lower `user_src` and every module it imports, root first,
 /// through the same pipeline as the native compiler.
 fn pipeline(user_src: &str) -> Result<Vec<LoweredProgram>, String> {
-    ares::driver::compile_program(user_src, &fetch)
+    ares::driver::compile_program(user_src, fetch)
 }
 
 // -- the wasm C-ABI seam ----------------------------------------------------
@@ -337,5 +337,28 @@ mod tests {
         assert!(!ir.to_lowercase().contains("error"), "{ir}");
         assert!(ir.contains("WASM"), "{ir}");
         assert!(ir.contains("\"print\""), "{ir}");
+    }
+
+    #[test]
+    fn expands_compile_time_splices() {
+        // An `@e` member splice and an `$ @e` item run at compile time, as in a
+        // file compile; the program then sees what they generated.
+        let src = "$ @mod MAIN\n\
+                   $ @import DERIVE\n\
+                   $ Point : @struct = x: @Int, y: @Int\n\
+                   $ Point3 : @struct = @e <| DERIVE.fields_of \"Point\", z: @Int\n\
+                   $ @e <| @parse_items \"$ seven : @Int = 7\"\n\
+                   $ @main : @Vec @Str -> <@IO> @Int = \\args =>\n\
+                   \tlet p = Point3.{ .x = 1, .y = 2, .z = 3 } in p.x + p.y + p.z - seven + 1\n";
+        assert_eq!(run_source(src), "exit 0");
+    }
+
+    #[test]
+    fn reports_a_compile_time_fault() {
+        let src = "$ @mod MAIN\n\
+                   $ @e <| assert (1 == 2) \"one is not two\"\n\
+                   $ @main : @Vec @Str -> <@IO> @Int = \\args => 0\n";
+        let out = run_source(src);
+        assert!(out.contains("one is not two"), "{out}");
     }
 }
