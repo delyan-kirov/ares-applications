@@ -77,8 +77,6 @@ $ Unit : @effect =
     begin_fn : {} -> {},
     end_fn : {} -> List LVar,
 
-$ P : @alias = <Tok, Scope, Tab, Unit, Diag>
-
 # The preprocessor, suspended between tokens: the producer end of the pipe.
 $ Pull : @union =
     Done : {},
@@ -159,7 +157,8 @@ $ TokSt : @struct = cur : Token, more : List Token, src : Pull,
  - The consumer end of the pipe: the next token and a short lookahead, topped
  - up by resuming the preprocessor.
  -#
-$ with_tok : { src: Pull, body: {} -> <P> a } -> <Scope, Tab, Unit, Files, Diag> a =
+$ with_tok : { src: Pull, body: {} -> <Tok, Scope, Tab, Unit, Diag> a }
+    -> <Scope, Tab, Unit, Files, Diag> a =
     let go =
         do body {}
         ctl k
@@ -434,7 +433,7 @@ $ asm_quals : {} -> <Tok> {} =
  - The attributes at the cursor, as their names (with an `aligned(N)` written
  - `aligned=N`): what a struct's layout honours. Everything else is skipped.
  -#
-$ attr_names : Fn -> <P> List @Str = \c =>
+$ attr_names : Fn -> <Tok, Scope, Tab, Unit, Diag> List @Str = \c =>
     if at_kw "__attribute__" =>
         (
             next {};
@@ -446,7 +445,7 @@ $ attr_names : Fn -> <P> List @Str = \c =>
     else
         (skip_attrs {}; List.Nil)
 
-$ attr_items : { c: Fn, acc: List @Str } -> <P> List @Str =
+$ attr_items : { c: Fn, acc: List @Str } -> <Tok, Scope, Tab, Unit, Diag> List @Str =
     if at_p ")" =>
         acc
     else if accept "," =>
@@ -756,7 +755,7 @@ $ const_operands : Expr -> @Bool = \e =>
 
 $ const_value : Expr -> <Tab, Diag> CVal = \e => eval { Tab.layout {}, e }
 
-$ const_int : Fn -> <P> @Int = \c =>
+$ const_int : Fn -> <Tok, Scope, Tab, Unit, Diag> @Int = \c =>
     let e = conditional c in
     const_value e |>
         \ | CVal.CInt.{ v } => v | _ => error_at e.pos "expression is not an integer constant"
@@ -826,7 +825,7 @@ $ need_scalar : Expr -> <Tab, Diag> Expr = \e0 =>
     else
         error_at e.pos ("used " ++ tname e.ty ++ " where a scalar is required")
 
-$ assign_conv : { e0: Expr, t: Ty, what: @Str } -> <P> Expr =
+$ assign_conv : { e0: Expr, t: Ty, what: @Str } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let e = rv e0 in
     if is_agg t || is_agg e.ty =>
         if same_ty (cur_layout {}) e.ty t =>
@@ -880,7 +879,7 @@ $ default_promote : Expr -> <Tab> Expr = \e0 =>
         | Ty.Float => cast_to { e, t_double }
         | _        => if is_integer e.ty => cast_to { e, promote e.ty } else e
 
-$ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <P> Expr =
+$ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if !(is_arith a.ty) || !(is_arith b.ty) =>
@@ -894,16 +893,17 @@ $ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <P> Expr =
         let b2 = cast_to { b, t } in
         fold (mk_expr ENode.Bin.{ op, a2, b2 } t pos)
 
-$ bad_operands : { op: @Str, a: Expr, b: Expr, pos: Pos } -> <P> r = error_at pos
-    (
-        "invalid operands to binary "
-            ++ op
-            ++ " (have '"
-            ++ tname a.ty
-            ++ "' and '"
-            ++ tname b.ty
-            ++ "')"
-    )
+$ bad_operands : { op: @Str, a: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> r =
+    error_at pos
+        (
+            "invalid operands to binary "
+                ++ op
+                ++ " (have '"
+                ++ tname a.ty
+                ++ "' and '"
+                ++ tname b.ty
+                ++ "')"
+        )
 
 $ elem_size : Ty -> <Tab> @Int = \t =>
     let b = base_of t in if is_void b || is_func b => 1 else sizeof_ty b
@@ -932,7 +932,7 @@ $ size_expr : { t: Ty, pos: Pos } -> <Tab> Expr =
         | Ty.Vla.{ b, sz } => mk_expr ENode.Local.{ sz } st pos
         | _                => int_expr (sizeof_ty t) st pos
 
-$ add_e : { x: Expr, y: Expr, pos: Pos } -> <P> Expr =
+$ add_e : { x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if is_arith a.ty && is_arith b.ty =>
@@ -944,7 +944,7 @@ $ add_e : { x: Expr, y: Expr, pos: Pos } -> <P> Expr =
     else
         bad_operands { "+", a, b, pos }
 
-$ sub_e : { x: Expr, y: Expr, pos: Pos } -> <P> Expr =
+$ sub_e : { x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if is_arith a.ty && is_arith b.ty =>
@@ -963,7 +963,7 @@ $ sub_e : { x: Expr, y: Expr, pos: Pos } -> <P> Expr =
     else
         bad_operands { "-", a, b, pos }
 
-$ shift_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <P> Expr =
+$ shift_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if !(is_integer a.ty && is_integer b.ty) =>
@@ -974,7 +974,7 @@ $ shift_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <P> Expr =
         let b2 = cast_to { b, t } in
         fold (mk_expr ENode.Bin.{ op, a2, b2 } t pos)
 
-$ cmp_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <P> Expr =
+$ cmp_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if is_arith a.ty && is_arith b.ty =>
@@ -989,12 +989,12 @@ $ cmp_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <P> Expr =
     else
         bad_operands { op, a, b, pos }
 
-$ logic_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <P> Expr =
+$ logic_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = need_scalar x in
     let b = need_scalar y in
     fold (mk_expr ENode.Bin.{ op, a, b } t_int pos)
 
-$ mk_bin : { op: @Str, a: Expr, b: Expr, pos: Pos } -> <P> Expr =
+$ mk_bin : { op: @Str, a: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     op |> \
         | "+"                                   => add_e { a, b, pos }
         | "-"                                   => sub_e { a, b, pos }
@@ -1003,7 +1003,7 @@ $ mk_bin : { op: @Str, a: Expr, b: Expr, pos: Pos } -> <P> Expr =
         | "&&" | "||"                           => logic_e { op, a, b, pos }
         | _                                     => arith_bin { op, a, b, pos }
 
-$ mk_cast : { e0: Expr, t: Ty, pos: Pos } -> <P> Expr =
+$ mk_cast : { e0: Expr, t: Ty, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let e = rv e0 in
     if is_void t =>
         mk_expr ENode.Cast.{ e } t pos
@@ -1014,7 +1014,7 @@ $ mk_cast : { e0: Expr, t: Ty, pos: Pos } -> <P> Expr =
     else
         error_at pos ("conversion to non-scalar type '" ++ tname t ++ "' requested")
 
-$ mk_cond : { c0: Expr, a0: Expr, b0: Expr, pos: Pos } -> <P> Expr =
+$ mk_cond : { c0: Expr, a0: Expr, b0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let c = need_scalar c0 in
     let a = rv a0 in
     let b = rv b0 in
@@ -1054,7 +1054,7 @@ $ mk_cond : { c0: Expr, a0: Expr, b0: Expr, pos: Pos } -> <P> Expr =
         | Option.Some.{ x } => if x => a2 else b2
         | _                 => fold (mk_expr ENode.Cond.{ c, a2, b2 } t pos)
 
-$ deref_e : { e0: Expr, pos: Pos } -> <P> Expr =
+$ deref_e : { e0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let e = rv e0 in
     if is_ptr e.ty =>
         (
@@ -1069,7 +1069,7 @@ $ deref_e : { e0: Expr, pos: Pos } -> <P> Expr =
     else
         error_at pos ("invalid type argument of unary '*' (have '" ++ tname e.ty ++ "')")
 
-$ field_e : { e: Expr, name: @Str, pos: Pos } -> <P> Expr =
+$ field_e : { e: Expr, name: @Str, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     e.ty |> \
         | Ty.Agg.{ id } =>
             let l = cur_layout {} in
@@ -1116,7 +1116,7 @@ $ k_unsigned : @Int = 262144
 
 $ SpecSt : @struct = spec : Spec, count : @Int, other : Ty, pos : Pos,
 
-$ declspec : { c: Fn, storage: @Bool } -> <P> Spec =
+$ declspec : { c: Fn, storage: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Spec =
     let t = peek {} in
     let sp = Spec.{
         .ty = t_int,
@@ -1129,7 +1129,7 @@ $ declspec : { c: Fn, storage: @Bool } -> <P> Spec =
     } in
     spec_go { c, storage, SpecSt.{ .spec = sp, .count = 0, .other = t_int, .pos = t.pos } }
 
-$ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <P> Spec =
+$ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <Tok, Scope, Tab, Unit, Diag> Spec =
     skip_attrs {};
     let t = peek {} in
     if !(is_typename t) =>
@@ -1175,8 +1175,12 @@ $ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <P> Spec =
             | "_Alignas" | "alignas" =>
                 next {};
                 expect "(";
-                let a =
-                    (if is_typename (peek {}) => align_of (cur_layout {}) (typename c) else const_int c) in
+                let a = (
+                    if is_typename (peek {}) =>
+                        align_of (cur_layout {}) (typename c)
+                    else
+                        const_int c
+                ) in
                 expect ")"; spec_go { c, storage, SpecSt.{ .spec = Spec.{ .align = a | sp } | st } }
             | "_Complex" | "__int128" => error_at t.pos ("'" ++ w ++ "' is not supported")
             | "struct" | "union" | "enum" | "typeof" | "typeof_unqual" =>
@@ -1187,7 +1191,8 @@ $ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <P> Spec =
                 spec_go { c, storage, SpecSt.{ .count = st.count + keyword_weight w | st } }
 
 # A specifier that names a whole type: a tag, `typeof`, or a typedef name.
-$ spec_type : { c: Fn, storage: @Bool, st: SpecSt, t: Token } -> <P> Spec =
+$ spec_type : { c: Fn, storage: @Bool, st: SpecSt, t: Token }
+    -> <Tok, Scope, Tab, Unit, Diag> Spec =
     let w = t.text in
     if st.count != 0 =>
         (
@@ -1228,10 +1233,10 @@ $ keyword_weight : @Str -> @Int = \w =>
         | "unsigned"       => k_unsigned
         | _                => 0
 
-$ typeof_spec : Fn -> <P> Ty = \c =>
+$ typeof_spec : Fn -> <Tok, Scope, Tab, Unit, Diag> Ty = \c =>
     expect "("; let ty = if is_typename (peek {}) => typename c else (expr c).ty in expect ")"; ty
 
-$ spec_finish : SpecSt -> <P> Spec = \st =>
+$ spec_finish : SpecSt -> <Tok, Scope, Tab, Unit, Diag> Spec = \st =>
     let n = st.count in
     let tg = cur_target {} in
     let ty = (
@@ -1307,7 +1312,7 @@ $ Deriv : @union =
 
 $ Decl : @struct = name : @Str, pos : Pos, derivs : List Deriv,
 
-$ declarator : Fn -> <P> Decl = \c =>
+$ declarator : Fn -> <Tok, Scope, Tab, Unit, Diag> Decl = \c =>
     skip_attrs {};
     let np = pointers 0 in
     skip_attrs {};
@@ -1353,7 +1358,7 @@ $ skip_quals : {} -> <Tok, Diag> {} =
     else
         {}
 
-$ suffixes : { c: Fn, acc: List Deriv } -> <P> List Deriv =
+$ suffixes : { c: Fn, acc: List Deriv } -> <Tok, Scope, Tab, Unit, Diag> List Deriv =
     if accept "[" =>
         accept_kw "static";
         skip_quals {};
@@ -1384,7 +1389,7 @@ $ suffixes : { c: Fn, acc: List Deriv } -> <P> List Deriv =
  - own while it is read, so a later parameter's array size may name an earlier
  - one (`int n, int a[n]`).
  -#
-$ params : Fn -> <P> Deriv = \c =>
+$ params : Fn -> <Tok, Scope, Tab, Unit, Diag> Deriv = \c =>
     Scope.enter {};
     let r = (
         if accept ")" =>
@@ -1398,7 +1403,7 @@ $ params : Fn -> <P> Deriv = \c =>
     ) in
     Scope.leave {}; r
 
-$ param_list : { c: Fn, acc: List Param } -> <P> Deriv =
+$ param_list : { c: Fn, acc: List Param } -> <Tok, Scope, Tab, Unit, Diag> Deriv =
     if accept "..." =>
         (expect ")"; Deriv.DFn.{ LIST.reverse acc, @true, @true })
     else
@@ -1427,7 +1432,7 @@ $ param_list : { c: Fn, acc: List Param } -> <P> Deriv =
  - An old-style identifier list, `f(a, b)`: the types come from the declarations
  - before the body; until then each is an int.
  -#
-$ kr_names : List Param -> <P> Deriv = \acc =>
+$ kr_names : List Param -> <Tok, Scope, Tab, Unit, Diag> Deriv = \acc =>
     let t = expect_ident "parameter name" in
     let id = Tab.fresh {} in
     let acc2 = List.Cons.{
@@ -1482,7 +1487,8 @@ $ build_ty : { base: Ty, ds: List Deriv, pos: Pos } -> <Diag> Ty =
  - its byte size, and the assignments that compute those sizes, innermost first,
  - are returned to run where the declaration is.
  -#
-$ build_rt : { c: Fn, base: Ty, ds: List Deriv, pos: Pos } -> <P> { Ty, List Expr } =
+$ build_rt : { c: Fn, base: Ty, ds: List Deriv, pos: Pos }
+    -> <Tok, Scope, Tab, Unit, Diag> { Ty, List Expr } =
     ds |> \
         | List.Nil => { base, List.Nil }
         | List.Cons.{ d, rest } =>
@@ -1504,7 +1510,8 @@ $ build_rt : { c: Fn, base: Ty, ds: List Deriv, pos: Pos } -> <P> { Ty, List Exp
                         { build_ty { inner, LIST.singleton d, pos }, r.1 }
                 | _                => { build_ty { inner, LIST.singleton d, pos }, r.1 }
 
-$ vla_dim : { c: Fn, inner: Ty, count: Expr, sets: List Expr, pos: Pos } -> <P> { Ty, List Expr } =
+$ vla_dim : { c: Fn, inner: Ty, count: Expr, sets: List Expr, pos: Pos }
+    -> <Tok, Scope, Tab, Unit, Diag> { Ty, List Expr } =
     if at_file c =>
         error_at pos "variable length array at file scope"
     else
@@ -1522,7 +1529,7 @@ $ has_vla : List Deriv -> @Bool = \ds =>
  - A type name that may be variably modified, and the size computations it
  - needs.
  -#
-$ typename_rt : Fn -> <P> { Ty, List Expr } = \c =>
+$ typename_rt : Fn -> <Tok, Scope, Tab, Unit, Diag> { Ty, List Expr } = \c =>
     let sp = declspec { c, @false } in
     let d = declarator c in
     if d.name != "" =>
@@ -1538,7 +1545,7 @@ $ after_sets : { sets: List Expr, e: Expr } -> Expr =
         | List.Cons.{ s1, rest } => mk_expr ENode.Comma.{ s1, after_sets { rest, e } } e.ty e.pos
         | _                      => e
 
-$ typename : Fn -> <P> Ty = \c =>
+$ typename : Fn -> <Tok, Scope, Tab, Unit, Diag> Ty = \c =>
     let sp = declspec { c, @false } in
     let d = declarator c in
     if d.name != "" =>
@@ -1552,7 +1559,7 @@ $ fn_params : List Deriv -> List Param = \ds =>
         | List.Cons.{ d, r } => (d |> \ | Deriv.DFn.{ ps, va, pr } => ps | _ => List.Nil)
         | _                  => List.Nil
 
-$ struct_decl : { c: Fn, union: @Bool } -> <P> Ty =
+$ struct_decl : { c: Fn, union: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
     let pre = attr_names c in
     let t = peek {} in
     let tag = (if is_ident t && !(is_keyword t.text) => (next {}; t.text) else "") in
@@ -1610,7 +1617,7 @@ $ struct_decl : { c: Fn, union: @Bool } -> <P> Ty =
         in
         Tab.set_agg { id, agg }; Ty.Agg.{ id }
 
-$ members : { c: Fn, acc: @Vec MemberDecl } -> <P> @Vec MemberDecl =
+$ members : { c: Fn, acc: @Vec MemberDecl } -> <Tok, Scope, Tab, Unit, Diag> @Vec MemberDecl =
     if accept "}" =>
         acc
     else if at_kw "_Static_assert" || at_kw "static_assert" =>
@@ -1630,7 +1637,8 @@ $ members : { c: Fn, acc: @Vec MemberDecl } -> <P> @Vec MemberDecl =
         else
             members { c, acc }
 
-$ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl } -> <P> @Vec MemberDecl =
+$ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl }
+    -> <Tok, Scope, Tab, Unit, Diag> @Vec MemberDecl =
     let m = (
         if accept ":" =>
             let w = const_int c in MemberDecl.{ .name = "", .ty = sp.ty, .width = w, .align = 0 }
@@ -1653,8 +1661,9 @@ $ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl } -> <P> @Vec MemberDec
             else
                 (
                     when
-                        (!(is_complete (cur_layout {}) ty) && !(is_array ty && array_len ty < 0)) <| \_ =>
-                            error_at d.pos ("field '" ++ d.name ++ "' has incomplete type")
+                        (
+                            !(is_complete (cur_layout {}) ty) && !(is_array ty && array_len ty < 0)
+                        ) <| \_ => error_at d.pos ("field '" ++ d.name ++ "' has incomplete type")
                 );
                 MemberDecl.{ .name = d.name, .ty = ty, .width = 0 - 1, .align = sp.align }
     ) in
@@ -1662,7 +1671,7 @@ $ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl } -> <P> @Vec MemberDec
     let acc2 = @vec_push acc m in
     if accept "," => member_decls { c, sp, acc2 } else (expect ";"; acc2)
 
-$ enum_decl : Fn -> <P> Ty = \c =>
+$ enum_decl : Fn -> <Tok, Scope, Tab, Unit, Diag> Ty = \c =>
     skip_attrs {};
     let t = peek {} in
     let tag = (if is_ident t && !(is_keyword t.text) => (next {}; t.text) else "") in
@@ -1689,7 +1698,7 @@ $ enum_decl : Fn -> <P> Ty = \c =>
  - negative. As in GCC, an enum without negative values has an unsigned
  - underlying type (it shows in an enum bit-field), while its constants are ints.
  -#
-$ enumerators : { c: Fn, v: @Int, neg: @Bool } -> <P> @Bool =
+$ enumerators : { c: Fn, v: @Int, neg: @Bool } -> <Tok, Scope, Tab, Unit, Diag> @Bool =
     if accept "}" =>
         neg
     else
@@ -1708,7 +1717,7 @@ $ enumerators : { c: Fn, v: @Int, neg: @Bool } -> <P> @Bool =
         else
             (expect "}"; neg || val < 0)
 
-$ static_assert : Fn -> <P> {} = \c =>
+$ static_assert : Fn -> <Tok, Scope, Tab, Unit, Diag> {} = \c =>
     let t = next {} in
     expect "(";
     let v = const_int c in
@@ -1718,7 +1727,7 @@ $ static_assert : Fn -> <P> {} = \c =>
 
 # -- declarations ---------------------------------------------------------------
 
-$ translation_unit : Fn -> <P> {} = \c =>
+$ translation_unit : Fn -> <Tok, Scope, Tab, Unit, Diag> {} = \c =>
     if is_eof (peek {}) =>
         {}
     else if accept ";" =>
@@ -1732,7 +1741,7 @@ $ translation_unit : Fn -> <P> {} = \c =>
         (if sp.typedef => typedef_decls { c, sp } else global_decls { c, sp, @true });
         translation_unit c
 
-$ typedef_decls : { c: Fn, sp: Spec } -> <P> {} =
+$ typedef_decls : { c: Fn, sp: Spec } -> <Tok, Scope, Tab, Unit, Diag> {} =
     if accept ";" =>
         {}
     else
@@ -1756,7 +1765,7 @@ $ link_name : { c: Fn, name: @Str, static: @Bool } -> <Scope> @Str =
 $ fresh_link : { c: Fn, name: @Str, static: @Bool } -> @Str =
     if static => name ++ "." ++ to_string c.tu else name
 
-$ global_decls : { c: Fn, sp: Spec, first: @Bool } -> <P> {} =
+$ global_decls : { c: Fn, sp: Spec, first: @Bool } -> <Tok, Scope, Tab, Unit, Diag> {} =
     if accept ";" =>
         {}
     else
@@ -1783,7 +1792,7 @@ $ kr_style : List Deriv -> @Bool = \ds =>
             (d |> \ | Deriv.DFn.{ ps, va, pr } => !pr && !(LIST.is_empty ps) | _ => @false)
         | _                  => @false
 
-$ global_var : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <P> {} =
+$ global_var : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> {} =
     let ln = link_name { c, d.name, sp.static } in
     Scope.bind { d.name, Binding.Gbl.{ ln, ty } };
     if accept "=" =>
@@ -1809,7 +1818,8 @@ $ gvar : { n: @Str, t: Ty, data: @Str, rs: @Vec Reloc, def: @Bool, init: @Bool, 
         .pos = pos
     }
 
-$ function_def : { c: Fn, sp: Spec, d: Decl, ty0: Ty, ln: @Str } -> <P> {} =
+$ function_def : { c: Fn, sp: Spec, d: Decl, ty0: Ty, ln: @Str }
+    -> <Tok, Scope, Tab, Unit, Diag> {} =
     let ty = kr_types { c, d, ty0 } in
     fn_of ty |> \
         | Option.Some.{ f } =>
@@ -1863,7 +1873,7 @@ $ fn_params_of : { d: Decl, ty: Ty } -> List Param =
             LIST.map (\pair => Param.{ .ty = pair.1 | pair.0 }) (LIST.zip ps f.params)
         | _                 => ps
 
-$ bind_params : { ps: List Param, acc: List @Int } -> <P> List @Int =
+$ bind_params : { ps: List Param, acc: List @Int } -> <Tok, Scope, Tab, Unit, Diag> List @Int =
     ps |> \
         | List.Cons.{ p, rest } =>
             let id = p.id in
@@ -1877,7 +1887,7 @@ $ bind_params : { ps: List Param, acc: List @Int } -> <P> List @Int =
  - A parameter declared as an array of variable length arrays decays to a
  - pointer to one, whose size is computed on entry from the parameters it names.
  -#
-$ vm_params : { c: Fn, ps: List Param, acc: List Expr } -> <P> List Expr =
+$ vm_params : { c: Fn, ps: List Param, acc: List Expr } -> <Tok, Scope, Tab, Unit, Diag> List Expr =
     ps |> \
         | List.Cons.{ p, rest } =>
             let inner = LIST.tail p.derivs in
@@ -1918,7 +1928,7 @@ $ new_local : { name: @Str, ty: Ty, mem: @Bool } -> <Tab, Unit> @Int =
  - identifier list's parameters; the rest stay int. A `float` parameter arrives
  - as the double the caller promoted it to.
  -#
-$ kr_types : { c: Fn, d: Decl, ty: Ty } -> <P> Ty =
+$ kr_types : { c: Fn, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> Ty =
     if !(kr_style d.derivs) =>
         ty
     else
@@ -1929,19 +1939,20 @@ $ kr_types : { c: Fn, d: Decl, ty: Ty } -> <P> Ty =
 
 $ kr_promote : Ty -> Ty = \t => t |> \ | Ty.Float => t_double | _ => adjust_param t
 
-$ kr_decls : { c: Fn, m: Map @Str Ty } -> <P> Map @Str Ty =
+$ kr_decls : { c: Fn, m: Map @Str Ty } -> <Tok, Scope, Tab, Unit, Diag> Map @Str Ty =
     if at_p "{" =>
         m
     else
         let sp = declspec { c, @false } in kr_decls { c, kr_declarators { c, sp, m } }
 
-$ kr_declarators : { c: Fn, sp: Spec, m: Map @Str Ty } -> <P> Map @Str Ty =
+$ kr_declarators : { c: Fn, sp: Spec, m: Map @Str Ty }
+    -> <Tok, Scope, Tab, Unit, Diag> Map @Str Ty =
     let d = declarator c in
     let m2 = MAP.insert m d.name (build_ty { sp.ty, d.derivs, d.pos }) in
     if accept "," => kr_declarators { c, sp, m2 } else (expect ";"; m2)
 
 # Block-scope declarations; what they initialize becomes statements.
-$ local_decls : { c: Fn, sp: Spec, acc: List Stmt } -> <P> List Stmt =
+$ local_decls : { c: Fn, sp: Spec, acc: List Stmt } -> <Tok, Scope, Tab, Unit, Diag> List Stmt =
     if accept ";" =>
         acc
     else
@@ -1974,7 +1985,8 @@ $ local_decls : { c: Fn, sp: Spec, acc: List Stmt } -> <P> List Stmt =
         ) in
         if accept "," => local_decls { c, sp, acc2 } else (expect ";"; acc2)
 
-$ auto_local : { c: Fn, d: Decl, ty: Ty, align: @Int, acc: List Stmt } -> <P> List Stmt =
+$ auto_local : { c: Fn, d: Decl, ty: Ty, align: @Int, acc: List Stmt }
+    -> <Tok, Scope, Tab, Unit, Diag> List Stmt =
     if is_void ty =>
         error_at d.pos ("variable '" ++ d.name ++ "' declared void")
     else
@@ -2005,7 +2017,8 @@ $ retype : { id: @Int, ty: Ty } -> <Unit> {} = Unit.retype { id, ty }
  - `T a[n]...`: the storage is allocated on the shadow stack when the
  - declaration runs, its size the one the type's own computation produced.
  -#
-$ vla_local : { c: Fn, d: Decl, ty: Ty, acc: List Stmt } -> <P> List Stmt =
+$ vla_local : { c: Fn, d: Decl, ty: Ty, acc: List Stmt }
+    -> <Tok, Scope, Tab, Unit, Diag> List Stmt =
     let elem = base_of ty in
     let id = new_local { d.name, ptr_to elem, @false } in
     Scope.bind { d.name, Binding.Vla.{ id, ty } };
@@ -2017,7 +2030,7 @@ $ vla_local : { c: Fn, d: Decl, ty: Ty, acc: List Stmt } -> <P> List Stmt =
     in
     List.Cons.{ Stmt.Do.{ set }, acc }
 
-$ static_local : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <P> {} =
+$ static_local : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> {} =
     let ln = c.name ++ "." ++ d.name ++ "." ++ to_string c.tu ++ "." ++ to_string (Tab.fresh {}) in
     let ssp = Spec.{ .static = @true | sp } in
     Scope.bind { d.name, Binding.Gbl.{ ln, ty } };
@@ -2046,7 +2059,7 @@ $ Item : @struct = m : Member, e : Expr,
  -#
 $ InitR : @struct = items : List Item, ty : Ty,
 
-$ initializer : { c: Fn, ty: Ty } -> <P> InitR =
+$ initializer : { c: Fn, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> InitR =
     let r = init2 { c, ty, 0, Option.None, List.Nil } in
     InitR.{ .items = LIST.reverse r.items, .ty = r.ty }
 
@@ -2070,7 +2083,8 @@ $ designator_next : {} -> <Tok> @Bool =
  - expression turned out not to be the whole aggregate, and the token stream
  - cannot be re-read, so the expression is handed down instead.
  -#
-$ init2 : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item } -> <P> InitR =
+$ init2 : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> InitR =
     let none = is_none pend in
     if is_array ty =>
         if none && char_array ty && is_str (peek {}) =>
@@ -2107,19 +2121,21 @@ $ init2 : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item } -> <P>
         InitR.{ .items = List.Cons.{ Item.{ .m = whole { ty, off }, .e = v }, acc }, .ty = ty }
 
 # The rest of a braced initializer that has nothing left to initialize.
-$ skip_excess : Fn -> <P> {} = \c =>
+$ skip_excess : Fn -> <Tok, Scope, Tab, Unit, Diag> {} = \c =>
     accept ",";
     if accept "}" =>
         {}
     else
         (warn_at (peek {}).pos "excess elements in initializer"; discard c; skip_excess c)
 
-$ discard : Fn -> <P> {} = \c => if at_p "{" => (next {}; discard_list c) else (assign c; {})
+$ discard : Fn -> <Tok, Scope, Tab, Unit, Diag> {} = \c =>
+    if at_p "{" => (next {}; discard_list c) else (assign c; {})
 
-$ discard_list : Fn -> <P> {} = \c =>
+$ discard_list : Fn -> <Tok, Scope, Tab, Unit, Diag> {} = \c =>
     if accept "}" => {} else (discard c; accept ","; discard_list c)
 
-$ string_init : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <P> InitR =
+$ string_init : { c: Fn, ty: Ty, off: @Int, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> InitR =
     let s = string_tokens List.Nil in
     let v = concat_strings s in
     let elem = base_of ty in
@@ -2148,7 +2164,7 @@ $ string_items : {
             Item.{ .m = whole { elem, off + i * esz }, .e = int_expr (@vec_get us i) elem pos } in
         string_items { us, elem, esz, off, pos, i + 1, upto, List.Cons.{ it, acc } }
 
-$ arr_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <P> InitR =
+$ arr_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <Tok, Scope, Tab, Unit, Diag> InitR =
     next {};
     let elem = base_of ty in
     let esz = sizeof_ty elem in
@@ -2166,7 +2182,7 @@ $ arr_items : {
     maxi: @Int,
     first: @Bool,
     acc: List Item
-} -> <P> { List Item, @Int } =
+} -> <Tok, Scope, Tab, Unit, Diag> { List Item, @Int } =
     if accept "}" =>
         { acc, maxi }
     else
@@ -2206,7 +2222,8 @@ $ replicate : { one: List Item, esz: @Int, lo: @Int, hi: @Int, k: @Int, acc: Lis
 
 $ max_i : { a: @Int, b: @Int } -> @Int = if a > b => a else b
 
-$ designation : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <P> List Item =
+$ designation : { c: Fn, ty: Ty, off: @Int, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> List Item =
     if at_p "[" && is_array ty =>
         next {};
         let k = const_int c in
@@ -2225,7 +2242,7 @@ $ designation : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <P> List Item =
     else
         (accept "="; (init2 { c, ty, off, Option.None, acc }).items)
 
-$ member_named : { ty: Ty, t: Token } -> <P> Member =
+$ member_named : { ty: Ty, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Member =
     let l = cur_layout {} in
     ty |> \
         | Ty.Agg.{ id } => (
@@ -2236,7 +2253,8 @@ $ member_named : { ty: Ty, t: Token } -> <P> Member =
         )
         | _             => error_at t.pos "member designator in a non-aggregate initializer"
 
-$ arr_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item } -> <P> InitR =
+$ arr_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> InitR =
     let elem = base_of ty in
     let len = array_len ty in
     let items = arr_un {
@@ -2260,7 +2278,7 @@ $ arr_un : {
     i: @Int,
     pend: Option Expr,
     acc: List Item
-} -> <P> List Item =
+} -> <Tok, Scope, Tab, Unit, Diag> List Item =
     if i >= len =>
         acc
     else if is_none pend && (is_end {} || (i > 0 && designator_next {})) =>
@@ -2270,9 +2288,10 @@ $ arr_un : {
         let r = init2 { c, elem, off + i * esz, (if i == 0 => pend else Option.None), acc } in
         arr_un { c, elem, esz, len, off, i + 1, Option.None, r.items }
 
-$ agg_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <P> InitR =
+$ agg_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <Tok, Scope, Tab, Unit, Diag> InitR =
     next {};
-    let a = (ty |> \ | Ty.Agg.{ id } => agg_of (cur_layout {}) id | _ => agg_of (cur_layout {}) 0) in
+    let a =
+        (ty |> \ | Ty.Agg.{ id } => agg_of (cur_layout {}) id | _ => agg_of (cur_layout {}) 0) in
     InitR.{ .items = agg_items { c, ty, a, off, 0, @true, @false, acc }, .ty = ty }
 
 $ agg_items : {
@@ -2284,7 +2303,7 @@ $ agg_items : {
     first: @Bool,
     done: @Bool,
     acc: List Item
-} -> <P> List Item =
+} -> <Tok, Scope, Tab, Unit, Diag> List Item =
     if accept "}" =>
         acc
     else
@@ -2345,7 +2364,7 @@ $ skip_unnamed : { a: Agg, i: @Int } -> @Int =
         i
 
 $ init_member : { c: Fn, m: Member, off: @Int, pend: Option Expr, acc: List Item }
-    -> <P> List Item =
+    -> <Tok, Scope, Tab, Unit, Diag> List Item =
     if m.bit_width > 0 =>
         let e = (pend |> \ | Option.Some.{ x } => x | _ => assign c) in
         let v = assign_conv { e, m.ty, "initializing" } in
@@ -2353,11 +2372,12 @@ $ init_member : { c: Fn, m: Member, off: @Int, pend: Option Expr, acc: List Item
     else
         (init2 { c, m.ty, off + m.offset, pend, acc }).items
 
-$ agg_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item } -> <P> List Item =
+$ agg_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Option Expr, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> List Item =
     agg_un { c, agg_of (cur_layout {}) (agg_id ty), off, 0, @true, pend, acc }
 
 $ agg_un : { c: Fn, a: Agg, off: @Int, idx: @Int, first: @Bool, pend: Option Expr, acc: List Item }
-    -> <P> List Item =
+    -> <Tok, Scope, Tab, Unit, Diag> List Item =
     let i = skip_unnamed { a, idx } in
     if i >= @vec_len a.members || (a.union && !first) =>
         acc
@@ -2389,7 +2409,7 @@ $ init_stmts : { var: Expr, ty: Ty, items: List Item } -> List Stmt =
  - The bytes cover the type, or more when a flexible array member was given
  - elements (a GNU extension for static objects).
  -#
-$ global_data : { ty: Ty, items: List Item } -> <P> { @Str, @Vec Reloc } =
+$ global_data : { ty: Ty, items: List Item } -> <Tok, Scope, Tab, Unit, Diag> { @Str, @Vec Reloc } =
     let base = sizeof_ty ty in
     let l = cur_layout {} in
     let n =
@@ -2398,7 +2418,8 @@ $ global_data : { ty: Ty, items: List Item } -> <P> { @Str, @Vec Reloc } =
     in
     data_go { items, zeros n, @vec_new {}, n }
 
-$ data_go : { items: List Item, bytes: @Str, rs: @Vec Reloc, n: @Int } -> <P> { @Str, @Vec Reloc } =
+$ data_go : { items: List Item, bytes: @Str, rs: @Vec Reloc, n: @Int }
+    -> <Tok, Scope, Tab, Unit, Diag> { @Str, @Vec Reloc } =
     items |> \
         | List.Nil => { bytes, rs }
         | List.Cons.{ it, rest } =>
@@ -2469,9 +2490,9 @@ $ put_bits : { b: @Str, off: @Int, sz: @Int, bo: @Int, w: @Int, v: @Int } -> @St
 
 # -- expressions -----------------------------------------------------------------------
 
-$ expr : Fn -> <P> Expr = \c => let e = assign c in comma_rest { c, e }
+$ expr : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c => let e = assign c in comma_rest { c, e }
 
-$ comma_rest : { c: Fn, e: Expr } -> <P> Expr =
+$ comma_rest : { c: Fn, e: Expr } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     if at_p "," =>
         let t = next {} in
         let r = rv (assign c) in
@@ -2484,7 +2505,7 @@ $ assign_ops : @Str -> @Bool = \s =>
         | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" => @true
         | _ => @false
 
-$ assign : Fn -> <P> Expr = \c =>
+$ assign : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     let lhs = conditional c in
     let t = peek {} in
     if is_punct t "=" =>
@@ -2499,7 +2520,7 @@ $ assign : Fn -> <P> Expr = \c =>
 $ need_lvalue : { e: Expr, what: @Str } -> <Diag> {} =
     if is_lvalue e && !(is_array e.ty) => {} else error_at e.pos ("lvalue required as " ++ what)
 
-$ mk_assign : { lhs: Expr, rhs: Expr, pos: Pos } -> <P> Expr =
+$ mk_assign : { lhs: Expr, rhs: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     need_lvalue { lhs, "left operand of assignment" };
     let v = assign_conv { rhs, lhs.ty, "assigning to" } in
     mk_expr ENode.Assign.{ lhs, v } lhs.ty pos
@@ -2508,7 +2529,7 @@ $ mk_assign : { lhs: Expr, rhs: Expr, pos: Pos } -> <P> Expr =
  - `a op= b`: `a` is evaluated once. The operation is done in `ct`, the type the
  - plain binary operator would use, then converted back to `a`'s type.
  -#
-$ op_assign : { op: @Str, lhs: Expr, rhs0: Expr, pos: Pos } -> <P> Expr =
+$ op_assign : { op: @Str, lhs: Expr, rhs0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     need_lvalue { lhs, "left operand of '" ++ op ++ "='" };
     let rhs = rv rhs0 in
     if is_ptr lhs.ty && (op == "+" || op == "-") && is_integer rhs.ty =>
@@ -2529,7 +2550,7 @@ $ op_assign : { op: @Str, lhs: Expr, rhs0: Expr, pos: Pos } -> <P> Expr =
 $ is_bitwise : @Str -> @Bool = \op =>
     op |> \ | "%" | "&" | "|" | "^" | "<<" | ">>" => @true | _ => @false
 
-$ conditional : Fn -> <P> Expr = \c =>
+$ conditional : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     let cnd = binary { c, 1 } in
     if at_p "?" =>
         let t = next {} in
@@ -2541,7 +2562,7 @@ $ conditional : Fn -> <P> Expr = \c =>
         cnd
 
 # `a ?: b` (GNU): `a` if it is nonzero, evaluating it once.
-$ gnu_elvis : { a0: Expr, b: Expr, pos: Pos } -> <P> Expr =
+$ gnu_elvis : { a0: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = need_scalar a0 in
     let id = new_local { "elvis", a.ty, @false } in
     let tmp = mk_expr ENode.Local.{ id } a.ty pos in
@@ -2563,9 +2584,10 @@ $ bin_prec : @Str -> @Int = \op =>
         | "*" | "/" | "%"         => 10
         | _                       => 0
 
-$ binary : { c: Fn, min: @Int } -> <P> Expr = let lhs = cast_expr c in climb { c, min, lhs }
+$ binary : { c: Fn, min: @Int } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+    let lhs = cast_expr c in climb { c, min, lhs }
 
-$ climb : { c: Fn, min: @Int, lhs: Expr } -> <P> Expr =
+$ climb : { c: Fn, min: @Int, lhs: Expr } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let t = peek {} in
     let p = (t.kind |> \ | Kind.Punct => bin_prec t.text | _ => 0) in
     if p == 0 || p < min =>
@@ -2578,7 +2600,7 @@ $ climb : { c: Fn, min: @Int, lhs: Expr } -> <P> Expr =
             climb { c, min, e }
         )
 
-$ cast_expr : Fn -> <P> Expr = \c =>
+$ cast_expr : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     if at_p "(" && is_typename (peek_at 1) =>
         let lp = next {} in
         let ty = typename c in
@@ -2590,7 +2612,7 @@ $ cast_expr : Fn -> <P> Expr = \c =>
     else
         unary c
 
-$ unary : Fn -> <P> Expr = \c =>
+$ unary : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     let t = peek {} in
     if is_punct t "+" =>
         next {};
@@ -2642,7 +2664,7 @@ $ unary : Fn -> <P> Expr = \c =>
     else
         postfix c
 
-$ addr_e : { e: Expr, pos: Pos } -> <P> Expr =
+$ addr_e : { e: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     e.e |> \
         | ENode.Deref.{ p } => with_pos p pos
         | ENode.Field.{ x, m } =>
@@ -2656,7 +2678,7 @@ $ addr_e : { e: Expr, pos: Pos } -> <P> Expr =
             else
                 error_at pos "lvalue required as unary '&' operand"
 
-$ sizeof_e : { c: Fn, pos: Pos } -> <P> Expr =
+$ sizeof_e : { c: Fn, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     if at_p "(" && is_typename (peek_at 1) =>
         (
             next {};
@@ -2670,7 +2692,7 @@ $ sizeof_e : { c: Fn, pos: Pos } -> <P> Expr =
     else
         let e = unary c in sized { e, pos }
 
-$ sized_ty : { ty: Ty, pos: Pos } -> <P> Expr =
+$ sized_ty : { ty: Ty, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     if is_vla ty =>
         size_expr { ty, pos }
     else if is_func ty =>
@@ -2680,11 +2702,12 @@ $ sized_ty : { ty: Ty, pos: Pos } -> <P> Expr =
     else
         int_expr (sizeof_ty ty) (t_size (cur_target {})) pos
 
-$ sized : { e: Expr, pos: Pos } -> <P> Expr = sized_ty { e.ty, pos }
+$ sized : { e: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr = sized_ty { e.ty, pos }
 
-$ postfix : Fn -> <P> Expr = \c => let e = primary c in postfix_rest { c, e }
+$ postfix : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
+    let e = primary c in postfix_rest { c, e }
 
-$ postfix_rest : { c: Fn, e: Expr } -> <P> Expr =
+$ postfix_rest : { c: Fn, e: Expr } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let t = peek {} in
     if is_punct t "[" =>
         next {};
@@ -2729,7 +2752,7 @@ $ postfix_rest : { c: Fn, e: Expr } -> <P> Expr =
     else
         e
 
-$ call : { c: Fn, fe: Expr, pos: Pos } -> <P> Expr =
+$ call : { c: Fn, fe: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let callee = rv fe in
     fn_of callee.ty |> \
         | Option.Some.{ f } =>
@@ -2745,7 +2768,7 @@ $ call : { c: Fn, fe: Expr, pos: Pos } -> <P> Expr =
 
 $ fn_label : Expr -> @Str = \e => e.e |> \ | ENode.Global.{ g } => " '" ++ g ++ "'" | _ => ""
 
-$ call_args : { c: Fn, acc: List Expr } -> <P> List Expr =
+$ call_args : { c: Fn, acc: List Expr } -> <Tok, Scope, Tab, Unit, Diag> List Expr =
     if accept ")" =>
         LIST.reverse acc
     else
@@ -2757,7 +2780,7 @@ $ call_args : { c: Fn, acc: List Expr } -> <P> List Expr =
  - (or without one), the default argument promotions.
  -#
 $ convert_args : { f: FnTy, name: @Str, args: List Expr, ps: List Ty, acc: List Expr, pos: Pos }
-    -> <P> List Expr =
+    -> <Tok, Scope, Tab, Unit, Diag> List Expr =
     args |> \
         | List.Nil =>
             if f.proto && !(LIST.is_empty ps) =>
@@ -2783,7 +2806,7 @@ $ convert_args : { f: FnTy, name: @Str, args: List Expr, ps: List Ty, acc: List 
                         pos
                     }
 
-$ compound_literal : { c: Fn, ty: Ty, pos: Pos } -> <P> Expr =
+$ compound_literal : { c: Fn, ty: Ty, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     if at_file c =>
         let r = initializer { c, ty } in
         let ln = ".compound." ++ to_string c.tu ++ "." ++ to_string (Tab.fresh {}) in
@@ -2810,7 +2833,7 @@ $ compound_literal : { c: Fn, ty: Ty, pos: Pos } -> <P> Expr =
         let stmts = init_stmts { var, r.ty, r.items } in
         mk_expr ENode.SExpr.{ stmts, var } r.ty pos
 
-$ primary : Fn -> <P> Expr = \c =>
+$ primary : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     let t = peek {} in
     if is_punct t "(" =>
         (next {}; if at_p "{" => stmt_expr { c, t.pos } else let e = expr c in expect ")"; e)
@@ -2825,7 +2848,7 @@ $ primary : Fn -> <P> Expr = \c =>
     else
         error_at t.pos ("expected expression before " ++ found t)
 
-$ stmt_expr : { c: Fn, pos: Pos } -> <P> Expr =
+$ stmt_expr : { c: Fn, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     next {};
     Scope.enter {};
     let items = block_items { c, List.Nil } in
@@ -2838,7 +2861,7 @@ $ stmt_expr : { c: Fn, pos: Pos } -> <P> Expr =
         )
         | _                          => mk_expr ENode.SExpr.{ List.Nil, nop pos } t_void pos
 
-$ ident_expr : { c: Fn, t: Token } -> <P> Expr =
+$ ident_expr : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let n = t.text in
     n |> \
         | "__builtin_va_start"    => builtin_va_start { c, t }
@@ -2899,7 +2922,7 @@ $ ident_expr : { c: Fn, t: Token } -> <P> Expr =
                     else
                         error_at t.pos ("'" ++ n ++ "' undeclared")
 
-$ builtin_va_start : { c: Fn, t: Token } -> <P> Expr =
+$ builtin_va_start : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     expect "(";
     let ap = assign c in
     (when (accept ",") <| \_ => assign c; {});
@@ -2909,18 +2932,18 @@ $ builtin_va_start : { c: Fn, t: Token } -> <P> Expr =
     else
         mk_expr ENode.VaStart.{ ap } t_void t.pos
 
-$ builtin_offsetof : { c: Fn, t: Token } -> <P> Expr =
+$ builtin_offsetof : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     expect "(";
     let ty = typename c in
     expect ",";
     let off = offset_path { c, ty, 0 } in expect ")"; int_expr off (t_size (cur_target {})) t.pos
 
-$ offset_path : { c: Fn, ty: Ty, off: @Int } -> <P> @Int =
+$ offset_path : { c: Fn, ty: Ty, off: @Int } -> <Tok, Scope, Tab, Unit, Diag> @Int =
     let n = expect_ident "a member name" in
     let m = member_named { ty, n } in
     offset_more { c, m.ty, off + m.offset }
 
-$ offset_more : { c: Fn, ty: Ty, off: @Int } -> <P> @Int =
+$ offset_more : { c: Fn, ty: Ty, off: @Int } -> <Tok, Scope, Tab, Unit, Diag> @Int =
     if accept "." =>
         offset_path { c, ty, off }
     else if accept "[" =>
@@ -2929,7 +2952,7 @@ $ offset_more : { c: Fn, ty: Ty, off: @Int } -> <P> @Int =
     else
         off
 
-$ generic : { c: Fn, t: Token } -> <P> Expr =
+$ generic : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     expect "(";
     let ctrl = rv (assign c) in
     let ct =
@@ -2945,7 +2968,8 @@ $ generic : { c: Fn, t: Token } -> <P> Expr =
                     ++ "' is not compatible with any association"
             )
 
-$ generic_assocs : { c: Fn, ct: Ty, chosen: Option Expr, dflt: Option Expr } -> <P> Option Expr =
+$ generic_assocs : { c: Fn, ct: Ty, chosen: Option Expr, dflt: Option Expr }
+    -> <Tok, Scope, Tab, Unit, Diag> Option Expr =
     let picked = (
         if accept_kw "default" =>
             (expect ":"; let e = assign c in { chosen, Option.Some.{ e } })
@@ -2980,7 +3004,7 @@ $ generic_match : { a: Ty, b: Ty } -> <Tab> @Bool =
  - An integer constant's type is the first of a list that can represent it: the
  - list depends on the suffix and on whether it was written in decimal.
  -#
-$ number : Token -> <P> Expr = \t =>
+$ number : Token -> <Tok, Scope, Tab, Unit, Diag> Expr = \t =>
     if is_float_text t.text =>
         (
             float_lit t.text |> \
@@ -3037,7 +3061,7 @@ $ first_fit : { v: @Int, cands: @Vec Ty, i: @Int } -> Ty =
         ) in
         if fits => t else first_fit { v, cands, i + 1 }
 
-$ char_const : Token -> <P> Expr = \t =>
+$ char_const : Token -> <Tok, Scope, Tab, Unit, Diag> Expr = \t =>
     let pre = prefix_of t.text in
     let ty = (
         pre |> \
@@ -3071,7 +3095,7 @@ $ concat_strings : List Token -> StrV = \ts =>
     in
     StrV.{ .units = units, .width = w, .prefix = pre }
 
-$ string_expr : Fn -> <P> Expr = \c =>
+$ string_expr : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     let ts = string_tokens List.Nil in
     let v = concat_strings ts in
     let pos = (unwrap_or (LIST.head ts) (eof_tok nowhere)).pos in
@@ -3084,7 +3108,8 @@ $ str_elem : { w: @Int, pre: @Str } -> Ty =
         | _ => if pre == "U" => t_uint else t_int
 
 # A string literal is an anonymous static array of its code units and a zero.
-$ string_global : { c: Fn, units: @Vec @Int, w: @Int, pre: @Str, pos: Pos } -> <P> Expr =
+$ string_global : { c: Fn, units: @Vec @Int, w: @Int, pre: @Str, pos: Pos }
+    -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let elem = str_elem { w, pre } in
     let n = @vec_len units + 1 in
     let ty = array_of elem n in
@@ -3110,7 +3135,7 @@ $ string_global : { c: Fn, units: @Vec @Int, w: @Int, pre: @Str, pos: Pos } -> <
 
 # -- statements ------------------------------------------------------------------------
 
-$ compound : Fn -> <P> Stmt = \c =>
+$ compound : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
     expect "{";
     Scope.enter {};
     let items = block_items { c, List.Nil } in Scope.leave {}; Stmt.Block.{ items }
@@ -3119,7 +3144,7 @@ $ compound : Fn -> <P> Stmt = \c =>
  - The items of a block, through its closing `}`. A declaration is recognized by
  - its first token naming a type, unless that name is a label (`T:`).
  -#
-$ block_items : { c: Fn, acc: List Stmt } -> <P> List Stmt =
+$ block_items : { c: Fn, acc: List Stmt } -> <Tok, Scope, Tab, Unit, Diag> List Stmt =
     let t = peek {} in
     if accept "}" =>
         LIST.reverse acc
@@ -3136,11 +3161,12 @@ $ block_items : { c: Fn, acc: List Stmt } -> <P> List Stmt =
     else
         let s = stmt c in block_items { c, List.Cons.{ s, acc } }
 
-$ test : Fn -> <P> Expr = \c => expect "("; let e = need_scalar (expr c) in expect ")"; e
+$ test : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
+    expect "("; let e = need_scalar (expr c) in expect ")"; e
 
 $ in_loop : Fn -> Fn = \c => Fn.{ .loop = @true | c }
 
-$ stmt : Fn -> <P> Stmt = \c =>
+$ stmt : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
     let t = peek {} in
     if is_punct t "{" =>
         compound c
@@ -3160,7 +3186,7 @@ $ stmt : Fn -> <P> Stmt = \c =>
         keyword_stmt { c, t }
 
 # A statement that starts with an identifier: a keyword's, or an expression.
-$ keyword_stmt : { c: Fn, t: Token } -> <P> Stmt =
+$ keyword_stmt : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Stmt =
     t.text |> \
         | "return"        => next {}; return_stmt { c, t }
         | "if" =>
@@ -3233,9 +3259,10 @@ $ keyword_stmt : { c: Fn, t: Token } -> <P> Stmt =
         | "asm" | "__asm" => skip_attrs {}; expect ";"; Stmt.Empty
         | _               => expr_stmt c
 
-$ expr_stmt : Fn -> <P> Stmt = \c => let e = expr c in expect ";"; Stmt.Do.{ e }
+$ expr_stmt : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
+    let e = expr c in expect ";"; Stmt.Do.{ e }
 
-$ return_stmt : { c: Fn, t: Token } -> <P> Stmt =
+$ return_stmt : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Stmt =
     if accept ";" =>
         (
             when
@@ -3256,7 +3283,7 @@ $ return_stmt : { c: Fn, t: Token } -> <P> Stmt =
         else
             let v = assign_conv { e, c.ret, "returning to" } in Stmt.Return.{ v }
 
-$ for_stmt : Fn -> <P> Stmt = \c =>
+$ for_stmt : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
     expect "(";
     Scope.enter {};
     let init = (
@@ -3274,4 +3301,5 @@ $ for_stmt : Fn -> <P> Stmt = \c =>
     let step = (if at_p ")" => nop (peek {}).pos else expr c) in
     expect ")"; let body = stmt (in_loop c) in Scope.leave {}; Stmt.For.{ init, cnd, step, body }
 
-$ drain_go : @Int -> <P> @Int = \n => let t = next {} in if is_eof t => n else drain_go (n + 1)
+$ drain_go : @Int -> <Tok, Scope, Tab, Unit, Diag> @Int = \n =>
+    let t = next {} in if is_eof t => n else drain_go (n + 1)

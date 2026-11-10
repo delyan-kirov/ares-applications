@@ -288,7 +288,7 @@ $ main_preprocess : Opts -> <@IO> @Int = \o =>
 # One translation unit: the predefined macros, then the file. The root is read
 # through the same handler as its includes, so a missing root file reports the
 # way a missing header does.
-$ run_file : Opts -> @Str -> <PPfx> {} = \o f =>
+$ run_file : Opts -> @Str -> <Macros, Files, Out, Diag> {} = \o f =>
     preprocess "<built-in>" (lex "<built-in>" (predefined o.target ++ o.defs));
     Files.include Request.{ .name = f, .angled = @false, .dir = ".", .next = @false, .from = "" }
         |> \

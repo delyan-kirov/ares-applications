@@ -71,8 +71,6 @@ $ Fr : @effect =
 # flattened and generated again.
 $ Bail : @effect = unstructured : @Str -> a,
 
-$ G : @alias = <Code, Types, Fr, Diag, Bail>
-
 # Per-function facts: the return type, the wasm locals holding the struct-return
 # pointer (-1 if none), the variadic area pointer, the frame pointer and the
 # shadow stack pointer saved at entry.
@@ -280,13 +278,15 @@ $ depth : (Lbl -> @Bool) -> List Lbl -> @Int -> Option @Int = \ok ls i =>
 $ is_brk : Lbl -> @Bool = \l => l |> \ | Lbl.LBrk => @true | _ => @false
 $ is_cont : Lbl -> @Bool = \l => l |> \ | Lbl.LCont => @true | _ => @false
 
-$ with_label : Lbl -> ({} -> <G> {}) -> <G> {} = \l body => Fr.push l; body {}; Fr.pop {}
+$ with_label : Lbl -> ({} -> <Code, Types, Fr, Diag, Bail> {})
+    -> <Code, Types, Fr, Diag, Bail> {} = \l body =>
+    Fr.push l; body {}; Fr.pop {}
 
 # -- expressions -----------------------------------------------------------------
 
 # Push the address of an lvalue, returning a constant byte offset still to be
 # added: a load or store folds it into its own offset immediate.
-$ addr_off : Ctx -> F -> Expr -> <G> @Int = \c f e =>
+$ addr_off : Ctx -> F -> Expr -> <Code, Types, Fr, Diag, Bail> @Int = \c f e =>
     e.e |> \
         | ENode.Local.{ id }    => (
             Fr.slot id |> \
@@ -306,7 +306,7 @@ $ addr_off : Ctx -> F -> Expr -> <G> @Int = \c f e =>
         | _                     =>
             if is_mem_ty e.ty => (gen c f e; 0) else error_at e.pos "internal: not an lvalue"
 
-$ addr : Ctx -> F -> Expr -> <G> {} = \c f e =>
+$ addr : Ctx -> F -> Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f e =>
     let o = addr_off c f e in if o != 0 => emit (pconst c o ++ padd c) else {}
 
 $ addr_of : Ctx -> @Str -> Pos -> <Diag> @Int = \c g pos =>
@@ -318,7 +318,7 @@ $ table_of : Ctx -> @Str -> Pos -> <Diag> @Int = \c g pos =>
         \ | Option.Some.{ a } => a | _ => error_at pos ("undefined reference to '" ++ g ++ "'")
 
 # Push an i32 that is nonzero exactly when the scalar is.
-$ cond : Ctx -> F -> Expr -> <G> {} = \c f e =>
+$ cond : Ctx -> F -> Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f e =>
     gen c f e; vt_of c.tg e.ty |> \
         | ValT.I64 => emit (op 80 ++ op 69)
         | ValT.F32 => emit (f32_const (f64_to_f32 0.0) ++ op 92)
@@ -326,7 +326,7 @@ $ cond : Ctx -> F -> Expr -> <G> {} = \c f e =>
         | _        => {}
 
 # The same, normalized to 0 or 1.
-$ cond01 : Ctx -> F -> Expr -> <G> {} = \c f e =>
+$ cond01 : Ctx -> F -> Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f e =>
     cond c f e; if is_bool_result e => {} else emit (i32_const 0 ++ op 71)
 
 $ is_bool_result : Expr -> @Bool = \e =>
@@ -343,7 +343,7 @@ $ is_bool_result : Expr -> @Bool = \e =>
         | ENode.Unary.{ o, x } => o == "!"
         | _                    => is_bool e.ty
 
-$ gen : Ctx -> F -> Expr -> <G> {} = \c f e =>
+$ gen : Ctx -> F -> Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f e =>
     e.e |> \
         | ENode.IntC.{ v }               => (
             vt_of c.tg e.ty |> \
@@ -459,7 +459,7 @@ $ gen : Ctx -> F -> Expr -> <G> {} = \c f e =>
         | ENode.Nop                      => {}
 
 # Evaluate for effect only, leaving nothing on the stack.
-$ gen_void : Ctx -> F -> Expr -> <G> {} = \c f e =>
+$ gen_void : Ctx -> F -> Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f e =>
     e.e |> \
         | ENode.Assign.{ l, r }          => assign c f l r @false
         | ENode.OpAssign.{ o, l, r, ct } => op_assign c f o l r ct @false
@@ -480,7 +480,7 @@ $ gen_void : Ctx -> F -> Expr -> <G> {} = \c f e =>
         | ENode.Copy.{ a, b, n }         => gen c f e
         | _                              => gen c f e; if is_void e.ty => {} else emit drop_op
 
-$ unary : Ctx -> F -> @Str -> Expr -> Ty -> <G> {} = \c f o x t =>
+$ unary : Ctx -> F -> @Str -> Expr -> Ty -> <Code, Types, Fr, Diag, Bail> {} = \c f o x t =>
     let v = vt_of c.tg t in
     if o == "!" =>
         (
@@ -576,7 +576,8 @@ $ arith_op : ValT -> @Bool -> @Str -> @Int = \v s o =>
                 | _    => 0
         )
 
-$ binary : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> <G> {} = \c f o a b t =>
+$ binary : Ctx -> F -> @Str -> Expr -> Expr -> Ty
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f o a b t =>
     if o == "&&" =>
         (
             cond c f a;
@@ -609,12 +610,13 @@ $ bitfield : Expr -> Option Member = \e =>
         | ENode.Field.{ x, m } => if m.bit_width > 0 => Option.Some.{ m } else Option.None
         | _                    => Option.None
 
-$ assign : Ctx -> F -> Expr -> Expr -> @Bool -> <G> {} = \c f l r keep =>
+$ assign : Ctx -> F -> Expr -> Expr -> @Bool -> <Code, Types, Fr, Diag, Bail> {} = \c f l r keep =>
     l.e |> \
         | ENode.Comma.{ a, b } => (gen_void c f a; assign c f b r keep)
         | _                    => assign_to c f l r keep
 
-$ assign_to : Ctx -> F -> Expr -> Expr -> @Bool -> <G> {} = \c f l r keep =>
+$ assign_to : Ctx -> F -> Expr -> Expr -> @Bool
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f l r keep =>
     if is_agg l.ty || is_array l.ty =>
         let p = ptr_vt c.tg in
         let t = Fr.tmp p in
@@ -650,7 +652,7 @@ $ assign_to : Ctx -> F -> Expr -> Expr -> @Bool -> <G> {} = \c f l r keep =>
 # Load a bit-field from the storage unit whose address is on the stack: shift
 # its bits to the top, then back down (arithmetically if it is signed), which
 # both extracts and sign-extends.
-$ load_bits : Ctx -> Member -> @Int -> <G> {} = \c m o =>
+$ load_bits : Ctx -> Member -> @Int -> <Code, Types, Fr, Diag, Bail> {} = \c m o =>
     let unit = m.ty in
     let v = vt_of c.tg unit in
     let w = if is64 v => 64 else 32 in
@@ -666,7 +668,7 @@ $ unsigned_of : Ty -> Ty = \t =>
     t |> \ | Ty.Int.{ k } => Ty.Int.{ IntK.{ .unsigned = @true | k } } | _ => t
 
 # Store the value in local `tv` into the bit-field at the address in local `ta`.
-$ store_bits : Ctx -> Member -> @Int -> @Int -> <G> {} = \c m ta tv =>
+$ store_bits : Ctx -> Member -> @Int -> @Int -> <Code, Types, Fr, Diag, Bail> {} = \c m ta tv =>
     let unit = m.ty in
     let v = vt_of c.tg unit in
     let mask = shl (shl 1 m.bit_width - 1) m.bit_off in
@@ -692,7 +694,7 @@ $ store_bits : Ctx -> Member -> @Int -> @Int -> <G> {} = \c m ta tv =>
 
 # The value of a narrow integer type kept in range after arithmetic, the way
 # storing it in memory would truncate it.
-$ normalize : Ctx -> Ty -> <G> {} = \c t =>
+$ normalize : Ctx -> Ty -> <Code, Types, Fr, Diag, Bail> {} = \c t =>
     t |> \
         | Ty.Int.{ k } =>
             if k.rank == 0 =>
@@ -705,12 +707,14 @@ $ normalize : Ctx -> Ty -> <G> {} = \c t =>
                 {}
         | _ => {}
 
-$ op_assign : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> @Bool -> <G> {} = \c f o l r ct keep =>
+$ op_assign : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> @Bool
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f o l r ct keep =>
     l.e |> \
         | ENode.Comma.{ a, b } => (gen_void c f a; op_assign c f o b r ct keep)
         | _                    => op_assign_to c f o l r ct keep
 
-$ op_assign_to : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> @Bool -> <G> {} = \c f o l r ct keep =>
+$ op_assign_to : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> @Bool
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f o l r ct keep =>
     let lv = vt_of c.tg l.ty in
     let combine =
         \u =>
@@ -746,7 +750,8 @@ $ op_assign_to : Ctx -> F -> @Str -> Expr -> Expr -> Ty -> @Bool -> <G> {} = \c 
                             emit (store c l.ty o)
             )
 
-$ post_op : Ctx -> F -> @Str -> Expr -> Expr -> @Bool -> <G> {} = \c f o l d keep =>
+$ post_op : Ctx -> F -> @Str -> Expr -> Expr -> @Bool
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f o l d keep =>
     let lv = vt_of c.tg l.ty in
     let step = \u => gen c f d; emit (op (arith_op lv (signed l.ty) o)); normalize c l.ty in
     local_slot l |> \
@@ -785,7 +790,7 @@ $ post_op : Ctx -> F -> @Str -> Expr -> Expr -> @Bool -> <G> {} = \c f o l d kee
 
 # -- conversions -----------------------------------------------------------------
 
-$ cast : Ctx -> F -> Expr -> Ty -> <G> {} = \c f x t =>
+$ cast : Ctx -> F -> Expr -> Ty -> <Code, Types, Fr, Diag, Bail> {} = \c f x t =>
     if is_void t =>
         gen_void c f x
     else if is_bool t =>
@@ -794,7 +799,7 @@ $ cast : Ctx -> F -> Expr -> Ty -> <G> {} = \c f x t =>
         (gen c f x; convert c x.ty t)
 
 # Convert the value on the stack from C type `a` to C type `b`.
-$ convert : Ctx -> Ty -> Ty -> <G> {} = \c a b =>
+$ convert : Ctx -> Ty -> Ty -> <Code, Types, Fr, Diag, Bail> {} = \c a b =>
     if is_mem_ty b || is_void b =>
         {}
     else if is_bool b && !(is_bool a) =>
@@ -851,7 +856,7 @@ $ int_size : Ty -> @Int = \t => t |> \ | Ty.Int.{ k } => k.size | _ => 4
 
 $ narrow : Ty -> @Bool = \t => t |> \ | Ty.Int.{ k } => k.size < 4 | _ => @false
 
-$ narrow_to : Ctx -> Ty -> <G> {} = \c t => normalize c t
+$ narrow_to : Ctx -> Ty -> <Code, Types, Fr, Diag, Bail> {} = \c t => normalize c t
 
 # -- calls -----------------------------------------------------------------------
 
@@ -867,7 +872,8 @@ $ direct_name : Expr -> Option @Str = \e =>
 $ frame_addr : Ctx -> F -> @Int -> <Code> {} = \c f off =>
     emit (local_get f.fp ++ pconst c off ++ padd c)
 
-$ call : Ctx -> F -> Expr -> List Expr -> FnTy -> Ty -> Pos -> <G> {} = \c f fn args ft rt pos =>
+$ call : Ctx -> F -> Expr -> List Expr -> FnTy -> Ty -> Pos
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f fn args ft rt pos =>
     let name = direct_name fn in
     let intr = (name |> \ | Option.Some.{ n } => intrinsic n | _ => Option.None) in
     if (name |> \ | Option.Some.{ n } => n == "alloca" && !(MAP.has c.fidx n) | _ => @false) =>
@@ -924,14 +930,15 @@ $ call : Ctx -> F -> Expr -> List Expr -> FnTy -> Ty -> Pos -> <G> {} = \c f fn 
                 else
                     convert c real.ret rt
 
-$ gen_args_plain : Ctx -> F -> List Expr -> <G> {} = \c f args =>
+$ gen_args_plain : Ctx -> F -> List Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f args =>
     args |> \ | List.Cons.{ a, r } => (gen c f a; gen_args_plain c f r) | _ => {}
 
 # The arguments for the parameters, each converted to the parameter's type when
 # the call had no prototype to do it; a struct is passed as the address of a
 # copy in the caller's frame. The rest go to a variadic area, one 8-byte-aligned
 # slot each, whose address is the hidden last argument.
-$ push_args : Ctx -> F -> List Expr -> List Ty -> FnTy -> <G> {} = \c f args ps ft =>
+$ push_args : Ctx -> F -> List Expr -> List Ty -> FnTy
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f args ps ft =>
     ps |> \
         | List.Cons.{ p, prest } => (
             args |> \
@@ -947,10 +954,10 @@ $ zero_of : Ctx -> Ty -> @Str = \c t =>
         | ValT.F64 => f64_const 0.0
         | _        => i32_const 0
 
-$ drop_extra : Ctx -> F -> List Expr -> <G> {} = \c f args =>
+$ drop_extra : Ctx -> F -> List Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f args =>
     args |> \ | List.Cons.{ a, r } => (gen_void c f a; drop_extra c f r) | _ => {}
 
-$ push_one : Ctx -> F -> Expr -> Ty -> <G> {} = \c f a p =>
+$ push_one : Ctx -> F -> Expr -> Ty -> <Code, Types, Fr, Diag, Bail> {} = \c f a p =>
     if is_agg p =>
         let n = size_of c.lay p in
         let off = Fr.alloc { n, align_of c.lay p } in
@@ -958,12 +965,12 @@ $ push_one : Ctx -> F -> Expr -> Ty -> <G> {} = \c f a p =>
     else
         (gen c f a; convert c a.ty p)
 
-$ var_area : Ctx -> F -> List Expr -> <G> {} = \c f args =>
+$ var_area : Ctx -> F -> List Expr -> <Code, Types, Fr, Diag, Bail> {} = \c f args =>
     let total = LIST.foldl (\n a => n + align_to (size_of c.lay a.ty) 8) 0 args in
     let off = Fr.alloc { (if total == 0 => 8 else total), 8 } in
     var_store c f args off; frame_addr c f off
 
-$ var_store : Ctx -> F -> List Expr -> @Int -> <G> {} = \c f args off =>
+$ var_store : Ctx -> F -> List Expr -> @Int -> <Code, Types, Fr, Diag, Bail> {} = \c f args off =>
     args |> \
         | List.Cons.{ a, r } =>
             let n = size_of c.lay a.ty in
@@ -978,16 +985,16 @@ $ var_store : Ctx -> F -> List Expr -> @Int -> <G> {} = \c f args off =>
 
 # -- statements ------------------------------------------------------------------
 
-$ stmts : Ctx -> F -> List Stmt -> <G> {} = \c f ss =>
+$ stmts : Ctx -> F -> List Stmt -> <Code, Types, Fr, Diag, Bail> {} = \c f ss =>
     ss |> \ | List.Cons.{ s, r } => (stmt c f s; stmts c f r) | _ => {}
 
 # A statement expression's statements are a block of their own.
-$ sexpr_stmts : Ctx -> F -> List Stmt -> <G> {} = \c f ss =>
+$ sexpr_stmts : Ctx -> F -> List Stmt -> <Code, Types, Fr, Diag, Bail> {} = \c f ss =>
     stmt c f (if f.flat => flatten_with ".S" (Stmt.Block.{ ss }) else Stmt.Block.{ ss })
 
 $ epilogue : F -> @Str = \f => local_get f.saved ++ global_set 0
 
-$ stmt : Ctx -> F -> Stmt -> <G> {} = \c f s =>
+$ stmt : Ctx -> F -> Stmt -> <Code, Types, Fr, Diag, Bail> {} = \c f s =>
     s |> \
         | Stmt.Do.{ e }                    => gen_void c f e
         | Stmt.Block.{ ss }                => if has_labels ss => dispatch c f ss else stmts c f ss
@@ -1110,7 +1117,7 @@ $ segments : List Stmt -> Seg -> List Seg -> List Seg = \ss cur acc =>
             else
                 segments r Seg.{ .body = List.Cons.{ s, cur.body } | cur } acc
 
-$ switch : Ctx -> F -> Expr -> Stmt -> <G> {} = \c f e body =>
+$ switch : Ctx -> F -> Expr -> Stmt -> <Code, Types, Fr, Diag, Bail> {} = \c f e body =>
     let items = (body |> \ | Stmt.Block.{ ss } => ss | _ => LIST.singleton body) in
     let segs = LIST.to_vec
         (segments items Seg.{ .cases = List.Nil, .dflt = @false, .body = List.Nil } List.Nil) in
@@ -1124,10 +1131,10 @@ $ switch : Ctx -> F -> Expr -> Stmt -> <G> {} = \c f e body =>
         open_blocks n; dispatch_cases c v tv segs; close_segments c f segs 0);
     emit end
 
-$ open_blocks : @Int -> <G> {} = \n =>
+$ open_blocks : @Int -> <Code, Types, Fr, Diag, Bail> {} = \n =>
     if n <= 0 => {} else (emit block; Fr.push Lbl.LPlain; open_blocks (n - 1))
 
-$ close_segments : Ctx -> F -> @Vec Seg -> @Int -> <G> {} = \c f segs i =>
+$ close_segments : Ctx -> F -> @Vec Seg -> @Int -> <Code, Types, Fr, Diag, Bail> {} = \c f segs i =>
     if i >= @vec_len segs =>
         {}
     else
@@ -1136,7 +1143,8 @@ $ close_segments : Ctx -> F -> @Vec Seg -> @Int -> <G> {} = \c f segs i =>
 # Jump to the segment of the matching case: a jump table when the cases are
 # dense, a chain of comparisons otherwise. Inside the innermost block, `br j`
 # lands at the start of segment j, and `br n` past them all.
-$ dispatch_cases : Ctx -> ValT -> @Int -> @Vec Seg -> <G> {} = \c v tv segs =>
+$ dispatch_cases : Ctx -> ValT -> @Int -> @Vec Seg
+    -> <Code, Types, Fr, Diag, Bail> {} = \c v tv segs =>
     let n = @vec_len segs in
     let cases = case_list segs 0 (@vec_new {}) in
     let dflt = default_seg segs 0 n in
@@ -1232,7 +1240,7 @@ $ label_segments : List Stmt -> LSeg -> List LSeg -> List LSeg = \ss cur acc =>
 # A block whose items carry labels runs as a dispatch loop: a `goto` stores the
 # segment it wants and branches to the loop head, which jumps into that
 # segment. Entering normally starts at segment 0.
-$ dispatch : Ctx -> F -> List Stmt -> <G> {} = \c f ss =>
+$ dispatch : Ctx -> F -> List Stmt -> <Code, Types, Fr, Diag, Bail> {} = \c f ss =>
     let segs =
         LIST.to_vec (label_segments ss LSeg.{ .names = List.Nil, .body = List.Nil } List.Nil) in
     let n = @vec_len segs in
@@ -1256,13 +1264,14 @@ $ seg_names : @Vec LSeg -> @Int -> List @Str -> List @Str = \segs i acc =>
                     (@vec_get segs i).names
             )
 
-$ close_lsegments : Ctx -> F -> @Vec LSeg -> @Int -> <G> {} = \c f segs i =>
+$ close_lsegments : Ctx -> F -> @Vec LSeg -> @Int
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f segs i =>
     if i >= @vec_len segs =>
         {}
     else
         (emit end; Fr.pop {}; stmts c f (@vec_get segs i).body; close_lsegments c f segs (i + 1))
 
-$ goto : Ctx -> F -> @Str -> <G> {} = \c f l =>
+$ goto : Ctx -> F -> @Str -> <Code, Types, Fr, Diag, Bail> {} = \c f l =>
     find_disp (Fr.labels {}) l 0 |> \
         | Option.Some.{ hit } => emit (i32_const hit.1 ++ local_set hit.2 ++ br hit.0)
         | _                   => Bail.unstructured
@@ -1392,7 +1401,8 @@ $ assign_slots : Ctx -> Func -> Map @Int @Int -> @Int -> @Int -> List LVar -> @S
 
 # A switch whose value is evaluated once, then dispatched to labels: what a
 # flattened `switch` becomes.
-$ jump : Ctx -> F -> Expr -> List { @Int, @Int, @Str } -> @Str -> <G> {} = \c f e cs d =>
+$ jump : Ctx -> F -> Expr -> List { @Int, @Int, @Str } -> @Str
+    -> <Code, Types, Fr, Diag, Bail> {} = \c f e cs d =>
     let v = vt_of c.tg e.ty in
     let tv = Fr.tmp v in
     gen c f e;

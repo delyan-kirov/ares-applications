@@ -598,4 +598,4 @@ $ numeric : @Vec @Str = [
     "i64.extend32_s"
 ]
 
-$ @e <| assert (@vec_len numeric == 128 && @vec_len memops == 23) "WAT: opcode tables out of step"
+$ &assert (@vec_len numeric == 128 && @vec_len memops == 23) "WAT: opcode tables out of step"

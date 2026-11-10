@@ -4,4 +4,4 @@ $ @mod BUILD
 # \info Configures every alec program: the entry points stay here, the modules
 #       they import live in `source/`.
 
-$ @build : {} -> <@Meta, @IO> @Code = \_ => @import_path "source"; @parse_items ""
+$ @build : {} -> <@Meta, @IO> @Code = \_ => @import_path "source"; ""

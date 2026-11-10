@@ -1,6 +1,6 @@
 # Copying a type's members
 #
-# An `@e` entry in a declaration runs a generator at build time and puts the
+# A `&` entry in a declaration runs a generator at build time and puts the
 # fields or variants it builds in its place. `fields_of` copies another struct's.
 
 $ @mod MAIN
@@ -13,9 +13,9 @@ $ Point : @struct =
     x: @Int,
     y: @Int,
 
-# The `@e` entry inserts x: @Int, y: @Int.
+# The `&` entry inserts x: @Int, y: @Int.
 $ Point3 : @struct =
-    @e <| DERIVE.fields_of "Point",
+    &DERIVE.fields_of "Point",
     z: @Int,
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>

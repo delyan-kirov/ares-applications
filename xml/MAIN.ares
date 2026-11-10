@@ -2,7 +2,7 @@ $ @mod MAIN
 
 # \file MAIN.ares
 # \info The XML library's test suite and demo. The checks run at COMPILE time
-#       (`$ @e <| assert ...`), so `ares check MAIN.ares` is the test run; the
+#       (`$ &assert ...`), so `ares check MAIN.ares` is the test run; the
 #       entry point parses a file and prints what it found.
 #           ares run MAIN.ares sample.xml
 #           ares run MAIN.ares            # uses the built-in sample
@@ -218,7 +218,7 @@ $ test : @Int =
         + ck_stray_lt + ck_caret + ck_mismatch_note + ck_unclosed_note + ck_attr_msg
         + ck_comment_msg + ck_empty_msg + ck_trailing_msg + ck_bang_msg + ck_no_found_noise
 
-$ @e <| assert (test == 0) "XML: a check failed"
+$ &assert (test == 0) "XML: a check failed"
 
 # ==========================================================================
 # The demo
