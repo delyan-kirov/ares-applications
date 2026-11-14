@@ -7,6 +7,11 @@
 /web/site/favicon.svg
 /web/site/favicon.png
 /web/site/apple-touch-icon.png
+/web/site/spear.svg
+/web/site/spear.png
+/web/site/spear-shield.svg
+/web/site/spear-shield.png
+/web/site/fonts/
 
 .*
 ares-out

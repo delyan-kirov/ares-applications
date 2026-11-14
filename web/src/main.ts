@@ -7,6 +7,7 @@ import { createHost, Mode } from "./host.ts";
 import { Client } from "./lsp.ts";
 import { Editor } from "./editor.ts";
 import { showOutput } from "./card.ts";
+import { launch } from "./spears.ts";
 
 /// A tour cell, as web/build.ts writes it from web/cells/*.ares.
 interface Cell { id: string; title: string; blurb: string; src: string }
@@ -17,6 +18,17 @@ interface Cell { id: string; title: string; blurb: string; src: string }
 const OPEN_LIMIT = 3;
 
 const host = createHost();
+
+// The hero logo is the generated favicon.svg inlined, so the page's CSS can
+// animate its `.shield` and `.spear`. It is fetched alongside the compiler,
+// not after it, so it lands while the wasm is still loading.
+const mark = document.getElementById("mark") as HTMLElement;
+fetch("favicon.svg").then((r) => r.text()).then((svg) => { mark.innerHTML = svg; mark.classList.add("in"); });
+mark.onclick = () => {
+  mark.classList.remove("in");
+  void mark.offsetWidth;
+  mark.classList.add("in");
+};
 
 /// Inline formatting for prose: escape HTML, then `code` -> <code>.
 function fmt(s: string): string {
@@ -44,6 +56,7 @@ const client = new Client(host);
 interface Runner {
   editor: Editor;
   check: HTMLElement;
+  button: HTMLElement;
   id: string;
   title: string;
   src: string;
@@ -78,6 +91,8 @@ function showCheck(r: Runner): void {
 }
 
 function run(r: Runner): void {
+  const at = r.button.getBoundingClientRect();
+  launch(at.left, at.top + at.height / 2);
   let text: string;
   let failed: boolean;
   try {
@@ -93,7 +108,7 @@ function run(r: Runner): void {
 const notebook = document.getElementById("notebook") as HTMLElement;
 cells.forEach((cell, i) => {
   const sec = document.createElement("section");
-  sec.className = "cell";
+  sec.className = "cell glass";
   sec.innerHTML = `
     <div class="prose">
       <h2><span class="n">${String(i + 1).padStart(2, "0")}</span>${fmt(cell.title)}</h2>
@@ -113,6 +128,7 @@ cells.forEach((cell, i) => {
   const pane = sec.querySelector(".pane") as HTMLElement;
   const r = {
     check: sec.querySelector(".check") as HTMLElement,
+    button: sec.querySelector(".run") as HTMLElement,
     id: cell.id,
     title: `${String(i + 1).padStart(2, "0")}  ${cell.title.replace(/`/g, "")}`,
     src: cell.src,
@@ -124,7 +140,7 @@ cells.forEach((cell, i) => {
     activate: () => activate(r),
   });
   byUri.set(r.editor.uri, r);
-  (sec.querySelector(".run") as HTMLButtonElement).onclick = () => run(r);
+  r.button.onclick = () => run(r);
   (sec.querySelector(".fmt") as HTMLButtonElement).onclick = () => r.editor.format();
   (sec.querySelector(".reset") as HTMLButtonElement).onclick = () => r.editor.setText(r.src);
   r.editor.input.addEventListener("input", () => showCheck(r));
