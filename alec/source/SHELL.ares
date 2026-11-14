@@ -100,7 +100,7 @@ $ load_lib : Opts -> <@IO> Option (Map @Str ({} -> TU)) = \o =>
     | Diag.fail e => (eprintln ("C library: " ++ render "error" e); Option.None)
     | Diag.warn e => k {}
 
-$ scratch_dir : {} -> <@IO> @Str = \u =>
+$ scratch_dir : {} -> <@IO> @Str =
     let base = env "TMPDIR" in
     let d = (if base == "" => "/tmp" else base)
         ++ "/alec-shell-"

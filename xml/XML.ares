@@ -208,7 +208,7 @@ $ match_first : ({} -> <Pick, Choice, Soft> a) -> Option a = \body =>
     | v              => v
 
 # Prune this branch: it is not a match.
-$ no_match : {} -> <Pick, Choice, Soft> a = \u => reject (broken 0 "no match" "")
+$ no_match : {} -> <Pick, Choice, Soft> a = reject (broken 0 "no match" "")
 
 $ child : Node -> <Pick, Choice, Soft> Node = \n => one_of (kids n)
 
@@ -357,9 +357,9 @@ $ run_to : View -> (@Int -> @Bool) -> @Int = \v ok => run_end v.src v.at ok
 
 # -- operations -------------------------------------------------------------
 
-$ pos : {} -> <Scan> @Int = \u => (view {}).at
+$ pos : {} -> <Scan> @Int = (view {}).at
 
-$ at_end : {} -> <Scan> @Bool = \u => ended (view {})
+$ at_end : {} -> <Scan> @Bool = ended (view {})
 
 $ ahead : @Str -> {} -> <Scan> @Bool = \s u => at_lit (view {}) s
 
@@ -368,7 +368,7 @@ $ ahead : @Str -> {} -> <Scan> @Bool = \s u => at_lit (view {}) s
 $ take_while : (@Int -> @Bool) -> {} -> <Scan> @Str = \ok u =>
     let v = view {} in let to = run_to v ok in (bump (to - v.at); @array_slice v.src v.at to)
 
-$ skip_space : {} -> <Scan> {} = \u => let v = view {} in bump (run_to v is_space_byte - v.at)
+$ skip_space : {} -> <Scan> {} = let v = view {} in bump (run_to v is_space_byte - v.at)
 
 # The name at the cursor, which both name readers take once their own check has
 # passed.
@@ -410,11 +410,11 @@ $ until_past : @Str -> @Str -> @Int -> {} -> <Scan, Hard> @Str = \close what ope
                     ) ("the " ++ what ++ " starts here")
             )
 
-$ xml_name : {} -> <Scan, Choice, Soft, Hard> @Str = \u =>
+$ xml_name : {} -> <Scan, Choice, Soft, Hard> @Str =
     let v = view {} in
     if is_name_start (byte v 0) => name_run v else reject (expected v.at "a name" "")
 
-$ need_name : {} -> <Scan, Hard> @Str = \u =>
+$ need_name : {} -> <Scan, Hard> @Str =
     let v = view {} in
     if is_name_start (byte v 0) => name_run v else fatal (broken v.at "expected a tag name" "")
 
@@ -445,24 +445,24 @@ $ quoted : @Str -> {} -> <Scan, Choice, Soft, Hard> @Str = \name u =>
 # The grammar
 # ==========================================================================
 
-$ comment : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ comment : {} -> <Scan, Choice, Soft, Hard> Node =
     let at = (view {}).at in (lit "<!--" {}; Node.Comment.{ until_past "-->" "comment" at {} })
 
-$ cdata : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ cdata : {} -> <Scan, Choice, Soft, Hard> Node =
     let at = (view {}).at in
     (lit "<![CDATA[" {}; Node.Text.{ until_past "]]>" "CDATA section" at {} })
 
-$ pi : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ pi : {} -> <Scan, Choice, Soft, Hard> Node =
     let at = (view {}).at in
     (lit "<?" {}; Node.PI.{ until_past "?>" "processing instruction" at {} })
 
-$ doctype : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ doctype : {} -> <Scan, Choice, Soft, Hard> Node =
     let at = (view {}).at in
     (lit "<!DOCTYPE" {}; Node.PI.{ "DOCTYPE" ++ until_past ">" "doctype declaration" at {} })
 
 # Character data up to the next `<`. Empty text is not a node, so the `content`
 # loop cannot spin on it.
-$ text : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ text : {} -> <Scan, Choice, Soft, Hard> Node =
     let v = view {} in
     let to = run_to v (\c => c != 60) in
     if to == v.at =>
@@ -487,7 +487,7 @@ $ attr_list : @Vec Attr -> {} -> <Scan, Choice, Soft, Hard> @Vec Attr = \acc u =
 # `<tag attrs/>` or `<tag attrs>content</tag>`. Which one it is comes out as a
 # `fork`: the first branch assumes the empty form, and the handler takes the
 # second when `/>` turns out not to be there.
-$ element : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ element : {} -> <Scan, Choice, Soft, Hard> Node =
     let opened = (view {}).at in
     (
         lit "<" {};
@@ -562,7 +562,7 @@ $ opened_at : @Str -> @Int -> <Scan> @Str = \n at =>
 
 # One piece of markup. A prefix decides which, but saying so as a chain of
 # alternatives is the point: every branch just tries, and the handler rewinds.
-$ markup : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ markup : {} -> <Scan, Choice, Soft, Hard> Node =
     alt3 element text (\u2 => alt3 comment cdata (\u3 => alt pi doctype))
 
 # Children up to the closing tag, or to the end of input at the document level.
@@ -572,7 +572,7 @@ $ content : @Vec Node -> {} -> <Scan, Hard> @Vec Node = \acc u =>
     if at_end {} || ahead "</" {} => acc else let n = commit markup in content (@vec_push acc n) {}
 
 # Whitespace, the declaration, comments and doctype ahead of the root element.
-$ prolog : {} -> <Scan, Hard> {} = \u => (
+$ prolog : {} -> <Scan, Hard> {} = (
     skip_space {};
     if ahead "<?" {} || ahead "<!--" {} || ahead "<!DOCTYPE" {} =>
         (commit (\u2 => alt3 pi doctype comment); prolog {})
@@ -580,7 +580,7 @@ $ prolog : {} -> <Scan, Hard> {} = \u => (
         {}
 )
 
-$ document : {} -> <Scan, Hard> Node = \u => (
+$ document : {} -> <Scan, Hard> Node = (
     prolog {};
     if at_end {} =>
         fatal (broken (pos {}) "the document is empty: expected a root element" "")

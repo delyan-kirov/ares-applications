@@ -74,7 +74,7 @@ from this library: the parser never saves or restores a position, and never
 needs to.
 
 ```ares
-$ element : {} -> <Scan, Choice, Soft, Hard> Node = \u =>
+$ element : {} -> <Scan, Choice, Soft, Hard> Node =
 	(lit "<" {} ;
 	 let n = xml_name {} in
 	 let a = attr_list (@vec_new {}) {} in

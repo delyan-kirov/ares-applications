@@ -113,7 +113,7 @@ $ count_all : { roots: @Vec @Str, excludes: @Vec @Str, keep: @Bool } -> <@IO> Ta
     let done = WALK.fold { roots, excludes, w } in
     foldl (\t f => merge t (PAR.get f)) done.tally done.big
 
-$ empty : {} -> Tally = \_ => Tally.{ .stats = [], .per = [] }
+$ empty : {} -> Tally = Tally.{ .stats = [], .per = [] }
 
 $ merge : Tally -> Tally -> Tally = \acc t =>
     Tally.{ .stats = foldl add_stat acc.stats t.stats, .per = append acc.per t.per }

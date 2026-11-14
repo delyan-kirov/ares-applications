@@ -252,10 +252,10 @@ $ resume_scan : @Bool -> <Ui, @IO> {} = \go =>
         | Scan.Paused.{ k } => let next = k go in modify (\m => refilter Model.{ .scan = next | m })
         | _                 => {}
 
-$ scan_step : {} -> <Ui, @IO> {} = \_ => resume_scan @true
+$ scan_step : {} -> <Ui, @IO> {} = resume_scan @true
 
 # Quitting mid-scan tells it to stop, so its `@finale` reaps the child.
-$ stop_scan : {} -> <Ui, @IO> {} = \_ => resume_scan @false
+$ stop_scan : {} -> <Ui, @IO> {} = resume_scan @false
 
 # -- the query ---------------------------------------------------------------
 # Drain raylib's character queue onto the query. `getCharPressed` yields a C
@@ -280,7 +280,7 @@ $ key_step : I32 -> @Bool = \k => pressed k || isKeyPressedRepeat k == 1
 
 # Typed chars, backspace, and escape (which clears the query and any output).
 # Any change to the query resets the scroll and drops the output.
-$ edit_step : {} -> <Ui> {} = \_ =>
+$ edit_step : {} -> <Ui> {} =
     let m = Ui.model {} in
     let q1 = read_chars m.query in
     let q2 = if key_step key_backspace => drop_last q1 else q1 in
@@ -294,7 +294,7 @@ $ edit_step : {} -> <Ui> {} = \_ =>
 
 # This frame's scroll intent in list rows: mouse wheel (a notch is one row),
 # arrow keys by one row, page keys by a whole page. Positive scrolls DOWN.
-$ scroll_delta : {} -> @Int = \_ =>
+$ scroll_delta : {} -> @Int =
     let wheel : @Int = @cast (0 - f2i32 (getMouseWheelMove {})) in
     let keys = (if key_step key_down => 1 else 0) - (if key_step key_up => 1 else 0) in
     let pages = (if key_step key_page_down => rows_fit else 0)
@@ -306,7 +306,7 @@ $ clamp_off : @Int -> @Int -> @Int = \off n =>
     let last = if n > rows_fit => n - rows_fit else 0 in
     if off < 0 => 0 else if off > last => last else off
 
-$ scroll_step : {} -> <Ui> {} = \_ =>
+$ scroll_step : {} -> <Ui> {} =
     let d = scroll_delta {} in
     when
         (d != 0) <| \_ =>
@@ -381,11 +381,11 @@ $ commit : Model -> <Ui, Loop, @IO> {} = \m =>
             when (cmd != "") <| \_ => show_output m (run_capture cmd)
         | _          => when (VEC.first m.visible) <| \a => launch a; break {}
 
-$ enter_step : {} -> <Ui, Loop, @IO> {} = \_ =>
+$ enter_step : {} -> <Ui, Loop, @IO> {} =
     when (pressed key_enter || pressed key_kp_enter) <| \_ => commit (Ui.model {})
 
 # A click on a list row launches that row's app.
-$ click_step : {} -> <Ui, Loop, @IO> {} = \_ =>
+$ click_step : {} -> <Ui, Loop, @IO> {} =
     let m = Ui.model {} in
     when
         (isMouseButtonPressed mouse_button_left == 1 && STR.is_empty m.output) <| \_ =>
@@ -405,7 +405,7 @@ $ ctime : @Str -> @Str = @extern "C" "ctime" "libc"
 $ le8 : @Int -> @Int -> @Str = \t k =>
     if k >= 8 => "" else (@array_push "" (t % 256)) ++ le8 (t / 256) (k + 1)
 
-$ clock_str : {} -> <@IO> @Str = \_ =>
+$ clock_str : {} -> <@IO> @Str =
     let s = ctime (le8 (C.time 0) 0) in substr s 0 10 ++ "   " ++ substr s 11 16
 
 # Draw `s` at (x, y) in `font`; positions and the size cross to @Float32 here.
