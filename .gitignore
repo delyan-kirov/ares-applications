@@ -14,7 +14,7 @@
 /web/site/fonts/
 
 .*
-ares-out
+ares-artifacts
 
 # alec: test outputs and compiled modules
 /alec/tests/out
