@@ -7,8 +7,8 @@ name is the Thracian god's, as tokei's is a Japanese word.
 
 ```
 ares check TEST.ares            # the test suite: the checks run at compile time
-ares build MAIN.ares            # a native binary, ares-out/MAIN
-ares-out/MAIN [-f] [-e GLOB]... [PATH]...
+ares build MAIN.ares            # a native binary, ares-artifacts/MAIN
+ares-artifacts/MAIN [-f] [-e GLOB]... [PATH]...
 ares run MAIN.ares -- PATH      # the same on the interpreter (much slower)
 ```
 
@@ -68,7 +68,7 @@ Wall time against tokei 15.0 (best of 15, 12 threads, warm cache):
 
 How it gets there:
 
-- **Reading**: `IO.read_file` sizes the file with `lseek`, reads it with one
+- **Reading**: `ARES.read_file` sizes the file with `lseek`, reads it with one
   `C.read` into `malloc` memory, and copies that into a string with
   `@ptr_bytes`.
 - **Scanning**: `@array_scan` jumps to the next byte that could open a comment

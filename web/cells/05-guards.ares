@@ -5,7 +5,9 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxALGO
+$ @import ARESxVEC
+$ @import ARESxSTR
 $ @import HOST
 
 $ sign : @Int -> @Str = \n =>

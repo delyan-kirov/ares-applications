@@ -2,12 +2,13 @@ $ @mod TEST
 
 #-
  - \file TEST.ares
- - \info zalmoxis's checks, run at compile time: `ares check TEST.ares` is the
+ - \info zalmoxis's checks, run at time compile: `ares check TEST.ares` is the
  -       test run. The line counts are the ones tokei gives for the same text.
  -#
 
-$ @import STR
-$ @import VEC
+$ @import ARESxALGO
+$ @import ARESxSTR
+$ @import ARESxVEC
 $ @import COUNT
 $ @import LANGS
 $ @import WALK

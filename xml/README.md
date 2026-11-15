@@ -10,7 +10,7 @@ handler supplies.
 ares check MAIN.ares            # the test suite: the checks run at compile time
 ares run MAIN.ares sample.xml   # the demo
 ares run -- sample.xml         # the same, letting the root be inferred
-ares build MAIN.ares            # a native binary in ares-out/
+ares build MAIN.ares            # a native binary in ares-artifacts/
 ```
 
 `ares run sample.xml` is NOT the same thing: the driver takes a first argument
@@ -26,7 +26,7 @@ $ doc : Node = parse src |> \ | Parsed.Ok.{ n } => n | _ => ...
 
 $ titles : @Vec Node = find_all "title" doc
 $ english : @Vec Node = find_where "book" "lang" "en" doc
-$ first_title : Option @Str = text_at "title" doc
+$ first_title : Opt @Str = text_at "title" doc
 $ nested : @Vec Node = find_path ["library", "book", "title"] doc
 $ back : @Str = render doc
 ```
@@ -108,7 +108,7 @@ every outcome, `match_first` resumes until one survives.
 $ by_hacker : @Vec @Str = matches <| \u =>
 	let b = tagged "book" (anywhere root) in
 	let a = tagged "author" (child b) in
-	if text_of a == "A. Hacker" => unwrap_or (text_at "title" b) "" else no_match {}
+	if text_of a == "A. Hacker" => unwrap_or "" (text_at "title" b) else no_match {}
 ```
 
 `anywhere` forks between "this node" and "something under it"; `child` picks a

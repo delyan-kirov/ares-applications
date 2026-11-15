@@ -6,7 +6,7 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxSTR
 $ @import HOST
 
 # Flip to true and re-run to start seeing the colors.

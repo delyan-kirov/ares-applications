@@ -14,8 +14,8 @@ $ @mod LEX
 #       message, and the preprocessor reports it only if the token is actually
 #       used, so a broken line inside `#if 0` stays harmless, as C requires.
 
-$ @import STR
-$ @import OPT
+$ @import ARESxSTR
+$ @import ARESxOPT
 
 $ Kind : @union =
     Ident: {},
@@ -55,14 +55,14 @@ $ lex : @Str -> @Str -> List Token = \file src => let s = splice src in go file 
 
 # Exactly one token spelled by `s`, or `None` when `s` lexes as zero or several
 # tokens. This is how `##` checks that a paste formed a valid token.
-$ lex_one : @Str -> Option Token = \s =>
+$ lex_one : @Str -> Opt Token = \s =>
     lex "<paste>" s |> \
         | List.Cons.{ h, t } => (
             t |> \
-                | List.Nil => (h.kind |> \ | Kind.Bad => Option.None | _ => Option.Some.{ h })
-                | _        => Option.None
+                | List.Nil => (h.kind |> \ | Kind.Bad => Opt.None | _ => Opt.Some.{ h })
+                | _        => Opt.None
         )
-        | _                  => Option.None
+        | _                  => Opt.None
 
 # Phase 2: delete each backslash-newline. The newlines a logical line swallowed
 # are put back after it, so every later line keeps its physical number.

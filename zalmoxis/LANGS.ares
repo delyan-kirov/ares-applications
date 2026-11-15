@@ -7,9 +7,10 @@ $ @mod LANGS
  -       exact name first (`Makefile`), then by extension, compared lowercase.
  -#
 
-$ @import STR
-$ @import VEC
-$ @import OPT
+$ @import ARESxALGO
+$ @import ARESxSTR
+$ @import ARESxVEC
+$ @import ARESxOPT
 
 $ Lang : @struct =
     name: @Str,
@@ -225,7 +226,7 @@ $ detect : Table -> @Str -> @Int = \t name =>
         if dot <= 0 =>
             0 - 1
         else
-            lookup t.by_ext (lower <| substr name (dot + 1) (@array_len name)) 0 (@vec_len t.by_ext)
+            lookup t.by_ext (lower <| substr (dot + 1) (@array_len name) name) 0 (@vec_len t.by_ext)
 
 # The language `key` maps to in `pairs[lo, hi)` (sorted by key), or -1.
 $ lookup : @Vec { @Str, @Int } -> @Str -> @Int -> @Int -> @Int = \pairs key lo hi =>
@@ -240,11 +241,11 @@ $ lookup : @Vec { @Str, @Int } -> @Str -> @Int -> @Int -> @Int = \pairs key lo h
 # The language a `#!` line names, by the interpreter's base name (or the
 # command `env` runs), or -1.
 $ detect_shebang : Table -> @Str -> @Int = \t body =>
-    if !(starts_with body "#!") =>
+    if !(starts_with "#!" body) =>
         0 - 1
     else
-        let line = substr body 2 (first_line_end body 0) in
-        let words = non_empty (split line " ") 0 [] in
+        let line = substr 2 (first_line_end body 0) body in
+        let words = non_empty (split " " line) 0 [] in
         let prog = if @vec_len words == 0 => "" else base_name (@vec_get words 0) in
         let cmd = if prog == "env" && @vec_len words > 1 => @vec_get words 1 else prog in
         interpreter t cmd
@@ -254,7 +255,7 @@ $ @private
 $ non_empty : @Vec @Str -> @Int -> @Vec @Str -> @Vec @Str = \ws i acc =>
     if i >= @vec_len ws =>
         acc
-    else if STR.is_empty (@vec_get ws i) =>
+    else if is_empty (@vec_get ws i) =>
         non_empty ws (i + 1) acc
     else
         non_empty ws (i + 1) (@vec_push acc (@vec_get ws i))
@@ -285,12 +286,12 @@ $ index_from : @Vec Lang -> @Str -> @Int -> @Int = \langs name i =>
         index_from langs name (i + 1)
 
 $ first_line_end : @Str -> @Int -> @Int = \s i =>
-    if i >= @array_len s || at s i == 10 => i else first_line_end s (i + 1)
+    if i >= @array_len s || at i s == 10 => i else first_line_end s (i + 1)
 
 $ base_name : @Str -> @Str = \p => base_from p (@array_len p - 1)
 
 $ base_from : @Str -> @Int -> @Str = \p i =>
-    if i < 0 => p else if at p i == 47 => substr p (i + 1) (@array_len p) else base_from p (i - 1)
+    if i < 0 => p else if at i p == 47 => substr (i + 1) (@array_len p) p else base_from p (i - 1)
 
 $ foldl_index : (a -> @Int -> t -> a) -> a -> @Vec t -> a = \f acc v => foldl_index_from f acc v 0
 
@@ -298,7 +299,7 @@ $ foldl_index_from : (a -> @Int -> t -> a) -> a -> @Vec t -> @Int -> a = \f acc 
     if i >= @vec_len v => acc else foldl_index_from f (f acc i (@vec_get v i)) v (i + 1)
 
 $ last_dot : @Str -> @Int -> @Int = \s i =>
-    if i < 0 => 0 - 1 else if at s i == 46 => i else last_dot s (i - 1)
+    if i < 0 => 0 - 1 else if at i s == 46 => i else last_dot s (i - 1)
 
 $ lower : @Str -> @Str = \s => lower_from s 0 ""
 
@@ -306,5 +307,5 @@ $ lower_from : @Str -> @Int -> @Str -> @Str = \s i acc =>
     if i >= @array_len s =>
         acc
     else
-        let c = at s i in
+        let c = at i s in
         lower_from s (i + 1) (@array_push acc (if c >= 65 && c <= 90 => c + 32 else c))

@@ -7,11 +7,13 @@ $ @mod MAIN
 #           ares run MAIN.ares sample.xml
 #           ares run MAIN.ares            # uses the built-in sample
 
+$ @import ARESxALGO
 $ @import XML
-$ @import IO
-$ @import STR
-$ @import VEC
-$ @import OPT
+$ @import ARESxIO
+$ @import ARESxSTR
+$ @import ARESxVEC
+$ @import ARESxLIST
+$ @import ARESxOPT
 
 $ sample : @Str =
     "<?xml version=\"1.0\"?>\n"
@@ -41,10 +43,10 @@ $ ck_books : @Int = if @vec_len (find_all "book" root) == 2 => 0 else 1
 $ ck_entity_attr : @Int = if attr_or root "name" "" == "Ada & Co" => 0 else 1
 
 # `&lt;` and `&gt;` in text come back as the characters they stand for.
-$ ck_entity_text : @Int = if unwrap_or (text_at "title" root) "" == "Ares <in practice>" => 0 else 1
+$ ck_entity_text : @Int = if unwrap_or "" (text_at "title" root) == "Ares <in practice>" => 0 else 1
 
 # CDATA is text, markup inside it is not markup.
-$ ck_cdata : @Int = if unwrap_or (text_at "note" root) "" == "raw <not markup> here" => 0 else 1
+$ ck_cdata : @Int = if unwrap_or "" (text_at "note" root) == "raw <not markup> here" => 0 else 1
 
 # A comment in the prolog does not become part of the tree.
 $ ck_no_comment_root : @Int = if is_elem root => 0 else 1
@@ -68,7 +70,7 @@ $ ck_selfclose_attrs : @Int =
     parse "<a><b k=\"v\" /></a>" |> \
         | Parsed.Ok.{ n } => (
             match_first (\u => tagged "b" (anywhere n)) |>
-                \ | Option.Some.{ b } => if attr_or b "k" "" == "v" => 0 else 1 | _ => 1
+                \ | Opt.Some.{ b } => if attr_or b "k" "" == "v" => 0 else 1 | _ => 1
         )
         | _               => 1
 
@@ -81,7 +83,7 @@ $ ck_path_miss : @Int = if @vec_len (find_path ["library", "title"] root) == 0 =
 
 $ ck_where : @Int =
     match_first (\u => with_attr "lang" "bg" (tagged "book" (anywhere root))) |> \
-        | Option.Some.{ b } => if unwrap_or (text_at "title" b) "" == "Continuations" => 0 else 1
+        | Opt.Some.{ b } => if unwrap_or "" (text_at "title" b) == "Continuations" => 0 else 1
         | _                 => 1
 
 # `all` enumerates every match; `first` stops at one.
@@ -95,7 +97,7 @@ $ by_hacker : @Vec @Str =
     matches <| \u =>
         let b = tagged "book" (anywhere root) in
         let a = tagged "author" (child b) in
-        if text_of a == "A. Hacker" => unwrap_or (text_at "title" b) "" else no_match {}
+        if text_of a == "A. Hacker" => unwrap_or "" (text_at "title" b) else no_match {}
 
 $ ck_custom_query : @Int =
     if @vec_len by_hacker == 1 && @vec_get by_hacker 0 == "Ares <in practice>" => 0 else 1
@@ -125,7 +127,7 @@ $ err_at : @Str -> @Int = \src => parse src |> \ | Parsed.Bad.{ er } => er.at | 
 $ err_report : @Str -> @Str = \src =>
     parse src |> \ | Parsed.Bad.{ er } => report "doc.xml" src er | _ => ""
 
-$ says : @Str -> @Str -> @Bool = \src part => STR.contains (err_report src) part
+$ says : @Str -> @Str -> @Bool = \src part => ARES.contains part (err_report src)
 
 # A closing tag that does not match is reported where it is, not at the start.
 $ ck_mismatch : @Int = if err_at "<a><b></c></a>" > 6 => 0 else 1
@@ -225,7 +227,7 @@ $ &assert (test == 0) "XML: a check failed"
 # ==========================================================================
 
 $ describe : Node -> @Int -> <@IO> {} = \n depth => (
-    print (repeat "  " depth ++ "<" ++ tag n ++ ">");
+    print (repeat depth "  " ++ "<" ++ tag n ++ ">");
     let t = trim (text_of n) in
     (elements n |> \ | List.Nil => (if @array_len t > 0 => print (" " ++ t) else {}) | _ => {});
     print "\n";
@@ -236,14 +238,14 @@ $ summarize : Node -> <@IO> {} = \n => (
     println "tree:";
     describe n 1;
     println "";
-    println ("titles: " ++ join ", " (map text_of (find_all "title" n)));
-    println ("books in English: " ++ from_int (@vec_len (find_where "book" "lang" "en" n)));
-    println ("rendered: " ++ from_int (@array_len (render n)) ++ " bytes")
+    println ("titles: " ++ join ", " (fmap text_of (find_all "title" n)));
+    println ("books in English: " ++ to_string (@vec_len (find_where "book" "lang" "en" n)));
+    println ("rendered: " ++ to_string (@array_len (render n)) ++ " bytes")
 )
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     let path = if @vec_len args > 1 => @vec_get args 1 else "" in
-    let src = if @array_len path == 0 => sample else unwrap_or (read_file path) "" in
+    let src = if @array_len path == 0 => sample else unwrap_or "" (read_file path) in
     if @array_len src == 0 =>
         (eprintln ("xml: could not read `" ++ path ++ "`"); 1)
     else

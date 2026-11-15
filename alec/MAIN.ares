@@ -7,7 +7,7 @@ $ @mod MAIN
 #           node run.mjs a.wasm
 #       See README.md, DRIVER for the pipeline, and SHELL for `--shell`.
 
-$ @import IO
+$ @import ARESxIO
 $ @import DRIVER
 $ @import SHELL
 

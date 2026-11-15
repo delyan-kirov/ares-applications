@@ -12,11 +12,12 @@ $ @mod MAIN
  -       pool.
  -#
 
-$ @import IO
-$ @import STR
-$ @import VEC
-$ @import OPT
-$ @import PAR
+$ @import ARESxALGO
+$ @import ARESxIO
+$ @import ARESxSTR
+$ @import ARESxVEC
+$ @import ARESxOPT
+$ @import ARESxPAR
 $ @import COUNT
 $ @import WALK
 $ @import LANGS
@@ -40,7 +41,7 @@ $ @main : @Vec @Str -> <@IO> @Int = \argv =>
         Args.{ .roots = [], .excludes = [], .files = @false, .help = @false, .bad = "" } in
     if a.help =>
         print usage; 0
-    else if !(STR.is_empty a.bad) =>
+    else if !(is_empty a.bad) =>
         eprintln ("zalmoxis: " ++ a.bad); eprint usage; 2
     else
         let roots = if @vec_len a.roots == 0 => ["."] else a.roots in
@@ -61,7 +62,7 @@ $ parse_args : @Vec @Str -> @Int -> Args -> Args = \argv i a =>
                     parse_args argv (i + 2)
                         Args.{ .excludes = @vec_push a.excludes (@vec_get argv (i + 1)) | a }
             | arg =>
-                if starts_with arg "-" && @array_len arg > 1 =>
+                if starts_with "-" arg && @array_len arg > 1 =>
                     Args.{ .bad = "unknown option " ++ arg | a }
                 else
                     parse_args argv (i + 1) Args.{ .roots = @vec_push a.roots arg | a }
@@ -96,7 +97,7 @@ $ Counter : @struct =
 
 # The scanner syntax of every language, built once. A global is immortal
 # once the task pool runs, so every task reads it without counting it.
-$ syntaxes : @Vec Syntax = VEC.map syntax_of LANGS.table.langs
+$ syntaxes : @Vec Syntax = fmap syntax_of LANGS.table.langs
 
 # A file this large is counted by a task of its own, so one huge file does not
 # hold up the walker task that found it.
@@ -108,22 +109,22 @@ $ count_all : { roots: @Vec @Str, excludes: @Vec @Str, keep: @Bool } -> <@IO> Ta
         .init = \_ => Counter.{ .tally = empty {}, keep, .big = [] },
         .visit = visit,
         .merge = \a b =>
-            Counter.{ .tally = merge a.tally b.tally, keep, .big = append a.big b.big },
+            Counter.{ .tally = merge a.tally b.tally, keep, .big = append b.big a.big },
     } in
     let done = WALK.fold { roots, excludes, w } in
-    foldl (\t f => merge t (PAR.get f)) done.tally done.big
+    foldl (\t f => merge t (ARES.wait f)) done.tally done.big
 
 $ empty : {} -> Tally = Tally.{ .stats = [], .per = [] }
 
 $ merge : Tally -> Tally -> Tally = \acc t =>
-    Tally.{ .stats = foldl add_stat acc.stats t.stats, .per = append acc.per t.per }
+    Tally.{ .stats = foldl add_stat acc.stats t.stats, .per = append t.per acc.per }
 
 $ visit : Counter -> @Vec Found -> @Int -> @Int -> <@IO> Counter = \c files i hi =>
     if i >= hi => c else visit (visit_one c (@vec_get files i)) files (i + 1) hi
 
 $ visit_one : Counter -> Found -> <@IO> Counter = \c f =>
     read_file f.path |> \
-        | Option.Some.{ body } =>
+        | Opt.Some.{ body } =>
             let syn = @vec_get syntaxes f.lang in
             if @array_len body >= big_file =>
                 let keep = c.keep in
@@ -186,7 +187,7 @@ $ Row : @struct =
     blanks: @Int,
 
 $ rows : @Vec LangStat -> @Vec { Row, @Int } = \stats =>
-    VEC.map (\x => { row_of x, x.lang }) stats |> sort_by (\x y => cmp_str x.0.name y.0.name)
+    fmap (\x => { row_of x, x.lang }) stats |> sort_by (\x y => cmp_str x.0.name y.0.name)
 
 $ row_of : LangStat -> Row = \x => Row.{
     .name = (@vec_get LANGS.table.langs x.lang).name,
@@ -246,14 +247,14 @@ $ file_line : Row -> @Str = \r => row_with r.name r
 $ row_with : @Str -> Row -> @Str = \name r =>
     " "
         ++ pad_right name 22
-        ++ cells (VEC.map to_string [r.files, r.lines, r.code, r.comments, r.blanks])
+        ++ cells (fmap to_string [r.files, r.lines, r.code, r.comments, r.blanks])
         ++ "\n"
 
 $ cells : @Vec @Str -> @Str = \cs => foldl (\out c => out ++ pad_left c 11) "" cs
 
 # Too long for its column: keep the end (a path's file name), marked with `|`.
 $ clip : @Str -> @Int -> @Str = \s w =>
-    if @array_len s > w => "|" ++ substr s (@array_len s - (w - 1)) (@array_len s) else s
+    if @array_len s > w => "|" ++ substr (@array_len s - (w - 1)) (@array_len s) s else s
 
 $ pad_left : @Str -> @Int -> @Str = \s w => repeat " " (w - @array_len s) ++ s
 

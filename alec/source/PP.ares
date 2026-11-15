@@ -12,20 +12,21 @@ $ @mod PP
 #                 the lexer to the parser without ever being materialized.
 #         Diag    errors and warnings.
 #       The input is a lazy `List Token` per file. A macro expansion is prepended
-#       to the rest of the input (lazily, with LIST.append), so rescanning the
+#       to the rest of the input (lazily, with append), so rescanning the
 #       expansion is just continuing the loop. Expansion follows Prosser's
 #       algorithm: every token carries a hide set, the macros whose expansion
 #       produced it, which may not expand it again.
 
+$ @import ARESxALGO
 $ @import LEX
 $ @import DIAG
 $ @import LIT
-$ @import STR
-$ @import OPT
-$ @import BITS
-$ @import LIST
-$ @import VEC
-$ @import MAP
+$ @import ARESxSTR
+$ @import ARESxOPT
+$ @import ARESxBITS
+$ @import ARESxLIST
+$ @import ARESxVEC
+$ @import ARESxMAP
 
 $ Macro : @struct =
     name : @Str,
@@ -45,7 +46,7 @@ $ Loaded : @union =
     Missing : {},
 
 $ Macros : @effect =
-    find : @Str -> Option Macro,
+    find : @Str -> Opt Macro,
     define : Macro -> {},
     undef : @Str -> {},
     counter : {} -> @Int,
@@ -100,44 +101,44 @@ $ quote : @Str -> @Str = \s => "\"" ++ escape_str s 0 "" ++ "\""
 $ MacroState : @struct =
     table : Map @Str Macro,
     counter : @Int,
-    saved : Map @Str (List (Option Macro)),
+    saved : Map @Str (List (Opt Macro)),
 
 $ with_macros : Map @Str Macro -> ({} -> <Macros, Files, Out, Diag> a)
     -> <Files, Out, Diag> a = \tbl body =>
     let go =
         do body {}
         ctl k
-        | Macros.find n    => \s => (k (MAP.get s.table n)) s
-        | Macros.define d  => \s => (k {}) MacroState.{ .table = MAP.insert s.table d.name d | s }
-        | Macros.undef n   => \s => (k {}) MacroState.{ .table = MAP.remove s.table n | s }
+        | Macros.find n    => \s => (k (get n s.table)) s
+        | Macros.define d  => \s => (k {}) MacroState.{ .table = ARES.insert d.name d s.table | s }
+        | Macros.undef n   => \s => (k {}) MacroState.{ .table = remove n s.table | s }
         | Macros.counter u => \s => (k s.counter) MacroState.{ .counter = s.counter + 1 | s }
         | Macros.push_macro n =>
             \s =>
-                let stack = MAP.get_or s.saved n List.Nil in
+                let stack = get_or n List.Nil s.saved in
                 (k {})
                     MacroState.{
-                        .saved = MAP.insert s.saved n List.Cons.{ MAP.get s.table n, stack } | s
+                        .saved = ARES.insert n List.Cons.{ get n s.table, stack } s.saved | s
                     }
         | Macros.pop_macro n =>
             \s =>
                 (
-                    MAP.get_or s.saved n List.Nil |> \
+                    get_or n List.Nil s.saved |> \
                         | List.Cons.{ top, rest } =>
                             let tbl = (
                                 top |> \
-                                    | Option.Some.{ m } => MAP.insert s.table n m
-                                    | _                 => MAP.remove s.table n
+                                    | Opt.Some.{ m } => ARES.insert n m s.table
+                                    | _                 => remove n s.table
                             ) in
                             (k {})
-                                MacroState.{ .table = tbl, .saved = MAP.insert s.saved n rest | s }
+                                MacroState.{ .table = tbl, .saved = ARES.insert n rest s.saved | s }
                         | _ => (k {}) s
                 )
         | v                => \s => v
     in
-    go MacroState.{ .table = tbl, .counter = 0, .saved = MAP.new_str }
+    go MacroState.{ .table = tbl, .counter = 0, .saved = (new {}) }
 
 $ initial_macros : Map @Str Macro =
-    VEC.foldl (\m n => MAP.insert m n (builtin_macro n)) MAP.new_str builtin_macros
+    foldl (\m n => ARES.insert n (builtin_macro n) m) (new {}) builtin_macros
 
 $ @private
 
@@ -178,7 +179,7 @@ $ run : Ctx -> List Token -> <Macros, Files, Out, Diag> {} = \c l =>
                         else
                             (
                                 expand_step tok rest |> \
-                                    | Option.Some.{ l2 } => run c l2
+                                    | Opt.Some.{ l2 } => run c l2
                                     | _                  => (Out.emit tok; run c rest)
                             )
                     | _        => (Out.emit tok; run c rest)
@@ -208,8 +209,8 @@ $ split_line : List Token -> { List Token, List Token } = \l => split_go l List.
 $ split_go : List Token -> List Token -> { List Token, List Token } = \l acc =>
     l |> \
         | List.Cons.{ t, r } =>
-            if t.bol => { LIST.reverse acc, l } else split_go r List.Cons.{ t, acc }
-        | _                  => { LIST.reverse acc, l }
+            if t.bol => { reverse acc, l } else split_go r List.Cons.{ t, acc }
+        | _                  => { reverse acc, l }
 
 $ directive : Ctx -> Token -> List Token -> <Macros, Files, Out, Diag> {} = \c hash rest =>
     let sp = split_line rest in
@@ -457,7 +458,7 @@ $ check_hashes : Macro -> List Token -> <Diag> {} = \m l =>
 
 $ is_param : Macro -> @Str -> @Bool = \m s =>
     (m.va != "" && s == m.va)
-        || VEC.any (\p => p == s) m.params
+        || any (\p => p == s) m.params
         || (s == "__VA_OPT__" && m.va != "")
 
 $ undef_macro : Token -> List Token -> <Macros, Diag> {} = \d args =>
@@ -514,7 +515,7 @@ $ do_line : Token -> List Token -> List Token -> <Macros, Diag> List Token = \d 
     ex |> \
         | List.Cons.{ n, r } => (
             int_lit n.text |> \
-                | Option.Some.{ v } =>
+                | Opt.Some.{ v } =>
                     if !(is_num n) =>
                         error_at n.pos "#line directive requires a simple digit sequence"
                     else
@@ -528,7 +529,7 @@ $ do_line : Token -> List Token -> List Token -> <Macros, Diag> List Token = \d 
                                         ""
                                 | _                   => ""
                         ) in
-                        LIST.map (relocate delta file) after
+                        fmap (relocate delta file) after
                 | _ => error_at n.pos "#line directive requires a simple digit sequence"
         )
         | _                  => error_at d.pos "#line directive requires a simple digit sequence"
@@ -549,7 +550,7 @@ $ do_pragma : Ctx -> List Token -> <Macros, Files, Out, Diag> {} = \c args =>
                 Files.once c.file
             else if t.text == "push_macro" || t.text == "pop_macro" =>
                 (
-                    LIST.filter is_str r |> \
+                    filter is_str r |> \
                         | List.Cons.{ n, more } =>
                             let name = @array_slice n.text 1 (@array_len n.text - 1) in
                             if t.text == "push_macro" =>
@@ -570,28 +571,28 @@ $ expand_go : List Token -> List Token -> <Macros, Diag> List Token = \l acc =>
             if is_ident t =>
                 (
                     expand_step t r |> \
-                        | Option.Some.{ l2 } => expand_go l2 acc
+                        | Opt.Some.{ l2 } => expand_go l2 acc
                         | _                  => expand_go r List.Cons.{ t, acc }
                 )
             else
                 expand_go r List.Cons.{ t, acc }
-        | _ => LIST.reverse acc
+        | _ => reverse acc
 
 # If `tok` invokes a macro, the input with the invocation replaced by its
 # expansion; otherwise None. The expansion is stamped with the invocation's
 # position and with the hide set that stops it expanding itself again.
-$ expand_step : Token -> List Token -> <Macros, Diag> Option (List Token) = \tok rest =>
+$ expand_step : Token -> List Token -> <Macros, Diag> Opt (List Token) = \tok rest =>
     if member tok.text tok.hide =>
-        Option.None
+        Opt.None
     else
         Macros.find tok.text |> \
-            | Option.Some.{ m } =>
+            | Opt.Some.{ m } =>
                 if m.builtin =>
-                    Option.Some.{ List.Cons.{ builtin_token m tok, rest } }
+                    Opt.Some.{ List.Cons.{ builtin_token m tok, rest } }
                 else if !m.fn =>
-                    Option.Some.{
-                        LIST.append
-                            (stamp (List.Cons.{ m.name, tok.hide }) tok (object_body m) @true) rest
+                    Opt.Some.{
+                        append
+                            rest (stamp (List.Cons.{ m.name, tok.hide }) tok (object_body m) @true)
                     }
                 else
                     (
@@ -601,14 +602,14 @@ $ expand_step : Token -> List Token -> <Macros, Diag> Option (List Token) = \tok
                                     let a = read_args m tok r in
                                     let hs =
                                         List.Cons.{ m.name, intersect tok.hide a.rparen.hide } in
-                                    Option.Some.{
-                                        LIST.append (stamp hs tok (subst m a.args) @true) a.rest
+                                    Opt.Some.{
+                                        append a.rest (stamp hs tok (subst m a.args) @true)
                                     }
                                 else
-                                    Option.None
-                            | _ => Option.None
+                                    Opt.None
+                            | _ => Opt.None
                     )
-            | _ => Option.None
+            | _ => Opt.None
 
 $ stamp : List @Str -> Token -> List Token -> @Bool -> List Token = \hs at l first =>
     l |> \
@@ -654,12 +655,12 @@ $ args_go : Macro -> Token -> List Token -> @Int -> List Token -> List (List Tok
     l |> \
         | List.Cons.{ t, r } =>
             if is_punct t ")" && depth == 0 =>
-                let all = LIST.reverse List.Cons.{ LIST.reverse cur, done } in
+                let all = reverse List.Cons.{ reverse cur, done } in
                 Args.{ .args = bind_args m tok all, .rparen = t, .rest = r }
             else if is_punct t ","
                 && depth == 0
-                && !(m.va != "" && LIST.length done >= @vec_len m.params) =>
-                args_go m tok r depth List.Nil List.Cons.{ LIST.reverse cur, done }
+                && !(m.va != "" && len done >= @vec_len m.params) =>
+                args_go m tok r depth List.Nil List.Cons.{ reverse cur, done }
             else if is_punct t "(" =>
                 args_go m tok r (depth + 1) List.Cons.{ t, cur } done
             else if is_punct t ")" =>
@@ -670,8 +671,8 @@ $ args_go : Macro -> Token -> List Token -> @Int -> List Token -> List (List Tok
 
 $ bind_args : Macro -> Token -> List (List Token) -> <Diag> List Arg = \m tok all =>
     let np = @vec_len m.params in
-    let got = LIST.length all in
-    let lone_empty = got == 1 && LIST.is_empty (unwrap_or (LIST.head all) List.Nil) in
+    let got = len all in
+    let lone_empty = got == 1 && is_empty (unwrap_or List.Nil (ARES.head all)) in
     if np == 0 && m.va == "" =>
         (
             if lone_empty =>
@@ -719,7 +720,7 @@ $ bind_args : Macro -> Token -> List (List Token) -> <Diag> List Arg = \m tok al
             )
     else
         let padded =
-            if m.va != "" && got == np => LIST.append all (LIST.singleton List.Nil) else all
+            if m.va != "" && got == np => append (ARES.singleton List.Nil) all else all
         in
         name_args m 0 padded
 
@@ -730,8 +731,8 @@ $ name_args : Macro -> @Int -> List (List Token) -> List Arg = \m i l =>
             List.Cons.{ Arg.{ .name = n, .toks = a }, name_args m (i + 1) r }
         | _ => List.Nil
 
-$ find_arg : List Arg -> Token -> Option Arg = \args t =>
-    if !(is_ident t) => Option.None else LIST.find (\a => a.name == t.text) args
+$ find_arg : List Arg -> Token -> Opt Arg = \args t =>
+    if !(is_ident t) => Opt.None else ARES.find (\a => a.name == t.text) args
 
 # Replace the parameters in a function-like macro's body: `#p` stringizes,
 # `a ## b` pastes, and a plain parameter is replaced by its fully expanded
@@ -743,14 +744,14 @@ $ subst : Macro -> List Arg -> <Macros, Diag> List Token = \m args =>
 $ subst_go : Macro -> List Arg -> List Token -> List Token
     -> <Macros, Diag> List Token = \m args l acc =>
     l |> \
-        | List.Nil => LIST.reverse acc
+        | List.Nil => reverse acc
         | List.Cons.{ t, r } =>
             if is_punct t "#" && m.fn =>
                 (
                     r |> \
                         | List.Cons.{ p, r2 } => (
                             find_arg args p |> \
-                                | Option.Some.{ a } =>
+                                | Opt.Some.{ a } =>
                                     subst_go m args r2 List.Cons.{ stringize t a.toks, acc }
                                 | _                 =>
                                     error_at t.pos "'#' is not followed by a macro parameter"
@@ -765,7 +766,7 @@ $ subst_go : Macro -> List Arg -> List Token -> List Token
             else
                 (
                     find_arg args t |> \
-                        | Option.Some.{ a } =>
+                        | Opt.Some.{ a } =>
                             if next_is_paste r =>
                                 subst_go m args r (push_all (respace t a.toks) acc)
                             else
@@ -775,7 +776,7 @@ $ subst_go : Macro -> List Arg -> List Token -> List Token
 
 # An object-like macro's body only needs substitution for its `##`s.
 $ object_body : Macro -> <Macros, Diag> List Token = \m =>
-    if LIST.any (\t => is_punct t "##") m.body => subst m List.Nil else m.body
+    if any (\t => is_punct t "##") m.body => subst m List.Nil else m.body
 
 $ next_is_paste : List Token -> @Bool = \r =>
     r |> \ | List.Cons.{ h, t } => is_punct h "##" | _ => @false
@@ -790,13 +791,13 @@ $ paste_rhs : Macro -> List Arg -> Token -> List Token -> List Token
         | List.Nil => error_at hh.pos "'##' cannot appear at either end of a macro expansion"
         | List.Cons.{ p, r2 } =>
             let rhs =
-                (find_arg args p |> \ | Option.Some.{ a } => a.toks | _ => LIST.singleton p) in
+                (find_arg args p |> \ | Opt.Some.{ a } => a.toks | _ => ARES.singleton p) in
             let comma_va = m.va != ""
                 && p.text == m.va
                 && (acc |> \ | List.Cons.{ h, t } => is_punct h "," | _ => @false) in
             rhs |> \
                 | List.Nil =>
-                    if comma_va => subst_go m args r2 (LIST.tail acc) else subst_go m args r2 acc
+                    if comma_va => subst_go m args r2 (ARES.tail acc) else subst_go m args r2 acc
                 | List.Cons.{ first, more } =>
                     if comma_va =>
                         subst_go m args r2 (push_all rhs acc)
@@ -817,10 +818,10 @@ $ va_opt : Macro -> List Arg -> Token -> List Token -> List Token
             if is_punct p "(" =>
                 let sp = paren_group r2 0 List.Nil t in
                 let va = (
-                    LIST.find (\a => a.name == m.va) args |>
-                        \ | Option.Some.{ a } => a.toks | _ => List.Nil
+                    ARES.find (\a => a.name == m.va) args |>
+                        \ | Opt.Some.{ a } => a.toks | _ => List.Nil
                 ) in
-                if LIST.is_empty (expand_all va) =>
+                if is_empty (expand_all va) =>
                     subst_go m args sp.1 acc
                 else
                     subst_go m args sp.1 (push_all (subst_go m args sp.0 List.Nil) acc)
@@ -833,7 +834,7 @@ $ paren_group : List Token -> @Int -> List Token -> Token
     l |> \
         | List.Cons.{ t, r } =>
             if is_punct t ")" && depth == 0 =>
-                { LIST.reverse acc, r }
+                { reverse acc, r }
             else if is_punct t "(" =>
                 paren_group r (depth + 1) List.Cons.{ t, acc } at
             else if is_punct t ")" =>
@@ -844,7 +845,7 @@ $ paren_group : List Token -> @Int -> List Token -> Token
 
 $ paste : Token -> Token -> <Diag> Token = \lhs rhs =>
     lex_one (lhs.text ++ rhs.text) |> \
-        | Option.Some.{ t } => Token.{ .kind = t.kind, .text = t.text | lhs }
+        | Opt.Some.{ t } => Token.{ .kind = t.kind, .text = t.text | lhs }
         | _                 => error_at lhs.pos
             (
                 "pasting \""
@@ -857,7 +858,7 @@ $ paste : Token -> Token -> <Diag> Token = \lhs rhs =>
 $ respace : Token -> List Token -> List Token = \at l =>
     l |> \ | List.Cons.{ h, t } => List.Cons.{ Token.{ .space = at.space | h }, t } | _ => l
 
-$ push_all : List Token -> List Token -> List Token = \l acc => LIST.reverse_onto acc l
+$ push_all : List Token -> List Token -> List Token = \l acc => ARES.reverse_onto acc l
 
 $ stringize : Token -> List Token -> Token = \hash l => Token.{
     .kind = Kind.Str,
@@ -894,12 +895,12 @@ $ spell_go : List Token -> @Str -> @Bool -> @Str = \l acc first =>
 
 # -- hide sets --------------------------------------------------------------
 
-$ member : @Str -> List @Str -> @Bool = \s l => LIST.any (\x => x == s) l
+$ member : @Str -> List @Str -> @Bool = \s l => any (\x => x == s) l
 
-$ intersect : List @Str -> List @Str -> List @Str = \a b => LIST.filter (\x => member x b) a
+$ intersect : List @Str -> List @Str -> List @Str = \a b => filter (\x => member x b) a
 
 $ union : List @Str -> List @Str -> List @Str = \a b =>
-    LIST.foldl (\acc x => if member x acc => acc else List.Cons.{ x, acc }) a b
+    foldl (\acc x => if member x acc => acc else List.Cons.{ x, acc }) a b
 
 # -- #if expressions --------------------------------------------------------
 
@@ -908,19 +909,19 @@ $ Val : @struct = v : @Int, u : @Bool,
 
 # The cursor over the line being evaluated, as an effect whose handler holds
 # the remaining tokens.
-$ Cur : @effect = look : {} -> Option Token, skip : {} -> {},
+$ Cur : @effect = look : {} -> Opt Token, skip : {} -> {},
 
 $ eval_if : Token -> List Token -> <Macros, Files, Out, Diag> @Bool = \d args =>
     let l1 = replace_defined d args in
-    let l2 = LIST.map zero_ident (expand_all l1) in
-    if LIST.is_empty l2 =>
+    let l2 = fmap zero_ident (expand_all l1) in
+    if is_empty l2 =>
         error_at d.pos ("#" ++ d.text ++ " with no expression")
     else
         let go =
             do (
                 let v = cond_expr d @true in
                 Cur.look {} |> \
-                    | Option.Some.{ t } =>
+                    | Opt.Some.{ t } =>
                         error_at t.pos ("missing binary operator before token \"" ++ t.text ++ "\"")
                     | _                 => v
             )
@@ -929,10 +930,10 @@ $ eval_if : Token -> List Token -> <Macros, Files, Out, Diag> @Bool = \d args =>
                 \l =>
                     (
                         l |> \
-                            | List.Cons.{ h, t } => (k Option.Some.{ h }) l
-                            | _                  => (k Option.None) l
+                            | List.Cons.{ h, t } => (k Opt.Some.{ h }) l
+                            | _                  => (k Opt.None) l
                     )
-            | Cur.skip u => \l => (k {}) (LIST.tail l)
+            | Cur.skip u => \l => (k {}) (ARES.tail l)
             | v          => \l => v
         in
         (go l2).v != 0
@@ -950,7 +951,7 @@ $ replace_defined : Token -> List Token -> <Macros, Files, Out, Diag> List Token
 
 $ repl_go : Token -> List Token -> List Token -> <Macros, Files, Out, Diag> List Token = \d l acc =>
     l |> \
-        | List.Nil => LIST.reverse acc
+        | List.Nil => reverse acc
         | List.Cons.{ t, r } =>
             if is_ident t && t.text == "defined" =>
                 (
@@ -1034,7 +1035,7 @@ $ bool_tok : Token -> @Bool -> Token = \t b =>
 $ cond_expr : Token -> @Bool -> <Cur, Diag> Val = \d live =>
     let c = bin_expr d 1 live in
     Cur.look {} |> \
-        | Option.Some.{ t } =>
+        | Opt.Some.{ t } =>
             if is_punct t "?" =>
                 (
                     Cur.skip {};
@@ -1050,7 +1051,7 @@ $ cond_expr : Token -> @Bool -> <Cur, Diag> Val = \d live =>
 
 $ expect_punct : Token -> @Str -> <Cur, Diag> {} = \d p =>
     Cur.look {} |> \
-        | Option.Some.{ t } =>
+        | Opt.Some.{ t } =>
             if is_punct t p =>
                 Cur.skip {}
             else
@@ -1076,7 +1077,7 @@ $ bin_expr : Token -> @Int -> @Bool -> <Cur, Diag> Val = \d min live =>
 
 $ climb : Token -> @Int -> @Bool -> Val -> <Cur, Diag> Val = \d min live lhs =>
     Cur.look {} |> \
-        | Option.Some.{ t } =>
+        | Opt.Some.{ t } =>
             let p = (t.kind |> \ | Kind.Punct => prec t.text | _ => 0) in
             if p == 0 || p < min =>
                 lhs
@@ -1098,7 +1099,7 @@ $ climb : Token -> @Int -> @Bool -> Val -> <Cur, Diag> Val = \d min live lhs =>
 
 $ unary : Token -> @Bool -> <Cur, Diag> Val = \d live =>
     Cur.look {} |> \
-        | Option.Some.{ t } => (
+        | Opt.Some.{ t } => (
             Cur.skip {};
             if is_punct t "(" =>
                 (let v = cond_expr d live in expect_punct d ")"; v)
@@ -1116,7 +1117,7 @@ $ unary : Token -> @Bool -> <Cur, Diag> Val = \d live =>
                         error_at t.pos "floating constant in preprocessor expression"
                     else
                         int_lit t.text |> \
-                            | Option.Some.{ n } =>
+                            | Opt.Some.{ n } =>
                                 Val.{ .v = n.value, .u = n.unsigned || n.value < 0 }
                             | _                 => error_at t.pos
                                 ("invalid integer constant \"" ++ t.text ++ "\" in #if")

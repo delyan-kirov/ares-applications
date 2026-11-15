@@ -89,7 +89,7 @@
 
         installPhase = ''
           runHook preInstall
-          install -Dm755 ares-out/MAIN $out/libexec/ares-launcher
+          install -Dm755 ares-artifacts/MAIN $out/libexec/ares-launcher
           makeWrapper $out/libexec/ares-launcher $out/bin/ares-launcher \
             --prefix PATH : ${runtimeTools} \
             --prefix LD_LIBRARY_PATH : ${mesaLib} \

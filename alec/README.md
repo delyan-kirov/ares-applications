@@ -35,7 +35,7 @@ Several `.c` files compile into one module, each its own translation unit.
 
 ## The shell
 
-`alec --shell` (`ares-out/MAIN --shell` when built natively) is an
+`alec --shell` (`ares-artifacts/MAIN --shell` when built natively) is an
 interactive C shell in the manner of `ares repl`. Each entry is C:
 
 ```
@@ -82,7 +82,7 @@ preprocessor actually uses it, so a broken line inside `#if 0` stays harmless.
 Expansion is Prosser's algorithm: every token carries a hide set. An expansion
 is lazily prepended to the rest of the input `List`, so rescanning it is just
 continuing the loop. `#line` relocates the rest of a file with a lazy
-`LIST.map`. `#if` expressions are evaluated under a small cursor effect of
+`map`. `#if` expressions are evaluated under a small cursor effect of
 their own, so an unevaluated `&&`/`||`/`?:` arm cannot raise an error.
 
 **The pipe.** The preprocessor runs as a coroutine: `PARSE.start` handles
@@ -214,7 +214,7 @@ arrays.
 ## Performance
 
 alec is slow by compiler standards. Built natively (`ares build MAIN.ares`,
-then `ares-out/MAIN`), lexing and preprocessing cost about 40 µs a token and
+then `ares-artifacts/MAIN`), lexing and preprocessing cost about 40 µs a token and
 parsing about 120; on the interpreter, several times that.
 
 The C library is therefore parsed once, not per compile. Each target's parsed
@@ -262,5 +262,5 @@ import forms fail), #307 (`ares run` eats the program's `--target=`), #308
 (`@cast` target not propagated), #309 (bitwise intrinsics), #310 (record
 update on an unforced lazy value), #311 (types through a non-imported module),
 #312 (the dead `ext` keyword). The standard library gained `BITS` and `LIST`,
-`C.fwrite`/`C.clock`, a binary-safe `IO.write_file`, and fixes to `to_string`
-of the minimum `@Int`, `VEC.from_list` order, and a native `STR.cmp_str`.
+`C.fwrite`/`C.clock`, a binary-safe `ARES.write_file`, and fixes to `to_string`
+of the minimum `@Int`, `from_list` order, and a native `ARES.cmp_str`.

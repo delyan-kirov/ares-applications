@@ -26,9 +26,10 @@ $ @mod XML
 #       code into every match of it.
 #       See README.md for the design notes and the cost model.
 
-$ @import STR
-$ @import VEC
-$ @import OPT
+$ @import ARESxALGO
+$ @import ARESxSTR
+$ @import ARESxVEC
+$ @import ARESxOPT
 
 # ==========================================================================
 # The document model
@@ -76,9 +77,9 @@ $ kid_count : Node -> @Int = \n => list_len (kids n) 0
 
 $ is_elem : Node -> @Bool = \n => n |> \ | Node.Elem.{ e } => @true | _ => @false
 
-$ attr : Node -> @Str -> Option @Str = \n want => attr_at (attrs n) want 0
+$ attr : Node -> @Str -> Opt @Str = \n want => attr_at (attrs n) want 0
 
-$ attr_or : Node -> @Str -> @Str -> @Str = \n want d => unwrap_or (attr n want) d
+$ attr_or : Node -> @Str -> @Str -> @Str = \n want d => unwrap_or d (attr n want)
 
 # All text in and under a node, concatenated.
 $ text_of : Node -> @Str = \n =>
@@ -131,8 +132,8 @@ $ parse_fragment : @Str -> Parsed (@Vec Node) = \src =>
 
 $ is_ok : Parsed a -> @Bool = \r => r |> \ | Parsed.Ok.{ v } => @true | _ => @false
 
-$ error_of : Parsed a -> Option Err = \r =>
-    r |> \ | Parsed.Bad.{ er } => Option.Some.{ er } | _ => Option.None
+$ error_of : Parsed a -> Opt Err = \r =>
+    r |> \ | Parsed.Bad.{ er } => Opt.Some.{ er } | _ => Opt.None
 
 # The failure as a diagnostic block, in the compiler's own shape: the headline,
 # the place, the offending line and a caret under it, then what was found and any
@@ -152,9 +153,9 @@ $ report : @Str -> @Str -> Err -> @Str = \file src er =>
         ++ "  --> "
         ++ file
         ++ ":"
-        ++ from_int lc.line
+        ++ to_string lc.line
         ++ ":"
-        ++ from_int lc.col
+        ++ to_string lc.col
         ++ "\n"
         ++ (
             if @array_len line == 0 =>
@@ -166,7 +167,7 @@ $ report : @Str -> @Str -> Err -> @Str = \file src er =>
 
 # A one-line message with the byte offset, for a caller that does not have the
 # source at hand. Prefer `report`, which can point at the line.
-$ show_error : Err -> @Str = \er => er.msg ++ " at byte " ++ from_int er.at
+$ show_error : Err -> @Str = \er => er.msg ++ " at byte " ++ to_string er.at
 
 # ==========================================================================
 # Rendering
@@ -194,17 +195,17 @@ $ matches : ({} -> <Pick, Choice, Soft> a) -> @Vec a = \body =>
     do @vec_push (@vec_new {}) (body {})
     ctl k
     | Pick.one_of xs => pick_each k xs (@vec_new {})
-    | Choice.fork u  => append (k @true) (k @false)
+    | Choice.fork u  => append (k @false) (k @true)
     | Soft.reject er => @vec_new {}
     | v              => v
 
 # The first outcome, exploring no further than it has to.
-$ match_first : ({} -> <Pick, Choice, Soft> a) -> Option a = \body =>
-    do Option.Some.{ body {} }
+$ match_first : ({} -> <Pick, Choice, Soft> a) -> Opt a = \body =>
+    do Opt.Some.{ body {} }
     ctl k
     | Pick.one_of xs => first_of k xs
-    | Choice.fork u  => (k @true |> \ | Option.Some.{ v } => Option.Some.{ v } | _ => k @false)
-    | Soft.reject er => Option.None
+    | Choice.fork u  => (k @true |> \ | Opt.Some.{ v } => Opt.Some.{ v } | _ => k @false)
+    | Soft.reject er => Opt.None
     | v              => v
 
 # Prune this branch: it is not a match.
@@ -229,7 +230,7 @@ $ with_attr : @Str -> @Str -> Node -> <Pick, Choice, Soft> Node = \key v n =>
 # Every element with this tag, at any depth, the root included.
 $ find_all : @Str -> Node -> @Vec Node = \t root => matches (\u => tagged t (anywhere root))
 
-$ find_one : @Str -> Node -> Option Node = \t root => match_first (\u => tagged t (anywhere root))
+$ find_one : @Str -> Node -> Opt Node = \t root => match_first (\u => tagged t (anywhere root))
 
 # Every element with this tag that also carries this attribute value.
 $ find_where : @Str -> @Str -> @Str -> Node -> @Vec Node = \t key v root =>
@@ -244,7 +245,7 @@ $ find_path : @Vec @Str -> Node -> @Vec Node = \path root =>
         matches (\u => walk path 1 (tagged (@vec_get path 0) root))
 
 # The text of the first element with this tag.
-$ text_at : @Str -> Node -> Option @Str = \t root => opt_map text_of (find_one t root)
+$ text_at : @Str -> Node -> Opt @Str = \t root => fmap text_of (find_one t root)
 
 $ @private
 
@@ -396,8 +397,8 @@ $ need : @Str -> @Str -> {} -> <Scan, Hard> {} = \s where u =>
 # reader has to go and fix.
 $ until_past : @Str -> @Str -> @Int -> {} -> <Scan, Hard> @Str = \close what opened u =>
     let v = view {} in
-    find_from v.src close v.at |> \
-        | Option.Some.{ at } => (bump (at + @array_len close - v.at); @array_slice v.src v.at at)
+    index_of_from close v.at v.src |> \
+        | Opt.Some.{ at } => (bump (at + @array_len close - v.at); @array_slice v.src v.at at)
         | _                  => fatal
             (
                 broken opened
@@ -558,7 +559,7 @@ $ unclosed : @Str -> @Int -> <Scan> Err = \n opened =>
 # this reads the same line and column a reader sees in the diagnostic.
 $ opened_at : @Str -> @Int -> <Scan> @Str = \n at =>
     let lc = line_col (view {}).src at in
-    "`<" ++ n ++ ">` opened at " ++ from_int lc.line ++ ":" ++ from_int lc.col
+    "`<" ++ n ++ ">` opened at " ++ to_string lc.line ++ ":" ++ to_string lc.col
 
 # One piece of markup. A prefix decides which, but saying so as a chain of
 # alternatives is the point: every branch just tries, and the handler rewinds.
@@ -705,7 +706,7 @@ $ found_at : @Str -> @Int -> @Str = \src at =>
         else if c == 13 =>
             "a carriage return"
         else if c < 32 || c == 127 =>
-            "byte " ++ from_int c
+            "byte " ++ to_string c
         else
             "`" ++ from_byte c ++ "`"
 
@@ -736,12 +737,12 @@ $ run_end : @Str -> @Int -> (@Int -> @Bool) -> @Int = \src from ok =>
     else
         from
 
-$ attr_at : @Vec Attr -> @Str -> @Int -> Option @Str = \as want i =>
+$ attr_at : @Vec Attr -> @Str -> @Int -> Opt @Str = \as want i =>
     if i >= @vec_len as =>
-        Option.None
+        Opt.None
     else
         let a = @vec_get as i in
-        if a.name == want => Option.Some.{ a.value } else attr_at as want (i + 1)
+        if a.name == want => Opt.Some.{ a.value } else attr_at as want (i + 1)
 
 $ text_onto : List Node -> @Str -> @Str = \ns acc =>
     ns |> \ | List.Cons.{ h, t } => text_onto t (acc ++ text_of h) | _ => acc
@@ -758,14 +759,14 @@ $ render_kids : List Node -> @Str -> @Str = \ns acc =>
 
 # Resume a continuation with every candidate, collecting all of the outcomes.
 $ pick_each : (Node -> @Vec a) -> List Node -> @Vec a -> @Vec a = \k xs acc =>
-    xs |> \ | List.Cons.{ h, t } => pick_each k t (append acc (k h)) | _ => acc
+    xs |> \ | List.Cons.{ h, t } => pick_each k t (append (k h) acc) | _ => acc
 
 # Resume a continuation with each candidate until one of them yields a match.
-$ first_of : (Node -> Option a) -> List Node -> Option a = \k xs =>
+$ first_of : (Node -> Opt a) -> List Node -> Opt a = \k xs =>
     xs |> \
         | List.Cons.{ h, t } =>
-            (k h |> \ | Option.Some.{ v } => Option.Some.{ v } | _ => first_of k t)
-        | _                  => Option.None
+            (k h |> \ | Opt.Some.{ v } => Opt.Some.{ v } | _ => first_of k t)
+        | _                  => Opt.None
 
 # -- lists ------------------------------------------------------------------
 
@@ -816,47 +817,47 @@ $ decode_onto : @Str -> @Int -> @Str -> @Str = \s i acc =>
     else if @array_get s i != 38 =>
         decode_onto s (i + 1) (@array_push acc (@array_get s i))
     else
-        find_from s ";" i |> \
-            | Option.Some.{ end } => (
+        index_of_from ";" i s |> \
+            | Opt.Some.{ end } => (
                 let body = @array_slice s (i + 1) end in
                 entity body |> \
-                    | Option.Some.{ rep } => decode_onto s (end + 1) (acc ++ rep)
+                    | Opt.Some.{ rep } => decode_onto s (end + 1) (acc ++ rep)
                     | _                   => decode_onto s (i + 1) (@array_push acc 38)
             )
             | _                   => decode_onto s (i + 1) (@array_push acc 38)
 
 # A named or numeric reference, or `None` for anything left alone.
-$ entity : @Str -> Option @Str = \body =>
+$ entity : @Str -> Opt @Str = \body =>
     if body == "lt" =>
-        Option.Some.{ "<" }
+        Opt.Some.{ "<" }
     else if body == "gt" =>
-        Option.Some.{ ">" }
+        Opt.Some.{ ">" }
     else if body == "amp" =>
-        Option.Some.{ "&" }
+        Opt.Some.{ "&" }
     else if body == "quot" =>
-        Option.Some.{ "\"" }
+        Opt.Some.{ "\"" }
     else if body == "apos" =>
-        Option.Some.{ "'" }
+        Opt.Some.{ "'" }
     else if @array_len body > 1 && @array_get body 0 == 35 =>
         numeric_entity body
     else
-        Option.None
+        Opt.None
 
 # `&#NN;` and `&#xHH;`. Only the single-byte range: a string is a byte vector
 # and this library does not encode UTF-8 yet.
-$ numeric_entity : @Str -> Option @Str = \body =>
+$ numeric_entity : @Str -> Opt @Str = \body =>
     let hex = @array_len body > 2 && (@array_get body 1 == 120 || @array_get body 1 == 88) in
     let digits =
         if hex => @array_slice body 2 (@array_len body) else @array_slice body 1 (@array_len body)
     in
-    let n = if hex => from_hex digits 0 0 else to_int digits in
+    let n = if hex => from_hex digits 0 0 else from_str digits in
     n |> \
-        | Option.Some.{ v } => if v > 0 && v < 256 => Option.Some.{ from_byte v } else Option.None
-        | _                 => Option.None
+        | Opt.Some.{ v } => if v > 0 && v < 256 => Opt.Some.{ from_byte v } else Opt.None
+        | _                 => Opt.None
 
-$ from_hex : @Str -> @Int -> @Int -> Option @Int = \s i acc =>
+$ from_hex : @Str -> @Int -> @Int -> Opt @Int = \s i acc =>
     if i >= @array_len s =>
-        (if i == 0 => Option.None else Option.Some.{ acc })
+        (if i == 0 => Opt.None else Opt.Some.{ acc })
     else
         let c = @array_get s i in
         let d =
@@ -869,4 +870,4 @@ $ from_hex : @Str -> @Int -> @Int -> Option @Int = \s i acc =>
             else
                 0 - 1
         in
-        if d < 0 => Option.None else from_hex s (i + 1) (acc * 16 + d)
+        if d < 0 => Opt.None else from_hex s (i + 1) (acc * 16 + d)

@@ -9,9 +9,10 @@ $ @mod WASM
 #       places, all here: the memory's limits flag, the width of a load or
 #       store's offset, and the address type the code generator pushes.
 
-$ @import BITS
-$ @import VEC
-$ @import STR
+$ @import ARESxALGO
+$ @import ARESxBITS
+$ @import ARESxVEC
+$ @import ARESxSTR
 
 $ ValT : @union = I32 : {}, I64 : {}, F32 : {}, F64 : {},
 
@@ -28,9 +29,9 @@ $ vt_eq : ValT -> ValT -> @Bool = \a b => vt_byte a == vt_byte b
 $ Sig : @struct = params : @Vec ValT, results : @Vec ValT,
 
 $ sig_key : Sig -> @Str = \s =>
-    VEC.foldl (\acc v => @array_push acc (vt_byte v)) "" s.params
+    foldl (\acc v => @array_push acc (vt_byte v)) "" s.params
         ++ ":"
-        ++ VEC.foldl (\acc v => @array_push acc (vt_byte v)) "" s.results
+        ++ foldl (\acc v => @array_push acc (vt_byte v)) "" s.results
 
 $ byte : @Int -> @Str = \b => @array_push "" (band b 255)
 
@@ -42,7 +43,7 @@ $ sleb : @Int -> @Str = \v => sleb_go v ""
 $ vec_bytes : @Str -> @Str = \s => uleb (@array_len s) ++ s
 
 # A vector of already-encoded items.
-$ vec_of : @Vec @Str -> @Str = \xs => uleb (@vec_len xs) ++ STR.concat xs
+$ vec_of : @Vec @Str -> @Str = \xs => uleb (@vec_len xs) ++ concat xs
 
 $ section : @Int -> @Str -> @Str = \id body => byte id ++ uleb (@array_len body) ++ body
 
@@ -78,7 +79,7 @@ $ call_indirect : @Int -> @Str = \t => byte 17 ++ uleb t ++ byte 0
 $ br : @Int -> @Str = \d => byte 12 ++ uleb d
 $ br_if : @Int -> @Str = \d => byte 13 ++ uleb d
 $ br_table : @Vec @Int -> @Int -> @Str = \ds dflt =>
-    byte 14 ++ uleb (@vec_len ds) ++ VEC.foldl (\acc d => acc ++ uleb d) "" ds ++ uleb dflt
+    byte 14 ++ uleb (@vec_len ds) ++ foldl (\acc d => acc ++ uleb d) "" ds ++ uleb dflt
 
 # Block types: none, or one result.
 $ block : @Str = byte 2 ++ byte 64
@@ -129,14 +130,14 @@ $ Module : @struct =
 $ encode : Module -> @Str = \m =>
     "\0asm"
         ++ le 1 4
-        ++ section 1 (vec_of (VEC.map sig_bytes m.types))
+        ++ section 1 (vec_of (fmap sig_bytes m.types))
         ++ (
             if @vec_len m.imports == 0 =>
                 ""
             else
-                section 2 (vec_of (VEC.map import_bytes m.imports))
+                section 2 (vec_of (fmap import_bytes m.imports))
         )
-        ++ section 3 (vec_of (VEC.map uleb m.funcs))
+        ++ section 3 (vec_of (fmap uleb m.funcs))
         ++ section 4
             (
                 uleb 1
@@ -146,16 +147,16 @@ $ encode : Module -> @Str = \m =>
                     ++ uleb (@vec_len m.table + 1)
             )
         ++ section 5 (uleb 1 ++ (if m.mem64 => byte 4 else byte 0) ++ uleb m.pages)
-        ++ section 6 (vec_of (VEC.map global_bytes m.globals))
-        ++ section 7 (vec_of (VEC.map export_bytes m.exports))
+        ++ section 6 (vec_of (fmap global_bytes m.globals))
+        ++ section 7 (vec_of (fmap export_bytes m.exports))
         ++ (
             if @vec_len m.table == 0 =>
                 ""
             else
-                section 9 (uleb 1 ++ byte 0 ++ i32_const 1 ++ end ++ vec_of (VEC.map uleb m.table))
+                section 9 (uleb 1 ++ byte 0 ++ i32_const 1 ++ end ++ vec_of (fmap uleb m.table))
         )
-        ++ section 10 (vec_of (VEC.map body_bytes m.bodies))
-        ++ section 11 (vec_of (VEC.map (data_bytes m.mem64) m.data))
+        ++ section 10 (vec_of (fmap body_bytes m.bodies))
+        ++ section 11 (vec_of (fmap (data_bytes m.mem64) m.data))
         ++ name_section m.names
 
 # The custom `name` section: every function's C name, by index (imports
@@ -206,8 +207,8 @@ $ sleb_go : @Int -> @Str -> @Str = \v acc =>
 
 $ sig_bytes : Sig -> @Str = \s =>
     byte 96
-        ++ vec_of (VEC.map (\v => byte (vt_byte v)) s.params)
-        ++ vec_of (VEC.map (\v => byte (vt_byte v)) s.results)
+        ++ vec_of (fmap (\v => byte (vt_byte v)) s.params)
+        ++ vec_of (fmap (\v => byte (vt_byte v)) s.results)
 
 $ import_bytes : Import -> @Str = \i =>
     vec_bytes i.module ++ vec_bytes i.name ++ byte 0 ++ uleb i.type

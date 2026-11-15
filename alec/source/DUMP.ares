@@ -5,16 +5,17 @@ $ @mod DUMP
 #       expression shows its type, so the conversions the parser inserted are
 #       visible.
 
+$ @import ARESxALGO
 $ @import LEX
 $ @import TYPE
 $ @import AST
 $ @import PARSE
-$ @import LIST
-$ @import VEC
+$ @import ARESxLIST
+$ @import ARESxVEC
 
 $ unit : TU -> @Str = \tu =>
-    VEC.foldl (\acc g => acc ++ global tu.layout g) "" tu.globals
-        ++ VEC.foldl (\acc f => acc ++ func tu.layout f) "" tu.funcs
+    foldl (\acc g => acc ++ global tu.layout g) "" tu.globals
+        ++ foldl (\acc f => acc ++ func tu.layout f) "" tu.funcs
 
 # One token: where it is, its kind and its spelling (a malformed token's
 # spelling is the problem with it).
@@ -41,8 +42,8 @@ $ token : Token -> @Str = \t =>
 
 # The globals and functions `keep` accepts, by name and position.
 $ unit_where : TU -> (@Str -> Pos -> @Bool) -> @Str = \tu keep =>
-    VEC.foldl (\acc g => if keep g.name g.pos => acc ++ global tu.layout g else acc) "" tu.globals
-        ++ VEC.foldl (\acc f => if keep f.name f.pos => acc ++ func tu.layout f else acc) ""
+    foldl (\acc g => if keep g.name g.pos => acc ++ global tu.layout g else acc) "" tu.globals
+        ++ foldl (\acc f => if keep f.name f.pos => acc ++ func tu.layout f else acc) ""
             tu.funcs
 
 $ @private
@@ -63,7 +64,7 @@ $ func : Layout -> Func -> @Str = \lay f =>
         ++ " : "
         ++ ty_name lay (Ty.Func.{ f.ty })
         ++ "\n"
-        ++ LIST.foldl (\acc l =>
+        ++ foldl (\acc l =>
             acc
                 ++ "  (local "
                 ++ to_string l.id
@@ -83,7 +84,7 @@ $ stmt : Layout -> @Int -> Stmt -> @Str = \lay d s =>
     s |> \
         | Stmt.Do.{ e }        => p ++ expr lay e ++ "\n"
         | Stmt.Block.{ ss } =>
-            p ++ "(block\n" ++ LIST.foldl (\acc x => acc ++ stmt lay (d + 1) x) "" ss ++ p ++ ")\n"
+            p ++ "(block\n" ++ foldl (\acc x => acc ++ stmt lay (d + 1) x) "" ss ++ p ++ ")\n"
         | Stmt.If.{ c, a, b } =>
             p
                 ++ "(if "
@@ -133,7 +134,7 @@ $ stmt : Layout -> @Int -> Stmt -> @Str = \lay d s =>
             p
                 ++ "(jump "
                 ++ expr lay e
-                ++ LIST.foldl (\acc (c: { @Int, @Int, @Str }) =>
+                ++ foldl (\acc (c: { @Int, @Int, @Str }) =>
                     acc ++ " " ++ to_string c.0 ++ "->" ++ c.2) "" cs
                 ++ " default->"
                 ++ d
@@ -158,7 +159,7 @@ $ expr : Layout -> Expr -> @Str = \lay e =>
             "(? " ++ expr lay c ++ " " ++ expr lay a ++ " " ++ expr lay b ++ ")"
         | ENode.Comma.{ a, b }            => "(, " ++ expr lay a ++ " " ++ expr lay b ++ ")"
         | ENode.Call.{ f, args, ft } =>
-            "(call " ++ expr lay f ++ LIST.foldl (\acc a => acc ++ " " ++ expr lay a) "" args ++ ")"
+            "(call " ++ expr lay f ++ foldl (\acc a => acc ++ " " ++ expr lay a) "" args ++ ")"
         | ENode.Field.{ x, m }            =>
             "(. " ++ expr lay x ++ " " ++ m.name ++ "@" ++ to_string m.offset ++ ")"
         | ENode.Deref.{ x }               => "(* " ++ expr lay x ++ ")"
@@ -170,6 +171,6 @@ $ expr : Layout -> Expr -> @Str = \lay e =>
         | ENode.VaStart.{ x }             => "(va_start " ++ expr lay x ++ ")"
         | ENode.VaArg.{ x }               => "(va_arg" ++ t ++ " " ++ expr lay x ++ ")"
         | ENode.SExpr.{ ss, x }           =>
-            "({ " ++ to_string (LIST.length ss) ++ " stmts; " ++ expr lay x ++ " })"
+            "({ " ++ to_string (len ss) ++ " stmts; " ++ expr lay x ++ " })"
         | ENode.LabelAddr.{ l }           => "&&" ++ l
         | ENode.Nop                       => "nop"

@@ -7,7 +7,7 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxSTR
 $ @import HOST
 
 $ sum : @Vec @Int -> @Int = \xs => xs |> \ | [] => 0 | h :: t => h + sum t

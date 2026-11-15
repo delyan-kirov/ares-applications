@@ -5,8 +5,9 @@ $ @mod BENCH
 #       the preprocessor's token stream walked directly, the same stream drained
 #       through the parser's `Tok` handler, and a full parse.
 #           ares run BENCH.ares -- file.c
-$ @import IO
-$ @import OPT
+$ @import ARESxALGO
+$ @import ARESxIO
+$ @import ARESxOPT
 $ @import LEX
 $ @import PP
 $ @import DIAG
@@ -36,7 +37,7 @@ $ run : ({} -> <Files, Diag, @IO> @Int) -> <@IO> @Int = \body =>
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     let path = @vec_get args 1 in
-    let src = unwrap_or (read_file path) "" in
+    let src = unwrap_or "" (read_file path) in
     let t0 = C.clock {} in
     let a = run (\u => walk_pull (start (pp path src))) in
     let t1 = C.clock {} in

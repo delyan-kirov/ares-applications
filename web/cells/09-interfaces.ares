@@ -6,7 +6,7 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxSTR
 $ @import HOST
 
 $ IArea : @struct t =

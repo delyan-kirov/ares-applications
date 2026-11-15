@@ -15,12 +15,13 @@ $ @mod TEST
 #       The C library comes from alec's cache (parsed once per target if the
 #       cache is out of date) and is shared by all the tests.
 
-$ @import IO
-$ @import STR
-$ @import OPT
-$ @import VEC
-$ @import SET
-$ @import MAP
+$ @import ARESxALGO
+$ @import ARESxIO
+$ @import ARESxSTR
+$ @import ARESxOPT
+$ @import ARESxVEC
+$ @import ARESxSET
+$ @import ARESxMAP
 $ @import LEX
 $ @import DIAG
 $ @import PP
@@ -40,10 +41,10 @@ $ Outcome : @union = Pass : {}, Fail : { @Str },
 $ build : Opts -> @Vec TU -> @Str -> <Files, @IO> Result @Str @Str = \o lib path =>
     do
         let user = parse_from Opts.{ .files = [path] | o } 0 (@vec_len lib) (@vec_new {}) in
-        Result.Ok.{ link o.target "_start" (VEC.append lib user) }
+        Result.Ok.{ link o.target "_start" (append user lib) }
     ctl k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}
 
-$ sh_quote : @Str -> @Str = \s => "'" ++ replace s "'" "'\\''" ++ "'"
+$ sh_quote : @Str -> @Str = \s => "'" ++ replace "'" "'\\''" s ++ "'"
 
 # Run a command, returning its combined output and exit status in the
 # expectation format.
@@ -62,7 +63,7 @@ $ capture : @Str -> @Str -> @Str -> <@IO> @Str = \tag cmd input =>
                 ++ " 2>/dev/null; echo exit=$? >> "
                 ++ sh_quote out
         ) in
-    unwrap_or (read_file out) ("exit=" ++ to_string status ++ "\n")
+    unwrap_or ("exit=" ++ to_string status ++ "\n") (read_file out)
 
 # Where a suite's programs live and how their expectations are stored.
 $ Suite : @struct = dir : @Str, suffix : @Str, status : @Bool,
@@ -74,7 +75,7 @@ $ source_of : Suite -> @Str -> @Str = \su t => su.dir ++ "/" ++ t ++ ".c"
 $ expected_of : Suite -> @Str -> <@IO> @Str = \su t =>
     let e =
         unwrap_or
-            (read_file (su.dir ++ "/" ++ t ++ (if su.status => ".expected" else ".c.expected"))) ""
+            "" (read_file (su.dir ++ "/" ++ t ++ (if su.status => ".expected" else ".c.expected")))
     in
     if su.status => e else e ++ "exit=0\n"
 
@@ -107,11 +108,11 @@ $ run_one : Suite -> Opts -> @Vec TU -> @Str -> <Files, @IO> Outcome = \su o lib
 $ run_target : Suite -> Opts -> @Vec @Str -> <@IO> { Set @Str, @Int } = \su o tests =>
     let r =
         do (
-            let lib = VEC.map (\unit => unit {}) (MAP.values (library o)) in
-            with_files (file_state o) (\u => run_all su o lib tests 0 SET.new_str 0)
+            let lib = fmap (\unit => unit {}) (ARES.values (library o)) in
+            with_files (file_state o) (\u => run_all su o lib tests 0 (new {}) 0)
         )
         ctl k
-        | Diag.fail e => (eprintln ("C library: " ++ render "error" e); { SET.new_str, 0 })
+        | Diag.fail e => (eprintln ("C library: " ++ render "error" e); { (new {}), 0 })
         | Diag.warn e => k {}
     in
     r
@@ -129,27 +130,27 @@ $ run_all : Suite -> Opts -> @Vec TU -> @Vec @Str -> @Int -> Set @Str -> @Int
             )
             | Outcome.Fail.{ why } =>
                 println ("  FAIL  " ++ o.target.name ++ " " ++ t ++ "\n" ++ indent why);
-                run_all su o lib tests (i + 1) (SET.add failed (o.target.name ++ " " ++ t)) passed
+                run_all su o lib tests (i + 1) (ARES.add (o.target.name ++ " " ++ t) failed) passed
 
-$ indent : @Str -> @Str = \s => join "\n" (VEC.map (\l => "        " ++ l) (lines s))
+$ indent : @Str -> @Str = \s => join "\n" (fmap (\l => "        " ++ l) (lines s))
 
 $ all_tests : Suite -> <@IO> @Vec @Str = \su =>
-    VEC.map (\n => substr n 0 (STR.len n - 2))
-        (VEC.filter (\n => ends_with n ".c") (read_dir su.dir))
+    fmap (\n => substr 0 (len n - 2) n)
+        (filter (\n => ends_with ".c" n) (read_dir su.dir))
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     C.system ("mkdir -p " ++ scratch);
     let rest = @vec_slice args 1 (@vec_len args) in
-    let si = VEC.find_index (\a => a == "--suite") rest in
+    let si = ARES.find_index (\a => a == "--suite") rest in
     let su = (
         si |> \
-            | Option.Some.{ i } =>
+            | Opt.Some.{ i } =>
                 Suite.{ .dir = @vec_get rest (i + 1), .suffix = ".c.expected", .status = @false }
             | _                 => own
     ) in
-    let named = VEC.filter (\a => a != "--regen" && a != "--suite" && a != su.dir) rest in
+    let named = filter (\a => a != "--regen" && a != "--suite" && a != su.dir) rest in
     let tests = if @vec_len named > 0 => named else all_tests su in
-    if VEC.any (\a => a == "--regen") args =>
+    if any (\a => a == "--regen") args =>
         (println "recording expectations with gcc:"; for tests (\t => regen t); 0)
     else
         let home = DRIVER.find_home (@vec_get args 0) in
@@ -176,9 +177,9 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =>
             );
         let r32 = run_target su o tests in
         let r64 = run_target su Opts.{ .target = wasm64 | o } tests in
-        let failed = SET.merge r32.0 r64.0 in
+        let failed = merge r64.0 r32.0 in
         let passed = r32.1 + r64.1 in
         println
-            ("\n" ++ to_string passed ++ " passed, " ++ to_string (SET.size failed) ++ " failed");
-        for (SET.to_list failed) (\f => println ("  failed: " ++ f));
-        if SET.size failed == 0 => 0 else 1
+            ("\n" ++ to_string passed ++ " passed, " ++ to_string (len failed) ++ " failed");
+        for (to_list failed) (\f => println ("  failed: " ++ f));
+        if len failed == 0 => 0 else 1

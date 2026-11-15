@@ -11,11 +11,12 @@ $ @mod TYPE
 #       a recursive type's slots are lazy and a lazy slot is only forced by a
 #       match or a field read, never by a `@Vec` primitive.
 
+$ @import ARESxALGO
 $ @import CFG
-$ @import OPT
-$ @import MAP
-$ @import BITS
-$ @import VEC
+$ @import ARESxOPT
+$ @import ARESxMAP
+$ @import ARESxBITS
+$ @import ARESxVEC
 
 # `rank` orders the integer types for the usual arithmetic conversions:
 # 0 _Bool, 1 char, 2 short, 3 int, 4 long, 5 long long. `plain` marks plain
@@ -120,18 +121,17 @@ $ base_of : Ty -> Ty = \t =>
         | Ty.Vla.{ b, sz } => b
         | _                => Ty.Void
 
-$ fn_of : Ty -> Option FnTy = \t =>
+$ fn_of : Ty -> Opt FnTy = \t =>
     t |> \
-        | Ty.Func.{ f } => Option.Some.{ f }
-        | Ty.Ptr.{ b }  => (b |> \ | Ty.Func.{ f } => Option.Some.{ f } | _ => Option.None)
-        | _             => Option.None
+        | Ty.Func.{ f } => Opt.Some.{ f }
+        | Ty.Ptr.{ b }  => (b |> \ | Ty.Func.{ f } => Opt.Some.{ f } | _ => Opt.None)
+        | _             => Opt.None
 
 $ array_len : Ty -> @Int = \t => t |> \ | Ty.Arr.{ b, n } => n | _ => 0 - 1
 
 # -- layout ------------------------------------------------------------------
 
-$ agg_of : Layout -> @Int -> Agg = \lay id => unwrap_or (MAP.get lay.aggs id)
-    Agg.{
+$ agg_of : Layout -> @Int -> Agg = \lay id => unwrap_or Agg.{
         .tag = "",
         .union = @false,
         .members = @vec_new {},
@@ -140,6 +140,7 @@ $ agg_of : Layout -> @Int -> Agg = \lay id => unwrap_or (MAP.get lay.aggs id)
         .complete = @false,
         .flexible = @false
     }
+    (get id lay.aggs)
 
 $ size_of : Layout -> Ty -> @Int = \lay t =>
     t |> \
@@ -193,7 +194,7 @@ $ layout_struct : Layout -> @Str -> @Bool -> @Bool -> @Int -> @Vec MemberDecl
         .flexible = flexible_last ds
     }
 
-$ find_member : Layout -> Agg -> @Str -> Option Member = \lay a name =>
+$ find_member : Layout -> Agg -> @Str -> Opt Member = \lay a name =>
     find_member_go lay a.members name 0
 
 $ int_kind : Ty -> IntK = \t => t |>
@@ -360,18 +361,18 @@ $ max_i : @Int -> @Int -> @Int = \a b => if a > b => a else b
 
 # An unnamed struct or union member is searched too, its members' offsets
 # taken relative to the enclosing aggregate.
-$ find_member_go : Layout -> @Vec Member -> @Str -> @Int -> Option Member = \lay ms name i =>
+$ find_member_go : Layout -> @Vec Member -> @Str -> @Int -> Opt Member = \lay ms name i =>
     if i >= @vec_len ms =>
-        Option.None
+        Opt.None
     else
         let m = @vec_get ms i in
         if m.name == name =>
-            Option.Some.{ m }
+            Opt.Some.{ m }
         else if m.name == "" && is_agg m.ty =>
             (
                 find_member_go lay (agg_members lay m.ty) name 0 |> \
-                    | Option.Some.{ inner } =>
-                        Option.Some.{ Member.{ .offset = inner.offset + m.offset | inner } }
+                    | Opt.Some.{ inner } =>
+                        Opt.Some.{ Member.{ .offset = inner.offset + m.offset | inner } }
                     | _                     => find_member_go lay ms name (i + 1)
             )
         else

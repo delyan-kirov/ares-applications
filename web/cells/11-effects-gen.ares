@@ -8,7 +8,7 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxSTR
 $ @import HOST
 
 $ Yield : @effect = yield : @Int -> {},

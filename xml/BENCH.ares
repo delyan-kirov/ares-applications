@@ -1,16 +1,17 @@
 $ @mod BENCH
 
+$ @import ARESxALGO
 $ @import XML
-$ @import IO
-$ @import VEC
-$ @import OPT
-$ @import STR
+$ @import ARESxIO
+$ @import ARESxVEC
+$ @import ARESxOPT
+$ @import ARESxSTR
 
 # Parse only: no rendering, no text extraction, no printing of the tree.
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
-    let src = if @vec_len args > 1 => unwrap_or (read_file (@vec_get args 1)) "" else "" in
+    let src = if @vec_len args > 1 => unwrap_or "" (read_file (@vec_get args 1)) else "" in
     (
-        println ("bytes=" ++ from_int (@array_len src)); parse src |> \
-            | Parsed.Ok.{ n }   => (println ("kids=" ++ from_int (kid_count n)); 0)
+        println ("bytes=" ++ to_string (@array_len src)); parse src |> \
+            | Parsed.Ok.{ n }   => (println ("kids=" ++ to_string (kid_count n)); 0)
             | Parsed.Bad.{ er } => (eprint (report (@vec_get args 1) src er); 1)
     )

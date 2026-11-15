@@ -67,7 +67,7 @@ m.query |> \
 | "!" ++ cmd  => show_output m (run_capture (trim cmd))
 | "?" ++ q    => open_search (trim q) ; break {}
 | "$" ++ name => ...
-| _           => when (VEC.first m.visible) <| \a => launch a ; break {}
+| _           => when (ARES.first m.visible) <| \a => launch a ; break {}
 ```
 
 The terminal (for `Terminal=true` apps) and the search engine are editable

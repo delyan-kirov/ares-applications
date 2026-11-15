@@ -48,7 +48,7 @@ console.log(`+ site/playground.wasm  (${(statSync(shipped).size / 1024).toFixed(
 
 run("cargo", ["build", "-p", "ares", "--release"], compiler);
 run(`${compiler}target/release/ares`, ["build", "tools/LOGO.ares"], compiler);
-run(`${compiler}tools/ares-out/LOGO`, [
+run(`${compiler}tools/ares-artifacts/LOGO`, [
   "logo",
   `${web}site/favicon.svg`,
   `${web}site/favicon.png`, "32",
@@ -56,7 +56,7 @@ run(`${compiler}tools/ares-out/LOGO`, [
 ], compiler);
 // 512 px covers the nearest spear (about 230 CSS px long) on a 2x display.
 for (const sprite of ["spear", "spear-shield"]) {
-  run(`${compiler}tools/ares-out/LOGO`, [sprite, `${web}site/${sprite}.svg`, `${web}site/${sprite}.png`, "512"], compiler);
+  run(`${compiler}tools/ares-artifacts/LOGO`, [sprite, `${web}site/${sprite}.svg`, `${web}site/${sprite}.png`, "512"], compiler);
 }
 
 buildFonts();

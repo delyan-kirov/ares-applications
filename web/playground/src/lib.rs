@@ -303,18 +303,18 @@ mod tests {
     #[test]
     fn imports_the_bundled_stdlib() {
         let src = "$ @mod MAIN\n\
-                   $ @import STR\n\
+                   $ @import ARESxSTR\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args =>\n\
-                   \tif STR.from_int 123 == \"123\" => 0 else 1\n";
+                   \tif repeat 2 \"ab\" == \"abab\" => 0 else 1\n";
         assert_eq!(run_source(src), "exit 0");
     }
 
     #[test]
     fn imports_under_an_alias() {
         let src = "$ @mod MAIN\n\
-                   $ @import S = STR\n\
+                   $ @import S = ARESxSTR\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args =>\n\
-                   \tif S.from_int 123 == \"123\" => 0 else 1\n";
+                   \tif S.repeat 2 \"ab\" == \"abab\" => 0 else 1\n";
         assert_eq!(run_source(src), "exit 0");
     }
 
@@ -344,9 +344,9 @@ mod tests {
         // A `&` member splice and a `$ &` item run at compile time, as in a
         // file compile; the program then sees what they generated.
         let src = "$ @mod MAIN\n\
-                   $ @import DERIVE\n\
+                   $ @import ARESxDERIVE\n\
                    $ Point : @struct = x: @Int, y: @Int\n\
-                   $ Point3 : @struct = &DERIVE.fields_of \"Point\", z: @Int\n\
+                   $ Point3 : @struct = &ARES.fields_of \"Point\", z: @Int\n\
                    $ &\"$ seven : @Int = 7\"\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args =>\n\
                    \tlet p = Point3.{ .x = 1, .y = 2, .z = 3 } in p.x + p.y + p.z - seven + 1\n";

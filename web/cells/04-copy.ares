@@ -5,9 +5,9 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxSTR
 $ @import HOST
-$ @import DERIVE
+$ @import ARESxDERIVE
 
 $ Point : @struct =
     x: @Int,
@@ -15,7 +15,7 @@ $ Point : @struct =
 
 # The `&` entry inserts x: @Int, y: @Int.
 $ Point3 : @struct =
-    &DERIVE.fields_of "Point",
+    &ARES.fields_of "Point",
     z: @Int,
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>

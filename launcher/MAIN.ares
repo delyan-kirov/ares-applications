@@ -18,10 +18,12 @@ $ @mod MAIN
 #           LIB=bin/libraylib.so MOD=RAYLIB OUT=RAYLIB.ares \
 #             ares run ../cbindgen/MAIN.ares <path-to>/raylib.h
 
+$ @import ARESxALGO
+$ @import ARESxLIST
 $ @import RAYLIB
-$ @import STR
-$ @import OPT
-$ @import VEC
+$ @import ARESxSTR
+$ @import ARESxOPT
+$ @import ARESxVEC
 
 # Spawn a program (fire-and-forget) via libc. The `&` in the command returns at
 # once. Not part of raylib, so it stays a local `@extern`.
@@ -91,14 +93,14 @@ $ list_height : @Int -> @Int32 = \n => top + px n * row_stride + pad
 $ row_y : @Int -> @Int32 = \i => top + px i * row_stride
 
 # The list row under (mx, my), if any. The gap below a row belongs to no row.
-$ row_at : @Int32 -> @Int32 -> @Int -> Option @Int = \mx my n =>
+$ row_at : @Int32 -> @Int32 -> @Int -> Opt @Int = \mx my n =>
     let r : @Int = @cast ((my - top) / row_stride) in
     if mx < pad || mx >= pad + btn_w || my < top =>
-        Option.None
+        Opt.None
     else if r < n && (my - top) % row_stride < btn_h =>
-        Option.Some.{ r }
+        Opt.Some.{ r }
     else
-        Option.None
+        Opt.None
 
 # -- the model ---------------------------------------------------------------
 # The app scan is a coroutine (see `scan_apps`). While it runs, the model holds
@@ -140,7 +142,7 @@ $ with_model : Model -> ({} -> <Ui, @IO> {}) -> <@IO> {} = \m0 body =>
 
 $ matching : @Vec App -> @Str -> @Vec App = \apps q =>
     let needle = to_lower q in
-    formap apps <| \a => if STR.contains a.key needle => a else continue {}
+    formap apps <| \a => if ARES.contains needle a.key => a else continue {}
 
 $ refilter : Model -> Model = \m => Model.{ .visible = matching m.apps m.query | m }
 
@@ -193,20 +195,20 @@ $ readable : @Int -> <@IO> @Bool = \f =>
 $ is_byte : @Int -> @Bool = \c => if c < 0 => @false else c <= 255
 
 # One line from a stream, without its '\n'; `None` once the stream has ended.
-$ read_line : @Int -> @Str -> <@IO> Option @Str = \f acc =>
+$ read_line : @Int -> @Str -> <@IO> Opt @Str = \f acc =>
     let c = C.fgetc f in
     if c == 10 =>
-        Option.Some.{ acc }
+        Opt.Some.{ acc }
     else if is_byte c =>
         read_line f (@array_push acc c)
-    else if STR.is_empty acc =>
-        Option.None
+    else if is_empty acc =>
+        Opt.None
     else
-        Option.Some.{ acc }
+        Opt.Some.{ acc }
 
-$ parse_app : @Str -> Option App = \line =>
-    split line "\t" |>
-        \ | [name, cmd, term] => Option.Some.{ app name cmd (term == "1") } | _ => Option.None
+$ parse_app : @Str -> Opt App = \line =>
+    split "\t" line |>
+        \ | [name, cmd, term] => Opt.Some.{ app name cmd (term == "1") } | _ => Opt.None
 
 # What the scan coroutine performs: `found` delivers one app, `pause` hands the
 # frame back and answers whether to keep going.
@@ -225,7 +227,7 @@ $ take : @Int -> @Int -> <Feed, @IO> {} = \f n =>
         produce f
     else
         read_line f "" |> \
-            | Option.Some.{ line } => when (parse_app line) (\a => Feed.found a); take f (n - 1)
+            | Opt.Some.{ line } => when (parse_app line) (\a => Feed.found a); take f (n - 1)
             | _                    => {}
 
 $ scan_apps : @Int -> <Feed, @IO> {} = \f => @finale (\_ => pclose f; {}) <| \_ => produce f
@@ -270,7 +272,7 @@ $ read_chars : @Str -> @Str = \q =>
     else
         read_chars q
 
-$ drop_last : @Str -> @Str = \s => if STR.len s > 0 => substr s 0 (STR.len s - 1) else s
+$ drop_last : @Str -> @Str = \s => if len s > 0 => substr 0 (len s - 1) s else s
 
 $ pressed : I32 -> @Bool = \k => isKeyPressed k == 1
 
@@ -284,7 +286,7 @@ $ edit_step : {} -> <Ui> {} =
     let m = Ui.model {} in
     let q1 = read_chars m.query in
     let q2 = if key_step key_backspace => drop_last q1 else q1 in
-    let typed = if STR.is_empty q2 => m.typed else @true in
+    let typed = if is_empty q2 => m.typed else @true in
     if pressed key_escape =>
         Ui.set (refilter Model.{ .query = "", .output = "", .off = 0 | m })
     else if q2 == m.query =>
@@ -332,7 +334,7 @@ $ drain : @Int -> @Int -> @Str -> <@IO> @Str = \f budget acc =>
 # Single-quote a string for the shell, so the whole command reaches one `sh -c`
 # as a single argument (spaces, pipes and `;` included). A literal `'` becomes
 # `'\''`: close the quote, an escaped quote, reopen.
-$ shell_quote : @Str -> @Str = \s => "'" ++ replace s "'" "'\\''" ++ "'"
+$ shell_quote : @Str -> @Str = \s => "'" ++ replace "'" "'\\''" s ++ "'"
 
 # `pclose` hands back a wait(2) status; `timeout` exits 124 when it had to kill
 # the command, which sits in the high byte (WEXITSTATUS).
@@ -354,7 +356,7 @@ $ run_capture : @Str -> <@IO> @Str = \cmd =>
 
 # Hand the query to the web browser as a search, spaces percent-escaped as `+`.
 $ open_search : @Str -> <@IO> @Int = \q =>
-    system ("xdg-open '" ++ search_url ++ replace q " " "+" ++ "' &")
+    system ("xdg-open '" ++ search_url ++ replace " " "+" q ++ "' &")
 
 # Curated `$name` tools. An empty result means "no such tool".
 $ tool_cmd : @Str -> @Str = \name =>
@@ -379,7 +381,7 @@ $ commit : Model -> <Ui, Loop, @IO> {} = \m =>
         | "$" ++ name =>
             let cmd = tool_cmd (trim name) in
             when (cmd != "") <| \_ => show_output m (run_capture cmd)
-        | _          => when (VEC.first m.visible) <| \a => launch a; break {}
+        | _          => when (ARES.first m.visible) <| \a => launch a; break {}
 
 $ enter_step : {} -> <Ui, Loop, @IO> {} =
     when (pressed key_enter || pressed key_kp_enter) <| \_ => commit (Ui.model {})
@@ -388,7 +390,7 @@ $ enter_step : {} -> <Ui, Loop, @IO> {} =
 $ click_step : {} -> <Ui, Loop, @IO> {} =
     let m = Ui.model {} in
     when
-        (isMouseButtonPressed mouse_button_left == 1 && STR.is_empty m.output) <| \_ =>
+        (isMouseButtonPressed mouse_button_left == 1 && is_empty m.output) <| \_ =>
             when
                 (row_at (getMouseX {}) (getMouseY {}) (rows m)) <| \r =>
                     launch (@vec_get m.visible (m.off + r)); break {}
@@ -406,7 +408,7 @@ $ le8 : @Int -> @Int -> @Str = \t k =>
     if k >= 8 => "" else (@array_push "" (t % 256)) ++ le8 (t / 256) (k + 1)
 
 $ clock_str : {} -> <@IO> @Str =
-    let s = ctime (le8 (C.time 0) 0) in substr s 0 10 ++ "   " ++ substr s 11 16
+    let s = ctime (le8 (C.time 0) 0) in substr 0 10 s ++ "   " ++ substr 11 16 s
 
 # Draw `s` at (x, y) in `font`; positions and the size cross to @Float32 here.
 $ text : Font -> @Str -> @Int32 -> @Int32 -> @Float32 -> Color -> {} = \font s x y size col =>
@@ -422,7 +424,7 @@ $ text : Font -> @Str -> @Int32 -> @Int32 -> @Float32 -> Color -> {} = \font s x
 # Width in pixels of the widest line of `s` drawn in `font` at `out_fs`.
 $ widest : Font -> @Str -> @Int32 = \font s =>
     let w = \l => f2i32 (measureTextEx { .p0 = font, .p1 = l, .p2 = out_fs, .p3 = spacing }).x in
-    VEC.foldl (\acc l => max_i32 acc (w l)) 0 (split s "\n")
+    foldl (\acc l => max_i32 acc (w l)) 0 (split "\n" s)
 
 # The window fits what it shows. With no output it fits the app list, never
 # below `base_h`; with output it grows to the longest line and every line, both
@@ -430,16 +432,16 @@ $ widest : Font -> @Str -> @Int32 = \font s =>
 $ resize_step : Font -> <Ui> {} = \font =>
     let m = Ui.model {} in
     let w =
-        if STR.is_empty m.output =>
+        if is_empty m.output =>
             base_w
         else
             min_i32 1200 (max_i32 base_w (widest font m.output + 2 * pad))
     in
     let h =
-        if STR.is_empty m.output =>
+        if is_empty m.output =>
             max_i32 base_h (list_height (rows m))
         else
-            min_i32 800 (top + px (@vec_len (split m.output "\n")) * line_h + pad)
+            min_i32 800 (top + px (@vec_len (split "\n" m.output)) * line_h + pad)
     in
     when
         (w != m.win_w || h != m.win_h) <| \_ =>
@@ -480,7 +482,7 @@ $ draw_list : Font -> Model -> {} = \font m =>
     let hover = row_at (getMouseX {}) (getMouseY {}) n in
     for
         (range 0 (n - 1)) <| \i =>
-            let hovered = hover |> \ | Option.Some.{ r } => r == i | _ => @false in
+            let hovered = hover |> \ | Opt.Some.{ r } => r == i | _ => @false in
             draw_row font (@vec_get m.visible (m.off + i)) (row_y i) hovered
 
 $ draw_step : Font -> <Ui, @IO> {} = \font =>
@@ -491,7 +493,7 @@ $ draw_step : Font -> <Ui, @IO> {} = \font =>
     text font (clock_str {}) (pad + 12) 14 ui_fs sep_col;
     drawRectangle { .p0 = pad, .p1 = search_y, .p2 = btn_w, .p3 = btn_h, .p4 = btn_col };
     text font (m.query ++ "_") (pad + 12) (search_y + 14) ui_fs text_col;
-    (if STR.is_empty m.output => draw_list font m else text font m.output pad top out_fs text_col);
+    (if is_empty m.output => draw_list font m else text font m.output pad top out_fs text_col);
     endDrawing {}
 
 # -- frame loop --------------------------------------------------------------

@@ -5,6 +5,7 @@
 
 $ @mod MAIN
 
+$ @import ARESxALGO
 $ @import HOST
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>

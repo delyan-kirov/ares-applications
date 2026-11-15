@@ -14,8 +14,9 @@ $ @mod COUNT
  -       which the native backend keeps unboxed, so a line allocates nothing.
  -#
 
-$ @import STR
-$ @import VEC
+$ @import ARESxALGO
+$ @import ARESxSTR
+$ @import ARESxVEC
 
 # A language's comment and string syntax, with the scan masks built once.
 # Block comments and quotes are parallel vectors: `opens[k]` ends at
@@ -60,18 +61,18 @@ $ syntax : {
     quotes: @Vec { @Str, @Str },
     prose: @Bool
 } -> Syntax =
-    let opens = map (\b => b.0) blocks in
-    let closes = map (\b => b.1) blocks in
-    let qopens = map (\q => q.0) quotes in
-    let qcloses = map (\q => q.1) quotes in
-    let firsts = \toks => foldl (\acc t => acc ++ from_byte (at t 0)) "" toks in
+    let opens = fmap (\b => b.0) blocks in
+    let closes = fmap (\b => b.1) blocks in
+    let qopens = fmap (\q => q.0) quotes in
+    let qcloses = fmap (\q => q.1) quotes in
+    let firsts = \toks => foldl (\acc t => acc ++ from_byte (at 0 t)) "" toks in
     let any = byte_set <| "\n\\" ++ firsts line ++ firsts opens ++ firsts qopens in
     let bmasks =
-        map (\b =>
-            byte_set <| "\n" ++ from_byte (at b.1 0) ++ (if nested => from_byte (at b.0 0) else ""))
+        fmap (\b =>
+            byte_set <| "\n" ++ from_byte (at 0 b.1) ++ (if nested => from_byte (at 0 b.0) else ""))
             blocks
     in
-    let qmasks = map (\q => byte_set <| "\n\\" ++ from_byte (at q.1 0)) quotes in
+    let qmasks = fmap (\q => byte_set <| "\n\\" ++ from_byte (at 0 q.1)) quotes in
     let nl = byte_set "\n" in
     let solid = byte_set_not " \t\r\n\x0b\x0c" in
     let bstart = byte_set <| firsts opens in
@@ -98,7 +99,7 @@ $ syntax : {
 
 # A UTF-8 byte-order mark is not part of the first line.
 $ count : Syntax -> @Str -> Counts = \syn s =>
-    let start = if starts_with s "\xef\xbb\xbf" => 3 else 0 in
+    let start = if starts_with "\xef\xbb\xbf" s => 3 else 0 in
     if syn.prose => scan_prose syn s start 0 0 else lines syn s start 0 0 0 0
 
 # ---- lines ----

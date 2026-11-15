@@ -5,7 +5,7 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxSTR
 $ @import HOST
 
 $ swap : { a, b } -> { b, a } = \t => { t.1, t.0 }

@@ -9,12 +9,13 @@ $ @mod WAT
 #       The text is a list of lines, printed one at a time, so a large module
 #       is never joined into one string.
 
-$ @import STR
-$ @import OPT
-$ @import VEC
-$ @import LIST
-$ @import MAP
-$ @import BITS
+$ @import ARESxALGO
+$ @import ARESxSTR
+$ @import ARESxOPT
+$ @import ARESxVEC
+$ @import ARESxLIST
+$ @import ARESxMAP
+$ @import ARESxBITS
 $ @import WASM
 
 # The whole module.
@@ -34,57 +35,57 @@ $ Names : @struct = funcs : Map @Int @Str,
 
 $ render : @Str -> (@Str -> @Bool) -> @Bool -> List @Str = \s keep full =>
     if @array_len s < 8 || @array_slice s 0 4 != "\0asm" =>
-        LIST.singleton ";; not a WebAssembly module"
+        ARES.singleton ";; not a WebAssembly module"
     else
         let secs = sections s 8 List.Nil in
         let nm = Names.{ .funcs = func_names s secs } in
         let imports = items s secs 2 r_import in
-        let nimp = LIST.length (LIST.filter (\i => i.kind == 0) imports) in
+        let nimp = len (filter (\i => i.kind == 0) imports) in
         let ftypes = items s secs 3 r_u in
         let funcs = code_lines s secs nm nimp ftypes keep in
         if !full =>
             funcs
         else
-            let head = LIST.concat [
-                LIST.singleton "(module",
-                LIST.map (\t => "  (type " ++ t ++ ")") (numbered (items s secs 1 r_functype)),
-                LIST.map (\i => "  " ++ import_line nm i) (imports_numbered imports 0 List.Nil),
-                LIST.map (\t => "  (table " ++ t ++ ")") (items s secs 4 r_table),
-                LIST.map (\m => "  (memory " ++ m ++ ")") (items s secs 5 r_memory),
-                LIST.map (\g => "  (global " ++ g ++ ")") (numbered (items s secs 6 r_global)),
-                LIST.map (\e => "  (export " ++ e ++ ")") (items s secs 7 r_export),
-                LIST.map (\e => "  (elem " ++ e ++ ")") (items s secs 9 (r_elem nm))
+            let head = concat [
+                ARES.singleton "(module",
+                fmap (\t => "  (type " ++ t ++ ")") (numbered (items s secs 1 r_functype)),
+                fmap (\i => "  " ++ import_line nm i) (imports_numbered imports 0 List.Nil),
+                fmap (\t => "  (table " ++ t ++ ")") (items s secs 4 r_table),
+                fmap (\m => "  (memory " ++ m ++ ")") (items s secs 5 r_memory),
+                fmap (\g => "  (global " ++ g ++ ")") (numbered (items s secs 6 r_global)),
+                fmap (\e => "  (export " ++ e ++ ")") (items s secs 7 r_export),
+                fmap (\e => "  (elem " ++ e ++ ")") (items s secs 9 (r_elem nm))
             ] in
-            LIST.concat [
+            concat [
                 head,
                 funcs,
-                LIST.map (\d => "  (data " ++ d ++ ")") (items s secs 11 r_data),
-                LIST.singleton ")"
+                fmap (\d => "  (data " ++ d ++ ")") (items s secs 11 r_data),
+                ARES.singleton ")"
             ]
 
 $ sections : @Str -> @Int -> List Sec -> List Sec = \s i acc =>
     if i >= @array_len s =>
-        LIST.reverse acc
+        reverse acc
     else
         let n = r_u s (i + 1) in
         let sec = Sec.{ .id = @array_get s i, .start = n.1, .end = n.1 + n.0 } in
         sections s sec.end List.Cons.{ sec, acc }
 
-$ find : List Sec -> @Int -> Option Sec = \secs id =>
+$ find : List Sec -> @Int -> Opt Sec = \secs id =>
     secs |> \
-        | List.Cons.{ h, t } => if h.id == id && id != 0 => Option.Some.{ h } else find t id
-        | _                  => Option.None
+        | List.Cons.{ h, t } => if h.id == id && id != 0 => Opt.Some.{ h } else find t id
+        | _                  => Opt.None
 
 # The items of section `id`, a vector of whatever `f` reads.
 $ items : @Str -> List Sec -> @Int -> (@Str -> @Int -> { a, @Int }) -> List a = \s secs id f =>
     find secs id |> \
-        | Option.Some.{ sec } => (let n = r_u s sec.start in read_n f s n.0 n.1 List.Nil).0
+        | Opt.Some.{ sec } => (let n = r_u s sec.start in read_n f s n.0 n.1 List.Nil).0
         | _                   => List.Nil
 
 $ read_n : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
     -> { List a, @Int } = \f s n i acc =>
     if n == 0 =>
-        { LIST.reverse acc, i }
+        { reverse acc, i }
     else
         let r = f s i in let x = r.0 in read_n f s (n - 1) r.1 List.Cons.{ x, acc }
 
@@ -93,7 +94,7 @@ $ numbered : List @Str -> List @Str = \xs => number_go xs 0 List.Nil
 $ number_go : List @Str -> @Int -> List @Str -> List @Str = \xs i acc =>
     xs |> \
         | List.Cons.{ h, t } => number_go t (i + 1) List.Cons.{ to_string i ++ " " ++ h, acc }
-        | _                  => LIST.reverse acc
+        | _                  => reverse acc
 
 # -- primitives ----------------------------------------------------------------
 
@@ -152,7 +153,7 @@ $ quote_go : @Str -> @Int -> @Str -> @Str = \b i acc =>
             )
 
 $ fname : Names -> @Int -> @Str = \nm i =>
-    MAP.get nm.funcs i |> \ | Option.Some.{ n } => "$" ++ n | _ => to_string i
+    get i nm.funcs |> \ | Opt.Some.{ n } => "$" ++ n | _ => to_string i
 
 # -- sections ------------------------------------------------------------------
 
@@ -164,7 +165,7 @@ $ r_functype : @Str -> @Int -> { @Str, @Int } = \s i =>
 $ r_vt : @Str -> @Int -> { @Str, @Int } = \s i => { vt (@array_get s i), i + 1 }
 
 $ group : @Str -> List @Str -> @Str = \kw xs =>
-    xs |> \ | List.Nil => "" | _ => " (" ++ kw ++ LIST.foldl (\a x => a ++ " " ++ x) "" xs ++ ")"
+    xs |> \ | List.Nil => "" | _ => " (" ++ kw ++ foldl (\a x => a ++ " " ++ x) "" xs ++ ")"
 
 $ r_import : @Str -> @Int -> { Imp, @Int } = \s i =>
     let m = r_name s i in
@@ -180,7 +181,7 @@ $ imports_numbered : List Imp -> @Int -> List { @Int, Imp } -> List { @Int, Imp 
             let entry = { n, h } in
             imports_numbered t (if h.kind == 0 => n + 1 else n) List.Cons.{ entry, acc }
         )
-        | _                  => LIST.reverse acc
+        | _                  => reverse acc
 
 $ import_line : Names -> { @Int, Imp } -> @Str = \nm e =>
     let i = e.1 in
@@ -225,7 +226,7 @@ $ r_global : @Str -> @Int -> { @Str, @Int } = \s i =>
 
 # A constant expression: one instruction and `end`.
 $ const_expr : @Str -> @Int -> { @Str, @Int } = \s i =>
-    let r = instr (Names.{ .funcs = MAP.new_int }) s i in { r.0, r.1 + 1 }
+    let r = instr (Names.{ .funcs = (new {}) }) s i in { r.0, r.1 + 1 }
 
 $ r_export : @Str -> @Int -> { @Str, @Int } = \s i =>
     let n = r_name s i in
@@ -249,7 +250,7 @@ $ r_elem : Names -> @Str -> @Int -> { @Str, @Int } = \nm s i =>
         let off = const_expr s flag.1 in
         let n = r_u s off.1 in
         let fs = read_n r_u s n.0 n.1 List.Nil in
-        { "(" ++ off.0 ++ ")" ++ LIST.foldl (\a f => a ++ " " ++ fname nm f) "" fs.0, fs.1 }
+        { "(" ++ off.0 ++ ")" ++ foldl (\a f => a ++ " " ++ fname nm f) "" fs.0, fs.1 }
 
 $ r_data : @Str -> @Int -> { @Str, @Int } = \s i =>
     let flag = r_u s i in
@@ -268,11 +269,11 @@ $ func_names : @Str -> List Sec -> Map @Int @Str = \s secs =>
                 name_subs s (r_name s h.start).1 h.end
             else
                 func_names s t
-        | _ => MAP.new_int
+        | _ => (new {})
 
 $ name_subs : @Str -> @Int -> @Int -> Map @Int @Str = \s i end =>
     if i >= end =>
-        MAP.new_int
+        (new {})
     else
         let id = @array_get s i in
         let size = r_u s (i + 1) in
@@ -280,7 +281,7 @@ $ name_subs : @Str -> @Int -> @Int -> Map @Int @Str = \s i end =>
             (
                 let n = r_u s size.1 in
                 (read_n r_assoc s n.0 n.1 List.Nil).0
-                    |> LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_int
+                    |> foldl (\m p => ARES.insert p.0 p.1 m) (new {})
             )
         else
             name_subs s (size.1 + size.0) end
@@ -293,35 +294,35 @@ $ r_assoc : @Str -> @Int -> { { @Int, @Str }, @Int } = \s i =>
 $ code_lines : @Str -> List Sec -> Names -> @Int -> List @Int -> (@Str -> @Bool)
     -> List @Str = \s secs nm nimp ftypes keep =>
     find secs 10 |> \
-        | Option.Some.{ sec } =>
+        | Opt.Some.{ sec } =>
             let n = r_u s sec.start in bodies s nm nimp ftypes keep n.0 n.1 nimp List.Nil
         | _ => List.Nil
 
 $ bodies : @Str -> Names -> @Int -> List @Int -> (@Str -> @Bool) -> @Int -> @Int -> @Int
     -> List (List @Str) -> List @Str = \s nm nimp ftypes keep n i idx acc =>
     if n == 0 =>
-        LIST.concat (LIST.reverse acc)
+        concat (reverse acc)
     else
         let size = r_u s i in
         let next = size.1 + size.0 in
-        let name = unwrap_or (MAP.get nm.funcs idx) "" in
-        let ty = LIST.nth ftypes (idx - nimp) |> \ | Option.Some.{ t } => t | _ => 0 in
+        let name = unwrap_or "" (get idx nm.funcs) in
+        let ty = nth (idx - nimp) ftypes |> \ | Opt.Some.{ t } => t | _ => 0 in
         let lines = if keep name => body s nm idx ty size.1 next else List.Nil in
         bodies s nm nimp ftypes keep (n - 1) next (idx + 1) List.Cons.{ lines, acc }
 
 $ body : @Str -> Names -> @Int -> @Int -> @Int -> @Int -> List @Str = \s nm idx ty i end =>
     let nl = r_u s i in
     let ls = read_n r_local s nl.0 nl.1 List.Nil in
-    let locals = LIST.foldl (\a l => a ++ l) "" ls.0 in
+    let locals = foldl (\a l => a ++ l) "" ls.0 in
     let head =
         "  (func " ++ to_string idx ++ " " ++ fname nm idx ++ " (type " ++ to_string ty ++ ")"
     in
     let lines = code nm s ls.1 end 2 List.Nil in
-    LIST.concat [
-        LIST.singleton head,
-        (if locals == "" => List.Nil else LIST.singleton ("    (local" ++ locals ++ ")")),
+    concat [
+        ARES.singleton head,
+        (if locals == "" => List.Nil else ARES.singleton ("    (local" ++ locals ++ ")")),
         lines,
-        LIST.singleton "  )"
+        ARES.singleton "  )"
     ]
 
 $ r_local : @Str -> @Int -> { @Str, @Int } = \s i =>
@@ -334,7 +335,7 @@ $ pad : @Int -> @Str = \d => if d <= 0 => "" else "  " ++ pad (d - 1)
 # Instructions up to the body's last `end`, indented by nesting.
 $ code : Names -> @Str -> @Int -> @Int -> @Int -> List @Str -> List @Str = \nm s i end depth acc =>
     if i >= end - 1 =>
-        LIST.reverse acc
+        reverse acc
     else
         let b = @array_get s i in
         let r = instr nm s i in
@@ -386,7 +387,7 @@ $ instr : Names -> @Str -> @Int -> { @Str, @Int } = \nm s i =>
                 let d = r_u s ls.1 in
                 {
                     "br_table"
-                        ++ LIST.foldl (\a l => a ++ " " ++ to_string l) "" ls.0
+                        ++ foldl (\a l => a ++ " " ++ to_string l) "" ls.0
                         ++ " "
                         ++ to_string d.0,
                     d.1

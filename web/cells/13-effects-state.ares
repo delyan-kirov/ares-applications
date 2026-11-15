@@ -4,7 +4,8 @@
 
 $ @mod MAIN
 
-$ @import STR
+$ @import ARESxALGO
+$ @import ARESxSTR
 $ @import HOST
 
 $ State : @effect =

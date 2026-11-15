@@ -21,12 +21,13 @@ $ @mod SHELL
 #       pattern), and the shell formats it, so a double prints as its
 #       shortest form.
 
-$ @import IO
-$ @import STR
-$ @import OPT
-$ @import VEC
-$ @import LIST
-$ @import MAP
+$ @import ARESxALGO
+$ @import ARESxIO
+$ @import ARESxSTR
+$ @import ARESxOPT
+$ @import ARESxVEC
+$ @import ARESxLIST
+$ @import ARESxMAP
 $ @import LEX
 $ @import DIAG
 $ @import CFG
@@ -57,7 +58,7 @@ $ run : Opts -> <@IO> @Int = \o0 =>
         );
     load_lib o
         |> \
-            | Option.Some.{ lib } =>
+            | Opt.Some.{ lib } =>
                 let dir = scratch_dir {} in
                 let sh = Sh.{
                     .o = o,
@@ -91,13 +92,13 @@ $ help : @Str =
         ++ "  :help               this help                                     (:?)\n"
         ++ "  :quit               leave the shell (or Ctrl-D)                   (:q)\n"
 
-$ load_lib : Opts -> <@IO> Option (Map @Str ({} -> TU)) = \o =>
+$ load_lib : Opts -> <@IO> Opt (Map @Str ({} -> TU)) = \o =>
     do (
         let lib = library o in
-        Option.Some.{ MAP.map_values (\get => let tu = get {} in \u => tu) lib }
+        Opt.Some.{ ARES.map_values (\get => let tu = get {} in \u => tu) lib }
     )
     ctl k
-    | Diag.fail e => (eprintln ("C library: " ++ render "error" e); Option.None)
+    | Diag.fail e => (eprintln ("C library: " ++ render "error" e); Opt.None)
     | Diag.warn e => k {}
 
 $ scratch_dir : {} -> <@IO> @Str =
@@ -109,49 +110,49 @@ $ scratch_dir : {} -> <@IO> @Str =
         ++ to_string (C.clock {}) in
     C.system ("mkdir -p " ++ sh_quote d); d
 
-$ sh_quote : @Str -> @Str = \s => "'" ++ replace s "'" "'\\''" ++ "'"
+$ sh_quote : @Str -> @Str = \s => "'" ++ replace "'" "'\\''" s ++ "'"
 
 $ save_session : Sh -> <@IO> {} = \sh =>
-    write_file (sh.dir ++ "/session.h") (VEC.foldl (\acc d => acc ++ d ++ "\n") "" sh.decls); {}
+    write_file (sh.dir ++ "/session.h") (foldl (\acc d => acc ++ d ++ "\n") "" sh.decls); {}
 
 # -- reading entries -------------------------------------------------------------
 
 $ loop : Sh -> <@IO> {} = \sh =>
     read_entry "c> " |> \
-        | Option.Some.{ text } =>
+        | Opt.Some.{ text } =>
             let t = trim text in
             if t == "" =>
                 loop sh
-            else if starts_with t ":" =>
-                (command sh t |> \ | Option.Some.{ next } => loop next | _ => {})
+            else if starts_with ":" t =>
+                (command sh t |> \ | Opt.Some.{ next } => loop next | _ => {})
             else
                 loop (entry sh t)
         | _ => println ""
 
-$ read_entry : @Str -> <@IO> Option @Str = \prompt =>
-    print prompt; read_line_opt "" |> \ | Option.Some.{ line } => more line | _ => Option.None
+$ read_entry : @Str -> <@IO> Opt @Str = \prompt =>
+    print prompt; read_line_opt "" |> \ | Opt.Some.{ line } => more line | _ => Opt.None
 
-$ more : @Str -> <@IO> Option @Str = \acc =>
-    if starts_with (trim acc) ":" || complete acc =>
-        Option.Some.{ acc }
+$ more : @Str -> <@IO> Opt @Str = \acc =>
+    if starts_with ":" (trim acc) || complete acc =>
+        Opt.Some.{ acc }
     else
         print "..> "; read_line_opt "" |>
-            \ | Option.Some.{ l } => more (acc ++ "\n" ++ l) | _ => Option.Some.{ acc }
+            \ | Opt.Some.{ l } => more (acc ++ "\n" ++ l) | _ => Opt.Some.{ acc }
 
 # A line from stdin without its newline; `None` at the end of input.
-$ read_line_opt : @Str -> <@IO> Option @Str = \acc =>
+$ read_line_opt : @Str -> <@IO> Opt @Str = \acc =>
     let c = C.getchar {} in
     if c == 10 =>
-        Option.Some.{ acc }
+        Opt.Some.{ acc }
     else if c >= 0 && c <= 255 =>
         read_line_opt (@array_push acc c)
     else if @array_len acc > 0 =>
-        Option.Some.{ acc }
+        Opt.Some.{ acc }
     else
-        Option.None
+        Opt.None
 
 # Whether an entry is finished: every bracket closed and no line continued.
-$ complete : @Str -> @Bool = \s => depth s 0 0 0 <= 0 && !(ends_with (trim_right s) "\\")
+$ complete : @Str -> @Bool = \s => depth s 0 0 0 <= 0 && !(ends_with "\\" (trim_right s))
 
 # Open brackets, skipping string and character literals and comments; an
 # unterminated comment counts as open.
@@ -176,8 +177,8 @@ $ depth : @Str -> @Int -> @Int -> @Int -> @Int = \s i d q =>
             depth s (line_end s i) d 0
         else if c == 47 && n == 42 =>
             (
-                STR.find (@array_slice s (i + 2) (@array_len s)) "*/" |>
-                    \ | Option.Some.{ k } => depth s (i + 4 + k) d 0 | _ => d + 1
+                ARES.index_of "*/" (@array_slice s (i + 2) (@array_len s)) |>
+                    \ | Opt.Some.{ k } => depth s (i + 4 + k) d 0 | _ => d + 1
             )
         else if c == 40 || c == 91 || c == 123 =>
             depth s (i + 1) (d + 1) 0
@@ -230,14 +231,14 @@ $ decl_words : @Vec @Str = [
 
 $ classify : Sh -> @Str -> <@IO> Entry = \sh e =>
     let decl = Entry.Decl.{ e } in
-    if starts_with e "#" =>
+    if starts_with "#" e =>
         decl
     else
         lex "<input>" e |> \
             | List.Cons.{ t, rest } =>
-                if is_ident t && (VEC.any (\w => w == t.text) decl_words || is_type sh t.text) =>
+                if is_ident t && (any (\w => w == t.text) decl_words || is_type sh t.text) =>
                     decl
-                else if ends_with e ";" || ends_with e "}" =>
+                else if ends_with ";" e || ends_with "}" e =>
                     Entry.Stmts
                 else
                     Entry.Expr
@@ -254,7 +255,7 @@ $ decl_tu : Sh -> @Str -> <@IO> Result { @Str, TU } @Str = \sh d =>
     parse_src sh (decl_src d) |> \
         | Result.Ok.{ tu } => Result.Ok.{ { d, tu } }
         | Result.Err.{ msg } =>
-            if ends_with d ";" || starts_with d "#" =>
+            if ends_with ";" d || starts_with "#" d =>
                 Result.Err.{ msg }
             else
                 parse_src sh (decl_src (d ++ ";")) |>
@@ -324,8 +325,8 @@ $ run_stmts : Sh -> @Str -> <@IO> {} = \sh e =>
 $ probe : Sh -> @Str -> <@IO> Result { Ty, Layout } @Str = \sh e =>
     parse_src sh (probe_src e) |> \
         | Result.Ok.{ tu }   => (
-            VEC.find (\f => f.name == "__alec_probe") tu.funcs |> \
-                | Option.Some.{ f } => (
+            find (\f => f.name == "__alec_probe") tu.funcs |> \
+                | Opt.Some.{ f } => (
                     f.body |> \
                         | Stmt.Block.{ ss } => (
                             ss |> \
@@ -355,7 +356,7 @@ $ run_expr : Sh -> @Str -> <@IO> {} = \sh e =>
                             run_wasm sh bytes;
                             (
                                 read_file (value_path sh) |> \
-                                    | Option.Some.{ v } =>
+                                    | Opt.Some.{ v } =>
                                         println ("  // " ++ shown v ++ " : " ++ ty_name p.1 p.0)
                                     | _                 => {}
                             )
@@ -414,7 +415,7 @@ $ is_char : Ty -> @Bool = \t => t |> \ | Ty.Int.{ k } => k.size == 1 && k.rank =
 
 $ is_chars : Ty -> @Bool = \t => is_pointerish t && is_char (base_of t)
 
-$ c_escape : @Str -> @Str = \s => replace (replace s "\\" "\\\\") "\"" "\\\""
+$ c_escape : @Str -> @Str = \s => replace "\"" "\\\"" (replace s "\\" "\\\\")
 
 # The value the program wrote, for the `//` line.
 $ shown : @Str -> @Str = \v =>
@@ -423,11 +424,11 @@ $ shown : @Str -> @Str = \v =>
     else
         let rest = @array_slice v 1 (@array_len v) in
         @array_get v 0 |> \
-            | 102 => to_string (f64_of_bits (unwrap_or (to_int rest) 0))
+            | 102 => to_string (f64_of_bits (unwrap_or 0 (from_str rest)))
             | 115 => c_string rest
             | 110 => "NULL"
             | 99  => (
-                let n = unwrap_or (to_int rest) 0 in
+                let n = unwrap_or 0 (from_str rest) in
                 if n >= 32 && n < 127 => rest ++ " " ++ c_char n else rest
             )
             | _   => rest
@@ -466,16 +467,16 @@ $ hex2 : @Int -> @Str = \b =>
 # -- meta-commands ---------------------------------------------------------------
 
 # `None` to leave the shell.
-$ command : Sh -> @Str -> <@IO> Option Sh = \sh t =>
-    let name = STR.find t " " |> \ | Option.Some.{ i } => @array_slice t 0 i | _ => t in
+$ command : Sh -> @Str -> <@IO> Opt Sh = \sh t =>
+    let name = ARES.index_of " " t |> \ | Opt.Some.{ i } => @array_slice t 0 i | _ => t in
     let rest = trim (@array_slice t (@array_len name) (@array_len t)) in
     let code = if rest == "" => sh.last else rest in
     name |> \
-        | ":q" | ":quit" => Option.None
-        | ":help" | ":?" => (print help; Option.Some.{ sh })
-        | ":list" | ":l" => (for sh.decls (\d => println d); Option.Some.{ sh })
+        | ":q" | ":quit" => Opt.None
+        | ":help" | ":?" => (print help; Opt.Some.{ sh })
+        | ":list" | ":l" => (for sh.decls (\d => println d); Opt.Some.{ sh })
         | ":reset"       =>
-            (let next = Sh.{ .decls = @vec_new {} | sh } in save_session next; Option.Some.{ next })
+            (let next = Sh.{ .decls = @vec_new {} | sh } in save_session next; Opt.Some.{ next })
         | ":type" | ":t" =>
             (
                 if rest == "" =>
@@ -485,17 +486,17 @@ $ command : Sh -> @Str -> <@IO> Option Sh = \sh t =>
                         | Result.Ok.{ p }    => println (rest ++ " : " ++ ty_name p.1 p.0)
                         | Result.Err.{ msg } => println msg
             );
-            Option.Some.{ sh }
-        | ":tokens"      => (show_tokens sh rest; Option.Some.{ sh })
-        | ":ast"         => (show_ast sh code; Option.Some.{ sh })
-        | ":wasm"        => (show_wasm sh code (rest == "all"); Option.Some.{ sh })
+            Opt.Some.{ sh }
+        | ":tokens"      => (show_tokens sh rest; Opt.Some.{ sh })
+        | ":ast"         => (show_ast sh code; Opt.Some.{ sh })
+        | ":wasm"        => (show_wasm sh code (rest == "all"); Opt.Some.{ sh })
         | ":target"      => (
             if rest == "wasm32" || rest == "wasm64" =>
                 (
                     let o = Opts.{ .target = (if rest == "wasm64" => wasm64 else wasm32) | sh.o } in
                     load_lib o |> \
-                        | Option.Some.{ lib } => Option.Some.{ Sh.{ .o = o, .lib = lib | sh } }
-                        | _                   => Option.Some.{ sh }
+                        | Opt.Some.{ lib } => Opt.Some.{ Sh.{ .o = o, .lib = lib | sh } }
+                        | _                   => Opt.Some.{ sh }
                 )
             else
                 (
@@ -505,12 +506,12 @@ $ command : Sh -> @Str -> <@IO> Option Sh = \sh t =>
                                 ++ sh.o.target.name
                                 ++ "; `:target wasm32` or `:target wasm64` changes it"
                         );
-                    Option.Some.{ sh }
+                    Opt.Some.{ sh }
                 )
         )
         | _              => (
             println ("alec: unknown command `" ++ name ++ "` (`:help` for the list)");
-            Option.Some.{ sh }
+            Opt.Some.{ sh }
         )
 
 $ nothing : Sh -> @Str -> <@IO> @Bool = \sh code =>
@@ -522,7 +523,7 @@ $ nothing : Sh -> @Str -> <@IO> @Bool = \sh code =>
 # `pp` first means after preprocessing, with the session and <stdio.h> in
 # effect; only the entry's own tokens are shown.
 $ show_tokens : Sh -> @Str -> <@IO> {} = \sh rest =>
-    let pp = rest == "pp" || starts_with rest "pp " in
+    let pp = rest == "pp" || starts_with "pp " rest in
     let given = trim (if pp => @array_slice rest 2 (@array_len rest) else rest) in
     let code = if given == "" => sh.last else given in
     if nothing sh code =>
@@ -566,13 +567,13 @@ $ show_wasm : Sh -> @Str -> @Bool -> <@IO> {} = \sh code all =>
             | Entry.Decl.{ d } => (
                 decl_tu sh d |> \
                     | Result.Ok.{ r }    => (
-                        let mine = VEC.map (\f => f.name)
-                            (VEC.filter (\f => f.pos.file == "<input>") r.1.funcs) in
-                        let uses = VEC.foldl (\acc n => acc ++ "(void)&" ++ n ++ "; ") "" mine in
+                        let mine = fmap (\f => f.name)
+                            (filter (\f => f.pos.file == "<input>") r.1.funcs) in
+                        let uses = foldl (\acc n => acc ++ "(void)&" ++ n ++ "; ") "" mine in
                         {
                             build_src sh
                                 (decl_src r.0 ++ "int main(void) { " ++ uses ++ "return 0; }\n"),
-                            \n => VEC.any (\m => m == n) mine
+                            \n => any (\m => m == n) mine
                         }
                     )
                     | Result.Err.{ msg } => { Result.Err.{ msg }, \n => @false }

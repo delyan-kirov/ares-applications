@@ -20,13 +20,14 @@ $ @mod CACHE
 #       without that. So a program pays only for the library functions it
 #       reaches.
 
-$ @import IO
-$ @import STR
-$ @import OPT
-$ @import VEC
-$ @import LIST
-$ @import MAP
-$ @import BITS
+$ @import ARESxALGO
+$ @import ARESxIO
+$ @import ARESxSTR
+$ @import ARESxOPT
+$ @import ARESxVEC
+$ @import ARESxLIST
+$ @import ARESxMAP
+$ @import ARESxBITS
 $ @import LEX
 $ @import CFG
 $ @import TYPE
@@ -46,28 +47,28 @@ $ stamp : @Str -> <@IO> @Str = \home => capture
 # the file cannot be written. A table of the units' names and byte lengths
 # comes first, so a reader can go straight to the units it wants.
 $ save : @Str -> @Str -> @Vec { @Str, TU } -> <@IO> @Bool = \path st units =>
-    let encoded = VEC.map (\u => { u.0, w_tu List.Nil u.1 }) units in
+    let encoded = fmap (\u => { u.0, w_tu List.Nil u.1 }) units in
     let table =
-        VEC.foldl (\acc e => w_int (w_str acc e.0) (LIST.foldl (\n p => n + @array_len p) 0 e.1))
+        foldl (\acc e => w_int (w_str acc e.0) (foldl (\n p => n + @array_len p) 0 e.1))
             (w_int (w_str (put List.Nil magic) st) (@vec_len units)) encoded
     in
-    spill path (LIST.reverse (VEC.foldl (\acc e => LIST.append e.1 acc) table encoded))
+    spill path (reverse (foldl (\acc e => append acc e.1) table encoded))
 
 # The units saved at `path`, when it holds a cache made under `st`. Each is
 # read when it is first asked for.
-$ load : @Str -> @Str -> Target -> <@IO> Option (@Vec { @Str, {} -> TU }) = \path st target =>
+$ load : @Str -> @Str -> Target -> <@IO> Opt (@Vec { @Str, {} -> TU }) = \path st target =>
     slurp path |> \
-        | Option.Some.{ s } =>
-            if !(starts_with s magic) =>
-                Option.None
+        | Opt.Some.{ s } =>
+            if !(starts_with magic s) =>
+                Opt.None
             else
                 let saved = r_str s (@array_len magic) in
                 if saved.0 != st =>
-                    Option.None
+                    Opt.None
                 else
                     let table = r_list r_entry s saved.1 in
-                    Option.Some.{ LIST.to_vec (place_units s target table.1 table.0 List.Nil) }
-        | _ => Option.None
+                    Opt.Some.{ ARES.to_vec (place_units s target table.1 table.0 List.Nil) }
+        | _ => Opt.None
 
 $ @private
 
@@ -77,17 +78,17 @@ $ fread : { buf: @Str, size: @Int, n: @Int, stream: @Int } -> <@IO> @Int =
 # The whole file. Natively `fread` fills a fresh buffer in place, in one call;
 # the interpreter hands C a copy of the buffer, which leaves ours empty, and
 # then the file is read a byte at a time instead.
-$ slurp : @Str -> <@IO> Option @Str = \path =>
+$ slurp : @Str -> <@IO> Opt @Str = \path =>
     let f = C.fopen { path, "rb" } in
     if f == 0 =>
-        Option.None
+        Opt.None
     else
         C.fseek { f, 0, 2 };
         let n = C.ftell f in
         C.fseek { f, 0, 0 };
         let buf = blank n " " in
         let got = fread { buf, 1, n, f } in
-        C.fclose f; if got == n && starts_with buf magic => Option.Some.{ buf } else read_file path
+        C.fclose f; if got == n && starts_with magic buf => Opt.Some.{ buf } else read_file path
 
 # A fresh string of `n` bytes for `fread` to fill, built by doubling.
 $ blank : @Int -> @Str -> @Str = \n s =>
@@ -118,10 +119,10 @@ $ w_str : List @Str -> @Str -> List @Str = \acc s =>
     put (put acc (to_string (@array_len s) ++ ":")) s
 
 $ w_list : (List @Str -> a -> List @Str) -> List @Str -> List a -> List @Str = \f acc l =>
-    LIST.foldl f (w_int acc (LIST.length l)) l
+    foldl f (w_int acc (len l)) l
 
 $ w_vec : (List @Str -> a -> List @Str) -> List @Str -> @Vec a -> List @Str = \f acc v =>
-    VEC.foldl f (w_int acc (@vec_len v)) v
+    foldl f (w_int acc (@vec_len v)) v
 
 $ w_pos : List @Str -> Pos -> List @Str = \acc p => w_int (w_int (w_str acc p.file) p.line) p.col
 
@@ -213,7 +214,7 @@ $ w_body : List @Str -> Stmt -> List @Str = \acc b =>
     b |> \
         | Stmt.Block.{ ss } =>
             let inner = w_list w_stmt List.Nil ss in
-            LIST.append inner (w_int (w_int acc 1) (LIST.foldl (\n p => n + @array_len p) 0 inner))
+            append (w_int (w_int acc 1) (foldl (\n p => n + @array_len p) 0 inner)) inner
         | _ => w_stmt (w_int acc 0) b
 
 $ w_reloc : List @Str -> Reloc -> List @Str = \acc r =>
@@ -230,8 +231,8 @@ $ w_agg : List @Str -> Agg -> List @Str = \acc a =>
 
 $ w_tu : List @Str -> TU -> List @Str = \acc u =>
     let a1 = w_vec w_gvar (w_vec w_func acc u.funcs) u.globals in
-    let a2 = w_vec (\a p => w_ty (w_str a p.0) p.1) a1 (MAP.to_list u.protos) in
-    let a3 = w_vec (\a p => w_agg (w_int a p.0) p.1) a2 (MAP.to_list u.layout.aggs) in
+    let a2 = w_vec (\a p => w_ty (w_str a p.0) p.1) a1 (to_list u.protos) in
+    let a3 = w_vec (\a p => w_agg (w_int a p.0) p.1) a2 (to_list u.layout.aggs) in
     w_vec (\a f => w_list w_str (w_str a f.name) (func_refs u f)) a3 u.funcs
 
 # -- reading -----------------------------------------------------------------
@@ -263,12 +264,12 @@ $ r_list : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> { List a, @Int } = \
 $ r_list_go : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
     -> { List a, @Int } = \f s n i acc =>
     if n == 0 =>
-        { LIST.reverse acc, i }
+        { reverse acc, i }
     else
         let r = f s i in let x = r.0 in r_list_go f s (n - 1) r.1 List.Cons.{ x, acc }
 
 $ r_vec : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> { @Vec a, @Int } = \f s i =>
-    let r = r_list f s i in { LIST.to_vec r.0, r.1 }
+    let r = r_list f s i in { ARES.to_vec r.0, r.1 }
 
 $ r_pos : @Str -> @Int -> { Pos, @Int } = \s i =>
     let f = r_str s i in
@@ -538,9 +539,9 @@ $ r_tu : @Str -> Target -> @Int -> { TU, @Int } = \s target i =>
     let ps = r_list r_proto s gs.1 in
     let ags = r_list r_agg_entry s ps.1 in
     let frs = r_list r_fn_refs s ags.1 in
-    let protos = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_str ps.0 in
-    let aggs = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_int ags.0 in
-    let refs = LIST.foldl (\m p => MAP.insert m p.0 p.1) MAP.new_str frs.0 in
+    let protos = foldl (\m p => ARES.insert p.0 p.1 m) (new {}) ps.0 in
+    let aggs = foldl (\m p => ARES.insert p.0 p.1 m) (new {}) ags.0 in
+    let refs = foldl (\m p => ARES.insert p.0 p.1 m) (new {}) frs.0 in
     {
         TU.{
             .funcs = fs.0,
@@ -562,4 +563,4 @@ $ place_units : @Str -> Target -> @Int -> List { @Str, @Int } -> List { @Str, {}
         | List.Cons.{ e, rest } =>
             let unit = { e.0, \u => (r_tu s target at).0 } in
             place_units s target (at + e.1) rest List.Cons.{ unit, acc }
-        | _ => LIST.reverse acc
+        | _ => reverse acc
