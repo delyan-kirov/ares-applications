@@ -19,11 +19,11 @@ const OPEN_LIMIT = 3;
 
 const host = createHost();
 
-// The hero logo is the generated favicon.svg inlined, so the page's CSS can
+// The hero logo is the generated logo.svg inlined, so the page's CSS can
 // animate its `.shield` and `.spear`. It is fetched alongside the compiler,
 // not after it, so it lands while the wasm is still loading.
 const mark = document.getElementById("mark") as HTMLElement;
-fetch("favicon.svg").then((r) => r.text()).then((svg) => { mark.innerHTML = svg; mark.classList.add("in"); });
+fetch("logo.svg").then((r) => r.text()).then((svg) => { mark.innerHTML = svg; mark.classList.add("in"); });
 mark.onclick = () => {
   mark.classList.remove("in");
   void mark.offsetWidth;
@@ -90,7 +90,13 @@ function showCheck(r: Runner): void {
   r.check.className = "check" + (n === null ? "" : n === 0 ? " ok" : " bad");
 }
 
-function run(r: Runner): void {
+/// When the last run finished, on the clock of event time stamps. A run blocks
+/// the page, so clicks and keys made meanwhile only arrive after it; those
+/// asked for a run that has already happened and are dropped.
+let ranUntil = 0;
+
+function run(r: Runner, asked: Event): void {
+  if (asked.timeStamp < ranUntil) return;
   const at = r.button.getBoundingClientRect();
   launch(at.left, at.top + at.height / 2);
   let text: string;
@@ -103,6 +109,7 @@ function run(r: Runner): void {
     failed = true;
   }
   showOutput(r.id, { title: r.title, text, failed });
+  ranUntil = performance.now();
 }
 
 const notebook = document.getElementById("notebook") as HTMLElement;
@@ -140,12 +147,12 @@ cells.forEach((cell, i) => {
     activate: () => activate(r),
   });
   byUri.set(r.editor.uri, r);
-  r.button.onclick = () => run(r);
+  r.button.onclick = (e) => run(r, e);
   (sec.querySelector(".fmt") as HTMLButtonElement).onclick = () => r.editor.format();
   (sec.querySelector(".reset") as HTMLButtonElement).onclick = () => r.editor.setText(r.src);
   r.editor.input.addEventListener("input", () => showCheck(r));
   r.editor.input.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(r); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(r, e); }
   });
 });
 

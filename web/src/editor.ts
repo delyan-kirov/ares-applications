@@ -63,14 +63,48 @@ export interface EditorOptions {
 interface Mark { start: number; end: number; cls: string }
 
 /// The one floating panel (hover or completion) on the page at a time.
-/// `closed` tells its editor, whatever closed it.
-let floating: { el: HTMLElement; owner: Editor; closed?: () => void } | null = null;
+/// `closed` tells its editor, whatever closed it; `at` is the offset a hover
+/// tip was asked for.
+let floating: { el: HTMLElement; owner: Editor; closed?: () => void; at?: number } | null = null;
+
+/// How long a hover tip outlives the pointer leaving its token or itself, so
+/// the pointer can cross over to it.
+const GRACE = 300;
+let grace: ReturnType<typeof setTimeout> | null = null;
 
 function closeFloating(): void {
+  holdTip();
   const f = floating;
   floating = null;
   f?.el.remove();
   f?.closed?.();
+}
+
+function openTip(): HTMLElement | null {
+  return floating?.el.classList.contains("tip") ? floating.el : null;
+}
+
+/// Whether text inside `el` is selected.
+function selectedIn(el: HTMLElement): boolean {
+  const s = getSelection();
+  return !!s && !s.isCollapsed && s.rangeCount > 0 && el.contains(s.getRangeAt(0).commonAncestorContainer);
+}
+
+function holdTip(): void {
+  if (grace) clearTimeout(grace);
+  grace = null;
+}
+
+/// Closes the hover tip once the grace period is up, unless by then the
+/// pointer is on it or text in it is selected. A pending close is not pushed
+/// back by further calls.
+function releaseTip(): void {
+  if (grace || !openTip()) return;
+  grace = setTimeout(() => {
+    grace = null;
+    const tip = openTip();
+    if (tip && !tip.matches(":hover") && !selectedIn(tip)) closeFloating();
+  }, GRACE);
 }
 
 export class Editor {
@@ -262,7 +296,9 @@ export class Editor {
     document.body.appendChild(el);
     const w = el.offsetWidth, h = el.offsetHeight;
     const left = Math.max(8, Math.min(at.left, innerWidth - w - 8));
-    const top = at.bottom + h + 4 > innerHeight ? at.top - h - 4 : at.bottom + 4;
+    const above = at.bottom + h + 4 > innerHeight;
+    const top = above ? at.top - h - 4 : at.bottom + 4;
+    el.classList.toggle("above", above);
     el.style.left = `${left}px`;
     el.style.top = `${Math.max(4, top)}px`;
   }
@@ -383,22 +419,30 @@ export class Editor {
     const offset = this.offsetAt(e.clientX, e.clientY);
     if (offset === this.hoverAt) return;
     this.hoverAt = offset;
-    if (this.hoverTimer) clearTimeout(this.hoverTimer);
-    closeFloatingOf(this, "tip");
+    this.cancelHover();
+    if (floating?.owner === this && openTip()) {
+      if (offset === floating.at) { holdTip(); return; }
+      releaseTip();
+    }
     if (offset < 0) return;
     this.hoverTimer = setTimeout(() => this.hover(offset), 350);
   }
 
-  private leave(): void {
+  private cancelHover(): void {
     if (this.hoverTimer) clearTimeout(this.hoverTimer);
+    this.hoverTimer = null;
+  }
+
+  private leave(): void {
+    this.cancelHover();
     this.hoverAt = -1;
-    // Let the pointer move onto the panel (to click a fix) before it closes.
-    setTimeout(() => {
-      if (floating?.owner === this && !floating.el.matches(":hover") && floating.el.classList.contains("tip")) closeFloating();
-    }, 200);
+    if (floating?.owner === this) releaseTip();
   }
 
   private hover(offset: number): void {
+    this.hoverTimer = null;
+    const tip = openTip();
+    if (tip && selectedIn(tip)) return;
     this.activate(this);
     const lines = new Lines(this.text);
     const pos = lines.position(offset);
@@ -432,9 +476,14 @@ export class Editor {
         el.appendChild(b);
       }
     }
-    el.addEventListener("mouseleave", () => closeFloating());
+    el.addEventListener("mouseenter", () => {
+      holdTip();
+      this.cancelHover();
+      this.hoverAt = -2;
+    });
+    el.addEventListener("mouseleave", () => releaseTip());
     closeFloating();
-    floating = { el, owner: this };
+    floating = { el, owner: this, at: offset };
     this.place(el, this.pointOf(offset));
   }
 
@@ -459,6 +508,20 @@ function closeFloatingOf(owner: Editor, cls: string): void {
 }
 
 if (typeof document !== "undefined") {
+  // A press anywhere but on the hover tip closes it, as does Escape wherever the
+  // focus is. Escape is taken in the capture phase, so the same press does not
+  // also dismiss an output card.
+  document.addEventListener("pointerdown", (e) => {
+    const tip = openTip();
+    if (tip && !(e.target instanceof Node && tip.contains(e.target))) closeFloating();
+  }, { capture: true });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && openTip()) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeFloating();
+    }
+  }, { capture: true });
   document.addEventListener("scroll", (e) => {
     if (floating && e.target instanceof Node && floating.el.contains(e.target)) return;
     closeFloating();

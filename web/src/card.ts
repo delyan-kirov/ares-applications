@@ -42,9 +42,26 @@ let raised = 30;
 
 const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/// Stops the card's own animation for good. Dropping `bump` alone would let
+/// the stylesheet's `card-in` apply again and replay the pop-in.
 function stopAnimations(c: Card): void {
   for (const a of c.body.getAnimations()) a.cancel();
   c.body.classList.remove("bump");
+  c.body.style.animation = "none";
+}
+
+function bump(c: Card): void {
+  stopAnimations(c);
+  void c.body.offsetWidth;
+  c.body.style.animation = "";
+  c.body.classList.add("bump");
+}
+
+/// Takes a card that is leaving out of play: it no longer answers the pointer,
+/// so a click on it cannot reach the card that replaced it.
+function retire(c: Card): void {
+  c.pos.style.pointerEvents = "none";
+  c.body.querySelector(".card-x")?.setAttribute("disabled", "");
 }
 
 function place(c: Card, x: number, y: number, ms = 0, easing = "cubic-bezier(.2, 1.3, .4, 1)"): void {
@@ -125,9 +142,7 @@ export function showOutput(key: string, o: Output): void {
       const [x, y] = docked(c, c.dock);
       place(c, x, y, 250);
     }
-    stopAnimations(c);
-    void body.offsetWidth;
-    body.classList.add("bump");
+    bump(c);
   }
 }
 
@@ -143,6 +158,8 @@ export function dismissOutput(key?: string): void {
   if (!entry) return;
   const [k, c] = entry;
   cards.delete(k);
+  retire(c);
+  hint(null);
   if (reducedMotion()) { c.pos.remove(); return; }
   stopAnimations(c);
   c.body.style.transition = "transform .22s ease-in, opacity .22s ease-in";
@@ -166,7 +183,9 @@ function create(key: string): Card {
     </div>`;
   document.body.appendChild(pos);
   const c: Card = { pos, body: pos.querySelector(".card") as HTMLElement, x: 0, y: 0, dock: null };
-  (c.body.querySelector(".card-x") as HTMLButtonElement).onclick = () => dismissOutput(key);
+  (c.body.querySelector(".card-x") as HTMLButtonElement).onclick = () => {
+    if (cards.get(key) === c) dismissOutput(key);
+  };
   draggable(key, c);
   return c;
 }
@@ -192,6 +211,7 @@ function draggable(key: string, c: Card): void {
 
   c.body.addEventListener("pointermove", (e) => {
     if (!grab) return;
+    if (cards.get(key) !== c) { grab = null; return; }
     const x = grab.x + e.clientX - grab.px, y = grab.y + e.clientY - grab.py;
     samples.push({ x: e.clientX, y: e.clientY, t: e.timeStamp });
     while (samples.length > 2 && e.timeStamp - samples[0].t > 100) samples.shift();
@@ -218,6 +238,7 @@ function draggable(key: string, c: Card): void {
     if (!grab) return;
     grab = null;
     c.body.classList.remove("dragging");
+    if (cards.get(key) !== c) return;
     c.body.style.transform = "";
     c.body.style.opacity = "";
     hint(null);
@@ -231,7 +252,7 @@ function draggable(key: string, c: Card): void {
     if (z?.out || (speed > FLICK_SPEED && e.type === "pointerup")) {
       const normal: Record<Edge, [number, number]> = { left: [-1, 0], right: [1, 0], top: [0, -1], bottom: [0, 1] };
       const [nx, ny] = speed > FLICK_SPEED ? [vx / speed, vy / speed] : normal[(z as { edge: Edge }).edge];
-      cards.delete(key);
+      if (cards.get(key) === c) cards.delete(key);
       throwAway(c, nx, ny, speed);
     } else if (z) {
       c.dock = z.edge;
@@ -250,6 +271,7 @@ function draggable(key: string, c: Card): void {
 
 /// Send the card off-screen along (nx, ny), faster the harder it was thrown.
 function throwAway(c: Card, nx: number, ny: number, speed: number): void {
+  retire(c);
   const far = Math.max(innerWidth, innerHeight) * 1.2;
   const ms = reducedMotion() ? 0 : Math.max(220, 480 - speed * 100);
   place(c, c.x + nx * far, c.y + ny * far, ms, "cubic-bezier(.3, .6, .5, 1)");

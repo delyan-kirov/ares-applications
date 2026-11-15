@@ -63,10 +63,10 @@
   }
   .mark {
     width: clamp(88px, 17vw, 150px); aspect-ratio: 1; flex: none; cursor: pointer;
-    background: radial-gradient(closest-side, rgba(196, 42, 59, .22), transparent);
+    background: radial-gradient(closest-side, rgba(217, 164, 62, .16), transparent);
   }
   .mark svg { display: block; width: 100%; height: 100%; overflow: visible; }
-  .mark .shield { transform-origin: .5px .575px; }
+  .mark .shield { transform-origin: .6179px .5488px; }
   .mark.in .spear { animation: spear-in .75s cubic-bezier(.3, 1.4, .5, 1) backwards; }
   .mark.in .shield { animation: shield-hit .6s ease-out .45s; }
   @keyframes spear-in {
@@ -180,6 +180,9 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, .45); font-size: 13px;
   }
   .tip { padding: 8px 10px; }
+  /* Covers the gap to the hovered token, so crossing it keeps the pointer on the tip. */
+  .tip::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 5px; }
+  .tip.above::before { bottom: auto; top: 100%; }
   .tip pre { margin: 0; font-family: var(--mono); color: var(--accent); white-space: pre-wrap; }
   .tip p { margin: 6px 0 0; white-space: pre-wrap; font-family: var(--mono); font-size: 12.5px; }
   .tip pre + p, .tip p:first-child { margin-top: 0; }
@@ -275,7 +278,7 @@
 </head>
 <body>
 <header>
-  <div id="mark" class="mark" role="img" aria-label="The Ares logo: a spear through a shield" title="again!"></div>
+  <div id="mark" class="mark" role="img" aria-label="The Ares logo: a hoplite with spear and shield" title="again!"></div>
   <div class="title">
     <h1>Ares</h1>
     <p class="tag">effects in a functional style</p>
