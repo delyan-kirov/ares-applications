@@ -1565,7 +1565,7 @@ $ struct_decl : { c: Fn, union: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
     let t = peek {} in
     let tag = (if is_ident t && !(is_keyword t.text) => (next {}; t.text) else "") in
     let pre2 = append (attr_names c) pre in
-    let wrong_kind = \_ => error_at t.pos ("'" ++ tag ++ "' defined as wrong kind of tag") in
+    let wrong_kind = "'" ++ tag ++ "' defined as wrong kind of tag" in
     if !(at_p "{") =>
         (
             if tag == "" =>
@@ -1580,8 +1580,8 @@ $ struct_decl : { c: Fn, union: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
                     | Opt.Some.{ b } => (
                         b |> \
                             | TagB.TAgg.{ id, u } =>
-                                if u != union => wrong_kind {} else Ty.Agg.{ id }
-                            | _                   => wrong_kind {}
+                                if u != union => error_at t.pos wrong_kind else Ty.Agg.{ id }
+                            | _                   => error_at t.pos wrong_kind
                     )
                     | _ =>
                         let id = Tab.new_agg { tag, union } in
@@ -1600,10 +1600,10 @@ $ struct_decl : { c: Fn, union: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
                                 if (agg_of (cur_layout {}) old).complete =>
                                     error_at t.pos ("redefinition of '" ++ tag ++ "'")
                                 else if u != union =>
-                                    wrong_kind {}
+                                    error_at t.pos wrong_kind
                                 else
                                     old
-                            | _ => wrong_kind {}
+                            | _ => error_at t.pos wrong_kind
                     )
                     | _ =>
                         let n = Tab.new_agg { tag, union } in
