@@ -40,7 +40,7 @@ $ @import WAT
 $ @import DUMP
 $ @import DRIVER
 
-$ Sh : @struct =
+$ Sh : @Type = @struct
     o : Opts,
     lib : Map @Str ({} -> TU),
     index : Map @Str @Str,
@@ -192,7 +192,7 @@ $ line_end : @Str -> @Int -> @Int = \s i =>
 
 # -- what an entry is -----------------------------------------------------------
 
-$ Entry : @union = Decl: { @Str }, Stmts: {}, Expr: {},
+$ Entry : @Type = @union Decl: { @Str }, Stmts: {}, Expr: {},
 
 $ decl_words : @Vec @Str = [
     "typedef",

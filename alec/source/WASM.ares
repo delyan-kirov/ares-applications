@@ -14,7 +14,7 @@ $ @import ARESxBITS
 $ @import ARESxVEC
 $ @import ARESxSTR
 
-$ ValT : @union = I32 : {}, I64 : {}, F32 : {}, F64 : {},
+$ ValT : @Type = @union I32 : {}, I64 : {}, F32 : {}, F64 : {},
 
 $ vt_byte : ValT -> @Int = \v =>
     v |> \
@@ -26,7 +26,7 @@ $ vt_byte : ValT -> @Int = \v =>
 $ vt_eq : ValT -> ValT -> @Bool = \a b => vt_byte a == vt_byte b
 
 # A function signature: parameter and result types.
-$ Sig : @struct = params : @Vec ValT, results : @Vec ValT,
+$ Sig : @Type = @struct params : @Vec ValT, results : @Vec ValT,
 
 $ sig_key : Sig -> @Str = \s =>
     foldl (\acc v => @array_push acc (vt_byte v)) "" s.params
@@ -105,16 +105,16 @@ $ memory_grow : @Str = byte 64 ++ byte 0
 
 # -- module ----------------------------------------------------------------------
 
-$ Import : @struct = module : @Str, name : @Str, type : @Int,
-$ Export : @struct = name : @Str, kind : @Int, index : @Int,
-$ Global : @struct = vt : ValT, mutable : @Bool, init : @Str,
-$ Data : @struct = offset : @Int, bytes : @Str,
+$ Import : @Type = @struct module : @Str, name : @Str, type : @Int,
+$ Export : @Type = @struct name : @Str, kind : @Int, index : @Int,
+$ Global : @Type = @struct vt : ValT, mutable : @Bool, init : @Str,
+$ Data : @Type = @struct offset : @Int, bytes : @Str,
 
 # One function body: its locals' types (beyond the parameters) and its code,
 # without the final `end`.
-$ Body : @struct = locals : @Vec ValT, code : @Str,
+$ Body : @Type = @struct locals : @Vec ValT, code : @Str,
 
-$ Module : @struct =
+$ Module : @Type = @struct
     types : @Vec Sig,
     imports : @Vec Import,
     funcs : @Vec @Int,

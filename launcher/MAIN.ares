@@ -48,7 +48,7 @@ $ cmd_timeout : @Str = "2" # seconds a captured `!`/`$` command may run before i
 # program to run (no trailing `&`); `terminal` marks a CLI/TUI app
 # (`Terminal=true` in its desktop entry) that must run inside a terminal. `key`
 # is the lowercased label, computed once so filtering does not redo it per frame.
-$ App : @struct = label: @Str, key: @Str, cmd: @Str, terminal: @Bool,
+$ App : @Type = @struct label: @Str, key: @Str, cmd: @Str, terminal: @Bool,
 
 $ app : @Str -> @Str -> @Bool -> App = \label cmd term =>
     App.{ .label = label, .key = to_lower label, .cmd = cmd, .terminal = term }
@@ -106,13 +106,13 @@ $ row_at : @Int32 -> @Int32 -> @Int -> Opt @Int = \mx my n =>
 # The app scan is a coroutine (see `scan_apps`). While it runs, the model holds
 # it `Paused` at its last `Feed.pause`; resuming it with @true runs it one more
 # slice, with @false asks it to stop.
-$ Scan : @union = Paused: { @Bool -> <Ui, @IO> Scan }, Done: {},
+$ Scan : @Type = @union Paused: { @Bool -> <Ui, @IO> Scan }, Done: {},
 
 # `visible` is `apps` filtered by `query`, kept in step by `refilter` so the
 # filter runs when either changes rather than every frame. `off` is the scroll
 # offset into `visible`. The list stays hidden until the first keystroke
 # (`typed`). `win_w`/`win_h` mirror the window, so it is resized only on change.
-$ Model : @struct =
+$ Model : @Type = @struct
     apps: @Vec App,
     scan: Scan,
     query: @Str,
@@ -124,7 +124,7 @@ $ Model : @struct =
     win_h: @Int32,
 
 # The launcher's state, as an effect: `model` reads it, `set` replaces it.
-$ Ui : @effect = model : {} -> Model, set : Model -> {},
+$ Ui : @Type = @effect model : {} -> Model, set : Model -> {},
 
 $ modify : (Model -> Model) -> <Ui> {} = \f => Ui.set (f (Ui.model {}))
 
@@ -185,7 +185,7 @@ $ fileno : @Int -> <@IO> @Int32 = @extern "C" "fileno" "libc"
 
 # Has the pipe anything to read (data, or its end)? A zero-timeout poll(2), so it
 # never blocks. 1 is POLLIN; hang-up is always reported.
-$ PollFd : @struct @extern "C" = fd: @Int32, events: @Int16, revents: @Int16,
+$ PollFd : @Type = @struct @extern "C" fd: @Int32, events: @Int16, revents: @Int16,
 $ poll : { fds: @Vec PollFd, n: @Nat64, timeout: @Int32 } -> <@IO> @Int32 =
     @extern "C" "poll" "libc"
 
@@ -212,7 +212,7 @@ $ parse_app : @Str -> Opt App = \line =>
 
 # What the scan coroutine performs: `found` delivers one app, `pause` hands the
 # frame back and answers whether to keep going.
-$ Feed : @effect = found : App -> {}, pause : {} -> @Bool,
+$ Feed : @Type = @effect found : App -> {}, pause : {} -> @Bool,
 
 $ lines_per_frame : @Int = 8
 

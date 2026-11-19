@@ -32,7 +32,7 @@ $ @import ARESxSTR
 
 # What every function's code generation reads: layout, the symbol tables the
 # linker built, and the target.
-$ Ctx : @struct =
+$ Ctx : @Type = @struct
     lay : Layout,
     tg : Target,
     addrs : Map @Str @Int,
@@ -41,24 +41,24 @@ $ Ctx : @struct =
     ftys : Map @Str FnTy,
     heap : @Int,
 
-$ Slot : @union =
+$ Slot : @Type = @union
     SLocal : { @Int },
     SFrame : { @Int },
     SInd : { @Int },
 
 # The wasm block stack. `LDisp` is a label-dispatch loop: the labels of one C
 # block, and the local holding the segment a `goto` wants.
-$ Lbl : @union =
+$ Lbl : @Type = @union
     LBrk : {},
     LCont : {},
     LPlain : {},
     LDisp : { List @Str, @Int },
 
-$ Code : @effect = emit : @Str -> {},
+$ Code : @Type = @effect emit : @Str -> {},
 
-$ Types : @effect = type_of : Sig -> @Int,
+$ Types : @Type = @effect type_of : Sig -> @Int,
 
-$ Fr : @effect =
+$ Fr : @Type = @effect
     tmp : ValT -> @Int,
     slot : @Int -> Slot,
     set_slot : { @Int, Slot } -> {},
@@ -70,14 +70,14 @@ $ Fr : @effect =
 # Raised when a jump cannot be expressed with structured blocks (a `case`
 # nested inside another statement, a `goto` into a block). The function is then
 # flattened and generated again.
-$ Bail : @effect = unstructured : @Str -> a,
+$ Bail : @Type = @effect unstructured : @Str -> a,
 
 # Per-function facts: the return type, the wasm locals holding the struct-return
 # pointer (-1 if none), the variadic area pointer, the frame pointer and the
 # shadow stack pointer saved at entry.
 # `flat` is set when generating a flattened function: statement expressions
 # are then flattened too.
-$ F : @struct =
+$ F : @Type = @struct
     ret : Ty,
     sret : @Int,
     va : @Int,
@@ -171,7 +171,7 @@ $ gen_body : Ctx -> Func -> Stmt -> @Bool -> TypeTab
     in
     { Body.{ .locals = fst.locals, .code = prologue ++ inner.0.1 ++ inner.0.2 }, r.1 }
 
-$ TypeTab : @struct = sigs : @Vec Sig, keys : Map @Str @Int,
+$ TypeTab : @Type = @struct sigs : @Vec Sig, keys : Map @Str @Int,
 
 $ empty_types : TypeTab = TypeTab.{ .sigs = @vec_new {}, .keys = (new {}) }
 
@@ -1092,7 +1092,7 @@ $ stmt : Ctx -> F -> Stmt -> <Code, Types, Fr, Diag, Bail> {} = \c f s =>
 
 # A switch body's top-level items, split at its case labels into segments; each
 # segment knows which case values (or `default`) lead to it.
-$ Seg : @struct = cases : List { @Int, @Int }, dflt : @Bool, body : List Stmt,
+$ Seg : @Type = @struct cases : List { @Int, @Int }, dflt : @Bool, body : List Stmt,
 
 $ peel_cases : Stmt -> List { @Int, @Int } -> @Bool
     -> { List { @Int, @Int }, @Bool, Stmt } = \s cs d =>
@@ -1225,7 +1225,7 @@ $ has_labels : List Stmt -> @Bool = \ss => any is_label ss
 $ peel_labels : Stmt -> List @Str -> { List @Str, Stmt } = \s ls =>
     s |> \ | Stmt.Label.{ l, b } => peel_labels b List.Cons.{ l, ls } | _ => { ls, s }
 
-$ LSeg : @struct = names : List @Str, body : List Stmt,
+$ LSeg : @Type = @struct names : List @Str, body : List Stmt,
 
 $ label_segments : List Stmt -> LSeg -> List LSeg -> List LSeg = \ss cur acc =>
     ss |> \
@@ -1317,7 +1317,7 @@ $ find_disp : List Lbl -> @Str -> @Int -> Opt { @Int, @Int, @Int } = \ls l i =>
 
 # -- the function frame ------------------------------------------------------------
 
-$ FrSt : @struct =
+$ FrSt : @Type = @struct
     slots : Map @Int Slot,
     locals : @Vec ValT,
     nparams : @Int,
@@ -1434,15 +1434,15 @@ $ jump : Ctx -> F -> Expr -> List { @Int, @Int, @Str } -> @Str
 # `fresh` numbers labels. The case labels of the switches being flattened
 # are queues in the handler's state, one per enclosing switch: each case label
 # met in the walk takes the next name of the innermost one.
-$ Flat : @effect =
+$ Flat : @Type = @effect
     fresh : {} -> @Int,
     open_cases : List @Str -> {},
     close_cases : {} -> {},
     take_case : {} -> @Str,
 
-$ FlatCx : @struct = brk : @Str, cont : @Str, prefix : @Str,
+$ FlatCx : @Type = @struct brk : @Str, cont : @Str, prefix : @Str,
 
-$ FlatSt : @struct = n : @Int, queues : List (List @Str),
+$ FlatSt : @Type = @struct n : @Int, queues : List (List @Str),
 
 # `prefix` starts every generated label, keeping a statement expression's
 # labels apart from its function's.

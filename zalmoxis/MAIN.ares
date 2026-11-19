@@ -29,7 +29,7 @@ $ usage : @Str =
         ++ "  -f, --files          list every file under its language\n"
         ++ "  -h, --help           show this help\n"
 
-$ Args : @struct =
+$ Args : @Type = @struct
     roots: @Vec @Str,
     excludes: @Vec @Str,
     files: @Bool,
@@ -71,11 +71,11 @@ $ parse_args : @Vec @Str -> @Int -> Args -> Args = \argv i a =>
 
 # What one task found: a row per language it met (a handful, so merging is
 # cheap), and (when files are listed) one row per file.
-$ Tally : @struct =
+$ Tally : @Type = @struct
     stats: @Vec LangStat,
     per: @Vec PerFile,
 
-$ LangStat : @struct =
+$ LangStat : @Type = @struct
     lang: @Int,
     files: @Int,
     lines: @Int,
@@ -83,14 +83,14 @@ $ LangStat : @struct =
     comments: @Int,
     blanks: @Int,
 
-$ PerFile : @struct =
+$ PerFile : @Type = @struct
     path: @Str,
     lang: @Int,
     counts: Counts,
 
 # A walker task's state: its tally, and the big files it handed to tasks of
 # their own.
-$ Counter : @struct =
+$ Counter : @Type = @struct
     tally: Tally,
     keep: @Bool,
     big: @Vec (Future Tally),
@@ -178,7 +178,7 @@ $ add_stat_at : @Vec LangStat -> LangStat -> @Int -> @Vec LangStat = \stats x i 
 
 # ---- the report ----
 
-$ Row : @struct =
+$ Row : @Type = @struct
     name: @Str,
     files: @Int,
     lines: @Int,

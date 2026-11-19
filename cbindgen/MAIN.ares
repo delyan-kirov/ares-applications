@@ -5,8 +5,8 @@ $ @mod MAIN
 #       strips comments and preprocessor lines (no macro support), tokenizes,
 #       and emits Ares `@extern` bindings:
 #         - `typedef enum { ... } Name;`  -> an `@Int32` alias + named constants
-#         - `typedef struct { ... } Name;` -> `Name : @struct @extern "C" = ...`
-#         - `typedef union  { ... } Name;` -> `Name : @union  @extern "C" = ...`
+#         - `typedef struct { ... } Name;` -> `Name : @Type = @struct @extern "C" ...`
+#         - `typedef union  { ... } Name;` -> `Name : @Type = @union @extern "C" ...`
 #         - `Ret name(params);`            -> `name : ... = @extern "C" "name" LIB`
 #       Type mapping: sized ints/floats, `void`->`{}`, `char*`->`@Str`, any other
 #       pointer `T*`->`@Ptr` (hand-edit to `@Vec T` for an array parameter), a known
@@ -414,7 +414,7 @@ $ emit_record : @Vec @Str -> @Str -> @Str = \toks kw =>
         let body = take_until (drop_until toks s_lbrace) s_rbrace in
         let fields = split_on body ";" in
         if fields_ok fields == 1 =>
-            "$ " ++ name ++ " : @" ++ kw ++ " @extern \"C\" = " ++ fields_str fields ++ "\n"
+            "$ " ++ name ++ " : @Type = @" ++ kw ++ " @extern \"C\" " ++ fields_str fields ++ "\n"
         else
             "# skipped " ++ kw ++ " " ++ name ++ " (array or bit-field member)\n"
 

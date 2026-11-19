@@ -8,7 +8,7 @@ $ @mod MAIN
 $ @import ARESxSTR
 $ @import HOST
 
-$ Money : @struct =
+$ Money : @Type = @struct
     cents: @Int,
 
 $ impl_IAdd_for_Money : IAdd Money = .{ .add = \a b => Money.{ .cents = a.cents + b.cents } }

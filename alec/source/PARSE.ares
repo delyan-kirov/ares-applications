@@ -37,22 +37,22 @@ $ @import ARESxVEC
 
 # -- the effects ---------------------------------------------------------------
 
-$ Tok : @effect =
+$ Tok : @Type = @effect
     peek : @Int -> Token,
     next : {} -> Token,
 
-$ Binding : @union =
+$ Binding : @Type = @union
     Var : { @Int, Ty },
     Vla : { @Int, Ty },
     Gbl : { @Str, Ty },
     Typedef : { Ty },
     EnumC : { @Int, Ty },
 
-$ TagB : @union =
+$ TagB : @Type = @union
     TAgg : { @Int, @Bool },
     TEnum : { Ty },
 
-$ Scope : @effect =
+$ Scope : @Type = @effect
     enter : {} -> {},
     leave : {} -> {},
     lookup : @Str -> Opt Binding,
@@ -60,13 +60,13 @@ $ Scope : @effect =
     tag : { @Str, @Bool } -> Opt TagB,
     bind_tag : { @Str, TagB } -> {},
 
-$ Tab : @effect =
+$ Tab : @Type = @effect
     layout : {} -> Layout,
     new_agg : { @Str, @Bool } -> @Int,
     set_agg : { @Int, Agg } -> {},
     fresh : {} -> @Int,
 
-$ Unit : @effect =
+$ Unit : @Type = @effect
     gvar : GVar -> {},
     func : Func -> {},
     proto : { @Str, Ty } -> {},
@@ -79,7 +79,7 @@ $ Unit : @effect =
     end_fn : {} -> List LVar,
 
 # The preprocessor, suspended between tokens: the producer end of the pipe.
-$ Pull : @union =
+$ Pull : @Type = @union
     Done : {},
     More : { Token, {} -> <Files, Diag> Pull },
 
@@ -90,7 +90,7 @@ $ Pull : @union =
  - calls without reading the body; a unit read back from the library cache has
  - it, a freshly parsed one leaves it empty.
  -#
-$ TU : @struct =
+$ TU : @Type = @struct
     funcs : @Vec Func,
     globals : @Vec GVar,
     protos : Map @Str Ty,
@@ -152,7 +152,7 @@ $ dummy_gvar : GVar = GVar.{
  - end), so the common `peek 0` is a field read; `more` holds the lookahead
  - beyond it, which only a few constructs need.
  -#
-$ TokSt : @struct = cur : Token, more : List Token, src : Pull,
+$ TokSt : @Type = @struct cur : Token, more : List Token, src : Pull,
 
 #-
  - The consumer end of the pipe: the next token and a short lookahead, topped
@@ -199,7 +199,7 @@ $ fill : { s: TokSt, n: @Int } -> <Files, Diag> TokSt =
 
 $ eof_tok : Pos -> Token = \p => LEX.mk Kind.Other "" p
 
-$ Frame : @struct = vars : Map @Str Binding, tags : Map @Str TagB,
+$ Frame : @Type = @struct vars : Map @Str Binding, tags : Map @Str TagB,
 
 $ new_frame : Frame = Frame.{ .vars = (new {}), .tags = (new {}) }
 
@@ -238,7 +238,7 @@ $ tag_in : { fs: List Frame, n: @Str, cur: @Bool } -> Opt TagB =
         )
         | _                  => Opt.None
 
-$ TabSt : @struct = lay : Layout, next : @Int,
+$ TabSt : @Type = @struct lay : Layout, next : @Int,
 
 #-
  - Ids start at `base`, distinct per translation unit, so the units' aggregate
@@ -273,7 +273,7 @@ $ with_tab : { target: Target, base: @Int, body: {} -> <Tab, Unit, Files, Diag> 
     in
     go TabSt.{ .lay = Layout.{ .target = target, .aggs = (new {}) }, .next = base + 1 }
 
-$ UnitSt : @struct =
+$ UnitSt : @Type = @struct
     globals : Map @Str GVar,
     order : @Vec @Str,
     funcs : @Vec Func,
@@ -511,7 +511,7 @@ $ skip_brackets : @Int -> <Tok, Diag> {} = \depth =>
  - unit's number (static names are made unique per unit with it), and the local
  - holding the variadic argument area (-1 when the function is not variadic).
  -#
-$ Fn : @struct = name : @Str, ret : Ty, loop : @Bool, sw : Opt Ty, tu : @Int, va : @Int,
+$ Fn : @Type = @struct name : @Str, ret : Ty, loop : @Bool, sw : Opt Ty, tu : @Int, va : @Int,
 
 $ file_fn : @Int -> Fn = \tu =>
     Fn.{ .name = "", .ret = t_void, .loop = @false, .sw = Opt.None, .tu = tu, .va = 0 - 1 }
@@ -529,7 +529,7 @@ $ tname : Ty -> <Tab> @Str = \t => ty_name (Tab.layout {}) t
  - A constant: an integer, a float, or an address (a global's, plus a byte
  - offset) as static initializers allow.
  -#
-$ CVal : @union =
+$ CVal : @Type = @union
     CInt : { @Int },
     CFlt : { @Float64 },
     CAddr : { @Str, @Int },
@@ -1089,7 +1089,7 @@ $ field_e : { e: Expr, name: @Str, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> E
 
 # -- declaration specifiers --------------------------------------------------------
 
-$ Spec : @struct =
+$ Spec : @Type = @struct
     ty : Ty,
     typedef : @Bool,
     static : @Bool,
@@ -1115,7 +1115,7 @@ $ k_other : @Int = 65536
 $ k_signed : @Int = 131072
 $ k_unsigned : @Int = 262144
 
-$ SpecSt : @struct = spec : Spec, count : @Int, other : Ty, pos : Pos,
+$ SpecSt : @Type = @struct spec : Spec, count : @Int, other : Ty, pos : Pos,
 
 $ declspec : { c: Fn, storage: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Spec =
     let t = peek {} in
@@ -1296,7 +1296,7 @@ $ spec_finish : SpecSt -> <Tok, Scope, Tab, Unit, Diag> Spec = \st =>
  - list is read so that a later parameter's array size can refer to it; `base`
  - and `derivs` keep its declarator, to rebuild a variably modified type.
  -#
-$ Param : @struct = name : @Str, ty : Ty, pos : Pos, id : @Int, base : Ty, derivs : List Deriv,
+$ Param : @Type = @struct name : @Str, ty : Ty, pos : Pos, id : @Int, base : Ty, derivs : List Deriv,
 
 #-
  - A declarator, read as the derivations applied to the base type, listed from
@@ -1305,13 +1305,13 @@ $ Param : @struct = name : @Str, ty : Ty, pos : Pos, id : @Int, base : Ty, deriv
  - the declarator a single left-to-right read, with no re-parse of the nested
  - parenthesized form.
  -#
-$ Deriv : @union =
+$ Deriv : @Type = @union
     DPtr : {},
     DArr : { @Int },
     DVla : { Expr },
     DFn : { List Param, @Bool, @Bool },
 
-$ Decl : @struct = name : @Str, pos : Pos, derivs : List Deriv,
+$ Decl : @Type = @struct name : @Str, pos : Pos, derivs : List Deriv,
 
 $ declarator : Fn -> <Tok, Scope, Tab, Unit, Diag> Decl = \c =>
     skip_attrs {};
@@ -2052,13 +2052,13 @@ $ static_local : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit,
  - re-initializing a member means. A local turns the items into assignments
  - after zeroing the object; a global writes them into its initial bytes.
  -#
-$ Item : @struct = m : Member, e : Expr,
+$ Item : @Type = @struct m : Member, e : Expr,
 
 #-
  - `items` is reversed while being built; `ty` is the object's type, completed
  - when the initializer sized an array of unknown length.
  -#
-$ InitR : @struct = items : List Item, ty : Ty,
+$ InitR : @Type = @struct items : List Item, ty : Ty,
 
 $ initializer : { c: Fn, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> InitR =
     let r = init2 { c, ty, 0, Opt.None, List.Nil } in
@@ -3083,7 +3083,7 @@ $ string_tokens : List Token -> <Tok> List Token = \acc =>
     else
         reverse acc
 
-$ StrV : @struct = units : @Vec @Int, width : @Int, prefix : @Str,
+$ StrV : @Type = @struct units : @Vec @Int, width : @Int, prefix : @Str,
 
 $ concat_strings : List Token -> StrV = \ts =>
     let pre = foldl (\p t => if p == "" => prefix_of t.text else p) "" ts in

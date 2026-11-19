@@ -17,7 +17,7 @@ $ @mod LEX
 $ @import ARESxSTR
 $ @import ARESxOPT
 
-$ Kind : @union =
+$ Kind : @Type = @union
     Ident: {},
     Num: {},
     Chr: {},
@@ -26,12 +26,12 @@ $ Kind : @union =
     Other: {},
     Bad: {},
 
-$ Pos : @struct = file : @Str, line : @Int, col : @Int,
+$ Pos : @Type = @struct file : @Str, line : @Int, col : @Int,
 
 # `space`: whitespace or a comment came before the token. `bol`: it is the first
 # token on its line, which is what makes a `#` a directive. `hide` is the token's
 # hide set, the macros that may not expand it again (Prosser's algorithm).
-$ Token : @struct =
+$ Token : @Type = @struct
     kind : Kind,
     text : @Str,
     pos : Pos,
@@ -204,7 +204,7 @@ $ block_comment : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Bool
         block_comment file s start (i + 1) line ls bol
 
 # One scanned token: its kind, its spelling, and the offset just past it.
-$ Scanned : @struct = kind : Kind, text : @Str, end : @Int,
+$ Scanned : @Type = @struct kind : Kind, text : @Str, end : @Int,
 
 $ scan : @Str -> @Int -> @Int -> @Int -> Scanned = \s i c k =>
     k |> \

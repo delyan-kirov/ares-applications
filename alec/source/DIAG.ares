@@ -9,9 +9,9 @@ $ @mod DIAG
 
 $ @import LEX
 
-$ Err : @struct = pos : Pos, msg : @Str,
+$ Err : @Type = @struct pos : Pos, msg : @Str,
 
-$ Diag : @effect =
+$ Diag : @Type = @effect
     fail : Err -> a,
     warn : Err -> {},
 

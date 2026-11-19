@@ -345,8 +345,8 @@ mod tests {
         // file compile; the program then sees what they generated.
         let src = "$ @mod MAIN\n\
                    $ @import ARESxDERIVE\n\
-                   $ Point : @struct = x: @Int, y: @Int\n\
-                   $ Point3 : @struct = &ARES.fields_of \"Point\", z: @Int\n\
+                   $ Point : @Type = @struct x: @Int, y: @Int\n\
+                   $ Point3 : @Type = @struct &ARES.fields_of \"Point\", z: @Int\n\
                    $ &\"$ seven : @Int = 7\"\n\
                    $ @main : @Vec @Str -> <@IO> @Int = \\args =>\n\
                    \tlet p = Point3.{ .x = 1, .y = 2, .z = 3 } in p.x + p.y + p.z - seven + 1\n";

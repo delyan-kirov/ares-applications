@@ -35,18 +35,18 @@ $ @import ARESxOPT
 # The document model
 # ==========================================================================
 
-$ Attr : @struct = name : @Str, value : @Str,
+$ Attr : @Type = @struct name : @Str, value : @Str,
 
 # An element's payload is a struct, and its children are a `List`, because a
 # slot whose type leads back to `Node` is held LAZILY. A lazy cell is forced
 # where it is SCRUTINISED, so children have to be a type consumers match on; a
 # `@Vec` of them would reach a `@Vec` primitive still unforced. Attributes are
 # not recursive, so they stay a plain vector.
-$ Element : @struct = name : @Str, attrs : @Vec Attr, kids : List Node,
+$ Element : @Type = @struct name : @Str, attrs : @Vec Attr, kids : List Node,
 
 # CDATA becomes `Text` (decoded), so rendering it again produces ordinary
 # escaped text.
-$ Node : @union =
+$ Node : @Type = @union
     Elem : { Element },
     Text : { @Str },
     Comment : { @Str },
@@ -55,10 +55,10 @@ $ Node : @union =
 # A parse failure. `msg` is the headline; `want` is what was expected there, kept
 # as a list so two failures that tie at the same offset report the union rather
 # than whichever happened to be tried last; `note` is extra guidance, or "".
-$ Err : @struct = at : @Int, msg : @Str, want : @Vec @Str, note : @Str,
+$ Err : @Type = @struct at : @Int, msg : @Str, want : @Vec @Str, note : @Str,
 
-$ LineCol : @struct = line : @Int, col : @Int,
-$ Parsed : @union a = Ok : { a }, Bad : { Err },
+$ LineCol : @Type = @struct line : @Int, col : @Int,
+$ Parsed : (a: @Type) -> @Type = @union Ok : { a }, Bad : { Err },
 
 # -- accessors --------------------------------------------------------------
 
@@ -101,23 +101,23 @@ $ elements : Node -> List Node = \n => list_filter is_elem (kids n)
 # operations rather than one per byte, and a `peek` is not an operation at all.
 # Deliberately no seek: only the handler can set a position, which is what keeps
 # rewinding the continuation's job.
-$ View : @struct = src : @Str, at : @Int,
+$ View : @Type = @struct src : @Str, at : @Int,
 
-$ Scan : @effect =
+$ Scan : @Type = @effect
     view : {} -> View,
     bump : @Int -> {},
 
 # A nondeterministic branch. Which way it goes is the handler's business.
-$ Choice : @effect = fork : {} -> @Bool,
+$ Choice : @Type = @effect fork : {} -> @Bool,
 
 # A failure the nearest enclosing choice point may retry.
-$ Soft : @effect = reject : Err -> a,
+$ Soft : @Type = @effect reject : Err -> a,
 
 # A failure nothing retries: the document is malformed, so say where.
-$ Hard : @effect = fatal : Err -> a,
+$ Hard : @Type = @effect fatal : Err -> a,
 
 # Pick one of several nodes; the query engine's branch point.
-$ Pick : @effect = one_of : List Node -> Node,
+$ Pick : @Type = @effect one_of : List Node -> Node,
 
 # ==========================================================================
 # Parsing
@@ -605,7 +605,7 @@ $ trailing : @Str -> {} -> <Scan, Hard> {} = \root u => (
 
 # ==========================================================================
 # A value and the offset the cursor reached producing it.
-$ Span : @struct a = value : a, end : @Int,
+$ Span : (a: @Type) -> @Type = @struct value : a, end : @Int,
 
 $ walk : @Vec @Str -> @Int -> Node -> <Pick, Choice, Soft> Node = \path i n =>
     if i >= @vec_len path => n else walk path (i + 1) (tagged (@vec_get path i) (child n))

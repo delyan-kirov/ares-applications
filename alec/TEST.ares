@@ -34,7 +34,7 @@ $ @import DRIVER
 
 $ scratch : @Str = "tests/out"
 
-$ Outcome : @union = Pass : {}, Fail : { @Str },
+$ Outcome : @Type = @union Pass : {}, Fail : { @Str },
 
 # Compile `units` linked with the library units, catching a diagnostic as the
 # test's failure instead of ending the run.
@@ -66,7 +66,7 @@ $ capture : @Str -> @Str -> @Str -> <@IO> @Str = \tag cmd input =>
     unwrap_or ("exit=" ++ to_string status ++ "\n") (read_file out)
 
 # Where a suite's programs live and how their expectations are stored.
-$ Suite : @struct = dir : @Str, suffix : @Str, status : @Bool,
+$ Suite : @Type = @struct dir : @Str, suffix : @Str, status : @Bool,
 
 $ own : Suite = Suite.{ .dir = "tests/run", .suffix = ".expected", .status = @true }
 

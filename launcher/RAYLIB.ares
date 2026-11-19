@@ -63,11 +63,11 @@ $ isKeyPressed : I32 -> U8 = @extern "C" "IsKeyPressed" "bin/libraylib.so"
 $ isKeyPressedRepeat : I32 -> U8 = @extern "C" "IsKeyPressedRepeat" "bin/libraylib.so"
 
 # skipped enum bool (name is not a Ares type)
-$ Vector2 : @struct @extern "C" = x: F32, y: F32,
-$ Vector3 : @struct @extern "C" = x: @Float32, y: @Float32, z: @Float32,
-$ Vector4 : @struct @extern "C" = x: @Float32, y: @Float32, z: @Float32, w: @Float32,
+$ Vector2 : @Type = @struct @extern "C" x: F32, y: F32,
+$ Vector3 : @Type = @struct @extern "C" x: @Float32, y: @Float32, z: @Float32,
+$ Vector4 : @Type = @struct @extern "C" x: @Float32, y: @Float32, z: @Float32, w: @Float32,
 $ Quaternion : @Type = Vector4
-$ Matrix : @struct @extern "C" =
+$ Matrix : @Type = @struct @extern "C"
     m0: @Float32,
     m4: @Float32,
     m8: @Float32,
@@ -84,52 +84,52 @@ $ Matrix : @struct @extern "C" =
     m7: @Float32,
     m11: @Float32,
     m15: @Float32,
-$ Color : @struct @extern "C" = r: U8, g: U8, b: U8, a: U8,
-$ Rectangle : @struct @extern "C" = x: F32, y: F32, width: F32, height: F32,
-$ Image : @struct @extern "C" =
+$ Color : @Type = @struct @extern "C" r: U8, g: U8, b: U8, a: U8,
+$ Rectangle : @Type = @struct @extern "C" x: F32, y: F32, width: F32, height: F32,
+$ Image : @Type = @struct @extern "C"
     data: @Ptr,
     width: @Int32,
     height: @Int32,
     mipmaps: @Int32,
     format: @Int32,
-$ Texture : @struct @extern "C" = id: U32, width: I32, height: I32, mipmaps: I32, format: I32,
+$ Texture : @Type = @struct @extern "C" id: U32, width: I32, height: I32, mipmaps: I32, format: I32,
 $ Texture2D : @Type = Texture
 $ TextureCubemap : @Type = Texture
-$ RenderTexture : @struct @extern "C" = id: @Nat32, texture: Texture, depth: Texture,
+$ RenderTexture : @Type = @struct @extern "C" id: @Nat32, texture: Texture, depth: Texture,
 $ RenderTexture2D : @Type = RenderTexture
-$ NPatchInfo : @struct @extern "C" =
+$ NPatchInfo : @Type = @struct @extern "C"
     source: Rectangle,
     left: @Int32,
     top: @Int32,
     right: @Int32,
     bottom: @Int32,
     layout: @Int32,
-$ GlyphInfo : @struct @extern "C" =
+$ GlyphInfo : @Type = @struct @extern "C"
     value: @Int32,
     offsetX: @Int32,
     offsetY: @Int32,
     advanceX: @Int32,
     image: Image,
-$ Font : @struct @extern "C" =
+$ Font : @Type = @struct @extern "C"
     baseSize: I32,
     glyphCount: I32,
     glyphPadding: I32,
     texture: Texture2D,
     recs: @Ptr,
     glyphs: @Ptr,
-$ Camera3D : @struct @extern "C" =
+$ Camera3D : @Type = @struct @extern "C"
     position: Vector3,
     target: Vector3,
     up: Vector3,
     fovy: @Float32,
     projection: @Int32,
 $ Camera : @Type = Camera3D
-$ Camera2D : @struct @extern "C" =
+$ Camera2D : @Type = @struct @extern "C"
     offset: Vector2,
     target: Vector2,
     rotation: @Float32,
     zoom: @Float32,
-$ Mesh : @struct @extern "C" =
+$ Mesh : @Type = @struct @extern "C"
     vertexCount: @Int32,
     triangleCount: @Int32,
     vertices: @Ptr,
@@ -146,14 +146,20 @@ $ Mesh : @struct @extern "C" =
     animNormals: @Ptr,
     vaoId: @Nat32,
     vboId: @Ptr,
-$ Shader : @struct @extern "C" = id: @Nat32, locs: @Ptr,
-$ MaterialMap : @struct @extern "C" = texture: Texture2D, color: Color, value: @Float32,
+$ Shader : @Type = @struct @extern "C" id: @Nat32, locs: @Ptr,
+$ MaterialMap : @Type = @struct @extern "C" texture: Texture2D, color: Color, value: @Float32,
 # skipped struct Material (array or bit-field member)
-$ Transform : @struct @extern "C" = translation: Vector3, rotation: Quaternion, scale: Vector3,
+$ Transform : @Type = @struct @extern "C"
+    translation: Vector3,
+    rotation: Quaternion,
+    scale: Vector3,
 $ ModelAnimPose : @Type = @Ptr
 # skipped struct BoneInfo (array or bit-field member)
-$ ModelSkeleton : @struct @extern "C" = boneCount: @Int32, bones: @Ptr, bindPose: ModelAnimPose,
-$ Model : @struct @extern "C" =
+$ ModelSkeleton : @Type = @struct @extern "C"
+    boneCount: @Int32,
+    bones: @Ptr,
+    bindPose: ModelAnimPose,
+$ Model : @Type = @struct @extern "C"
     transform: Matrix,
     meshCount: @Int32,
     materialCount: @Int32,
@@ -164,14 +170,14 @@ $ Model : @struct @extern "C" =
     currentPose: ModelAnimPose,
     boneMatrices: @Ptr,
 # skipped struct ModelAnimation (array or bit-field member)
-$ Ray : @struct @extern "C" = position: Vector3, direction: Vector3,
-$ RayCollision : @struct @extern "C" =
+$ Ray : @Type = @struct @extern "C" position: Vector3, direction: Vector3,
+$ RayCollision : @Type = @struct @extern "C"
     hit: @Nat8,
     distance: @Float32,
     point: Vector3,
     normal: Vector3,
-$ BoundingBox : @struct @extern "C" = min: Vector3, max: Vector3,
-$ Wave : @struct @extern "C" =
+$ BoundingBox : @Type = @struct @extern "C" min: Vector3, max: Vector3,
+$ Wave : @Type = @struct @extern "C"
     frameCount: @Nat32,
     sampleRate: @Nat32,
     sampleSize: @Nat32,
@@ -179,14 +185,14 @@ $ Wave : @struct @extern "C" =
     data: @Ptr,
 # skipped struct rAudioBuffer (name is not a Ares type)
 # skipped struct rAudioProcessor (name is not a Ares type)
-$ AudioStream : @struct @extern "C" =
+$ AudioStream : @Type = @struct @extern "C"
     buffer: @Ptr,
     processor: @Ptr,
     sampleRate: @Nat32,
     sampleSize: @Nat32,
     channels: @Nat32,
-$ Sound : @struct @extern "C" = stream: AudioStream, frameCount: @Nat32,
-$ Music : @struct @extern "C" =
+$ Sound : @Type = @struct @extern "C" stream: AudioStream, frameCount: @Nat32,
+$ Music : @Type = @struct @extern "C"
     stream: AudioStream,
     frameCount: @Nat32,
     looping: @Nat8,
@@ -194,9 +200,9 @@ $ Music : @struct @extern "C" =
     ctxData: @Ptr,
 # skipped struct VrDeviceInfo (array or bit-field member)
 # skipped struct VrStereoConfig (array or bit-field member)
-$ FilePathList : @struct @extern "C" = count: @Nat32, paths: @Ptr,
+$ FilePathList : @Type = @struct @extern "C" count: @Nat32, paths: @Ptr,
 # skipped struct AutomationEvent (array or bit-field member)
-$ AutomationEventList : @struct @extern "C" = capacity: @Nat32, count: @Nat32, events: @Ptr,
+$ AutomationEventList : @Type = @struct @extern "C" capacity: @Nat32, count: @Nat32, events: @Ptr,
 $ ConfigFlags : @Type = @Int32
 $ flag_vsync_hint : @Int32 = 64
 $ flag_fullscreen_mode : @Int32 = 2

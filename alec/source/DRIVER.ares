@@ -52,7 +52,7 @@ $ usage : @Str =
         ++ "  --index-libc            rebuild libc/INDEX and the library caches\n"
         ++ "  -h, --help              show this help\n"
 
-$ Mode : @union =
+$ Mode : @Type = @union
     Compile: {},
     Preprocess: {},
     Syntax: {},
@@ -62,7 +62,7 @@ $ Mode : @union =
     Wasm: {},
     Shell: {},
 
-$ Opts : @struct =
+$ Opts : @Type = @struct
     target : Target,
     out : @Str,
     mode : Mode,
@@ -164,7 +164,7 @@ $ last_slash : @Str -> @Int -> Opt @Int = \p i =>
 
 # -- the world the preprocessor sees ----------------------------------------
 
-$ FileState : @struct = once : Set @Str, incs : @Vec @Str, sys : @Str,
+$ FileState : @Type = @struct once : Set @Str, incs : @Vec @Str, sys : @Str,
 
 # Directory search for an include: a quoted name looks beside the including file
 # first; both forms then try each `-I` directory and finally alec's own headers.

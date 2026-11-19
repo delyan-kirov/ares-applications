@@ -9,8 +9,8 @@ language side. Macros are not supported (they are stripped, like comments).
 | C construct | Ares binding |
 | --- | --- |
 | `typedef enum { RED, GREEN = 5 } E;` | `$ E : @Type = @Int32` plus `$ red : @Int32 = 0`, `$ green : @Int32 = 5` |
-| `typedef struct { int x; float y; } S;` | `$ S : @struct @extern "C" = x: @Int32, y: @Float32,` |
-| `typedef union { int i; float f; } U;` | `$ U : @union @extern "C" = i: @Int32, f: @Float32,` |
+| `typedef struct { int x; float y; } S;` | `$ S : @Type = @struct @extern "C" x: @Int32, y: @Float32,` |
+| `typedef union { int i; float f; } U;` | `$ U : @Type = @union @extern "C" i: @Int32, f: @Float32,` |
 | `typedef struct Handle Handle;` (opaque) | `$ Handle : @Type = @Ptr` |
 | `Ret GetOne(A a);` | `$ getOne : A -> Ret = @extern "C" "GetOne" "LIB"` |
 | `Ret GetThing(A a, B b);` | `$ getThing : {p0: A, p1: B} -> Ret = @extern "C" "GetThing" "LIB"` |

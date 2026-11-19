@@ -26,12 +26,12 @@ $ function_lines : @Str -> (@Str -> @Bool) -> List @Str = \s keep => render s ke
 
 $ @private
 
-$ Sec : @struct = id : @Int, start : @Int, end : @Int,
+$ Sec : @Type = @struct id : @Int, start : @Int, end : @Int,
 
-$ Imp : @struct = module : @Str, name : @Str, kind : @Int, index : @Int,
+$ Imp : @Type = @struct module : @Str, name : @Str, kind : @Int, index : @Int,
 
 # What printing an instruction needs: function names by index.
-$ Names : @struct = funcs : Map @Int @Str,
+$ Names : @Type = @struct funcs : Map @Int @Str,
 
 $ render : @Str -> (@Str -> @Bool) -> @Bool -> List @Str = \s keep full =>
     if @array_len s < 8 || @array_slice s 0 4 != "\0asm" =>

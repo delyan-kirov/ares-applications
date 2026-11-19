@@ -13,9 +13,9 @@ $ @mod AST
 $ @import LEX
 $ @import TYPE
 
-$ Expr : @struct = e : ENode, ty : Ty, pos : Pos,
+$ Expr : @Type = @struct e : ENode, ty : Ty, pos : Pos,
 
-$ ENode : @union =
+$ ENode : @Type = @union
     IntC : { @Int },
     FltC : { @Float64 },
     Local : { @Int },
@@ -41,7 +41,7 @@ $ ENode : @union =
     LabelAddr : { @Str },
     Nop : {},
 
-$ Stmt : @union =
+$ Stmt : @Type = @union
     Do : { Expr },
     Block : { List Stmt },
     If : { Expr, Stmt, Stmt },
@@ -62,9 +62,9 @@ $ Stmt : @union =
 
 # A local variable. `mem` says it must live in the frame (its address is taken,
 # or it is an array, struct or union); everything else becomes a wasm local.
-$ LVar : @struct = id : @Int, name : @Str, ty : Ty, mem : @Bool, align : @Int,
+$ LVar : @Type = @struct id : @Int, name : @Str, ty : Ty, mem : @Bool, align : @Int,
 
-$ Func : @struct =
+$ Func : @Type = @struct
     name : @Str,
     ty : FnTy,
     params : List @Int,
@@ -76,9 +76,9 @@ $ Func : @struct =
 
 # A relocation in a global's initial bytes: at `offset` goes the address of
 # `sym` plus `addend` (for a function, its table index).
-$ Reloc : @struct = offset : @Int, sym : @Str, addend : @Int,
+$ Reloc : @Type = @struct offset : @Int, sym : @Str, addend : @Int,
 
-$ GVar : @struct =
+$ GVar : @Type = @struct
     name : @Str,
     ty : Ty,
     data : @Str,

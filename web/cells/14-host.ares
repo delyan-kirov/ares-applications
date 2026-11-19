@@ -13,7 +13,7 @@ $ @import HOST
 $ animate : @Bool = @false
 
 # An effect standing for "recolor the scratchpad".
-$ ChangeColorEffect : @effect = recolor : @Str -> {},
+$ ChangeColorEffect : @Type = @effect recolor : @Str -> {},
 
 # Host imports
 $ paint : @Str -> {} = @extern "WASM" "change_color" ""

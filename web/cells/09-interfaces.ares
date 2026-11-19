@@ -9,16 +9,16 @@ $ @mod MAIN
 $ @import ARESxSTR
 $ @import HOST
 
-$ IArea : @struct t =
+$ IArea : (t: @Type) -> @Type = @struct
     area: t -> @Int,
 
-$ Rect : @struct =
+$ Rect : @Type = @struct
     w: @Int,
     h: @Int,
 
 $ impl_IArea_for_Rect : IArea Rect = .{ .area = \r => r.w * r.h }
 
-$ Square : @struct =
+$ Square : @Type = @struct
     side: @Int,
 
 $ impl_IArea_for_Square : IArea Square = .{ .area = \s => s.side * s.side }

@@ -22,7 +22,7 @@ $ @import ARESxVEC
 # Block comments and quotes are parallel vectors: `opens[k]` ends at
 # `closes[k]`. A line that holds nothing but a `docs` marker (an empty `///`)
 # is blank. `prose` counts every non-blank line as a comment (Markdown).
-$ Syntax : @struct =
+$ Syntax : @Type = @struct
     line: @Vec @Str,
     docs: @Vec @Str,
     opens: @Vec @Str,
@@ -40,7 +40,7 @@ $ Syntax : @struct =
     bmasks: @Vec @Str,
     qmasks: @Vec @Str,
 
-$ Counts : @struct =
+$ Counts : @Type = @struct
     code: @Int,
     comments: @Int,
     blanks: @Int,

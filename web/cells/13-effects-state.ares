@@ -8,7 +8,7 @@ $ @import ARESxALGO
 $ @import ARESxSTR
 $ @import HOST
 
-$ State : @effect =
+$ State : @Type = @effect
     get : {} -> @Int,
     put : @Int -> {},
 

@@ -34,7 +34,7 @@ $ @import LANGS
 # with `lit`, 3 match `glob`. A glob's literal ends, `pre` (up to its first
 # special byte) and `post` (after its last), must begin and end any match, so
 # they turn most entries away before the matcher runs.
-$ Rule : @struct =
+$ Rule : @Type = @struct
     base: @Str,
     glob: @Str,
     negate: @Bool,
@@ -46,7 +46,7 @@ $ Rule : @struct =
     post: @Str,
 
 # A file to count and its language (an index into `LANGS.table.langs`).
-$ Found : @struct =
+$ Found : @Type = @struct
     path: @Str,
     lang: @Int,
 
@@ -54,7 +54,7 @@ $ Found : @struct =
 # `files[lo, hi)` of one directory visited (in any order, on any thread), and
 # two tasks' states combined. Files are handed over a directory at a time, so
 # the walk itself calls no unknown function per entry and compiles to plain C.
-$ Walker : @struct s =
+$ Walker : (s: @Type) -> @Type = @struct
     init: {} -> s,
     visit: s -> @Vec Found -> @Int -> @Int -> <@IO> s,
     merge: s -> s -> s,
@@ -70,7 +70,7 @@ $ parse_rules : @Str -> @Str -> @Vec Rule = \base content => filter_map (rule ba
 
 # What `rules` say of the entry at `path` (its last segment `name`): the last
 # rule that matches it decides.
-$ Verdict : @union =
+$ Verdict : @Type = @union
     Unmatched: {},
     Ignored: {},
     Whitelisted: {},
@@ -128,7 +128,7 @@ $ walk : Walker s -> s -> @Str -> @Vec Rule -> @Vec Entry -> @Int
 
 # What scanning a directory's entries collects: the files to visit, the
 # subdirectories this task walks itself, and those handed to tasks.
-$ Scan : @struct s =
+$ Scan : (s: @Type) -> @Type = @struct
     files: @Vec Found,
     deep: @Vec @Str,
     pending: @Vec (Future s),

@@ -12,7 +12,7 @@ $ @import ARESxSTR
 $ @import ARESxVEC
 $ @import ARESxOPT
 
-$ Lang : @struct =
+$ Lang : @Type = @struct
     name: @Str,
     exts: @Vec @Str,
     files: @Vec @Str,
@@ -23,7 +23,7 @@ $ Lang : @struct =
     quotes: @Vec { @Str, @Str },
     prose: @Bool,
 
-$ Table : @struct =
+$ Table : @Type = @struct
     langs: @Vec Lang,
     by_ext: @Vec { @Str, @Int },
     by_file: @Vec { @Str, @Int },

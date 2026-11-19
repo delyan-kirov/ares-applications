@@ -21,11 +21,11 @@ $ @import ARESxVEC
 # `rank` orders the integer types for the usual arithmetic conversions:
 # 0 _Bool, 1 char, 2 short, 3 int, 4 long, 5 long long. `plain` marks plain
 # `char`, a distinct type from `signed char` with the same representation.
-$ IntK : @struct = size : @Int, unsigned : @Bool, rank : @Int, plain : @Bool,
+$ IntK : @Type = @struct size : @Int, unsigned : @Bool, rank : @Int, plain : @Bool,
 
-$ FnTy : @struct = ret : Ty, params : List Ty, variadic : @Bool, proto : @Bool,
+$ FnTy : @Type = @struct ret : Ty, params : List Ty, variadic : @Bool, proto : @Bool,
 
-$ Ty : @union =
+$ Ty : @Type = @union
     Void : {},
     Int : { IntK },
     Float : {},
@@ -42,9 +42,9 @@ $ Ty : @union =
 
 # `bit_width` 0 is an ordinary member; otherwise a bit-field of that many bits
 # starting `bit_off` bits into the storage unit at `offset`.
-$ Member : @struct = name : @Str, ty : Ty, offset : @Int, bit_off : @Int, bit_width : @Int,
+$ Member : @Type = @struct name : @Str, ty : Ty, offset : @Int, bit_off : @Int, bit_width : @Int,
 
-$ Agg : @struct =
+$ Agg : @Type = @struct
     tag : @Str,
     union : @Bool,
     members : @Vec Member,
@@ -53,7 +53,7 @@ $ Agg : @struct =
     complete : @Bool,
     flexible : @Bool,
 
-$ Layout : @struct = target : Target, aggs : Map @Int Agg,
+$ Layout : @Type = @struct target : Target, aggs : Map @Int Agg,
 
 # -- constructors ------------------------------------------------------------
 
@@ -175,7 +175,7 @@ $ is_complete : Layout -> Ty -> @Bool = \lay t =>
 # name, type, bit width (-1 for an ordinary member). Unnamed struct or union
 # members are flattened into the enclosing aggregate, offsets adjusted, so a
 # member lookup is one search.
-$ MemberDecl : @struct = name : @Str, ty : Ty, width : @Int, align : @Int,
+$ MemberDecl : @Type = @struct name : @Str, ty : Ty, width : @Int, align : @Int,
 
 # `packed` lays members out at byte alignment; `min_align` (from an
 # `aligned(N)` attribute, else 0) raises the aggregate's alignment.

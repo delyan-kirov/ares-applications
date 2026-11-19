@@ -6,7 +6,7 @@ $ @mod CFG
 #       LP64 (long and pointers are 8). Everything that depends on the target,
 #       from `sizeof (long)` to the address type of a load, reads it from here.
 
-$ Target : @struct =
+$ Target : @Type = @struct
     name : @Str,
     ptr : @Int,
     long : @Int,

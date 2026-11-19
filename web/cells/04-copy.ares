@@ -9,12 +9,12 @@ $ @import ARESxSTR
 $ @import HOST
 $ @import ARESxDERIVE
 
-$ Point : @struct =
+$ Point : @Type = @struct
     x: @Int,
     y: @Int,
 
 # The `&` entry inserts x: @Int, y: @Int.
-$ Point3 : @struct =
+$ Point3 : @Type = @struct
     &ARES.fields_of "Point",
     z: @Int,
 

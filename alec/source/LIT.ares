@@ -15,7 +15,7 @@ $ @import ARESxBITS
 # `longs` counts the `l` suffixes (0, 1 or 2); `decimal` matters because an
 # unsuffixed decimal constant never becomes unsigned on its own, while an octal
 # or hex one does when it does not fit the signed type.
-$ IntLit : @struct =
+$ IntLit : @Type = @struct
     value : @Int,
     unsigned : @Bool,
     longs : @Int,
@@ -23,11 +23,11 @@ $ IntLit : @struct =
     overflow : @Bool,
 
 # `kind` is 0 for `double`, 1 for `float`, 2 for `long double`.
-$ FloatLit : @struct = value : @Float64, kind : @Int,
+$ FloatLit : @Type = @struct value : @Float64, kind : @Int,
 
 # A string literal's code units; `width` is the unit size in bytes (1 for plain
 # and `u8`, 2 for `u`, 4 for `U` and `L`). No terminator is included.
-$ StrLit : @struct = units : @Vec @Int, width : @Int,
+$ StrLit : @Type = @struct units : @Vec @Int, width : @Int,
 
 $ is_float_text : @Str -> @Bool = \s =>
     let hex = starts_with "0x" s || starts_with "0X" s in

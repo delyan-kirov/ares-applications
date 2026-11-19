@@ -7,7 +7,7 @@ $ @mod MAIN
 $ @import ARESxSTR
 $ @import HOST
 
-$ Shape : @union =
+$ Shape : @Type = @union
     Circle: @Int,
     Rect: { @Int, @Int },
 

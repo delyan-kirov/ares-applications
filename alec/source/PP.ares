@@ -28,7 +28,7 @@ $ @import ARESxLIST
 $ @import ARESxVEC
 $ @import ARESxMAP
 
-$ Macro : @struct =
+$ Macro : @Type = @struct
     name : @Str,
     fn : @Bool,
     params : @Vec @Str,
@@ -38,14 +38,14 @@ $ Macro : @struct =
 
 # An include to resolve: the spelled name, `<...>` or `"..."`, the directory of
 # the including file, and whether it was `#include_next`.
-$ Request : @struct = name : @Str, angled : @Bool, dir : @Str, next : @Bool, from : @Str,
+$ Request : @Type = @struct name : @Str, angled : @Bool, dir : @Str, next : @Bool, from : @Str,
 
-$ Loaded : @union =
+$ Loaded : @Type = @union
     Found : { @Str, @Str },
     Skip : {},
     Missing : {},
 
-$ Macros : @effect =
+$ Macros : @Type = @effect
     find : @Str -> Opt Macro,
     define : Macro -> {},
     undef : @Str -> {},
@@ -53,12 +53,12 @@ $ Macros : @effect =
     push_macro : @Str -> {},
     pop_macro : @Str -> {},
 
-$ Files : @effect =
+$ Files : @Type = @effect
     include : Request -> Loaded,
     has_file : Request -> @Bool,
     once : @Str -> {},
 
-$ Out : @effect = emit : Token -> {},
+$ Out : @Type = @effect emit : Token -> {},
 
 # Preprocess one file's token stream, emitting the result through `Out`.
 $ preprocess : @Str -> List Token -> <Macros, Files, Out, Diag> {} = \file toks =>
@@ -98,7 +98,7 @@ $ quote : @Str -> @Str = \s => "\"" ++ escape_str s 0 "" ++ "\""
 
 # The macro table as a handler: `find`/`define`/`undef` read and replace the
 # map the handler carries, and `counter` serves `__COUNTER__`.
-$ MacroState : @struct =
+$ MacroState : @Type = @struct
     table : Map @Str Macro,
     counter : @Int,
     saved : Map @Str (List (Opt Macro)),
@@ -142,8 +142,8 @@ $ initial_macros : Map @Str Macro =
 
 $ @private
 
-$ Ctx : @struct = file : @Str, dir : @Str, conds : List Cond, depth : @Int,
-$ Cond : @struct = pos : Pos, seen_else : @Bool,
+$ Ctx : @Type = @struct file : @Str, dir : @Str, conds : List Cond, depth : @Int,
+$ Cond : @Type = @struct pos : Pos, seen_else : @Bool,
 
 $ ctx_for : @Str -> @Int -> Ctx = \file depth =>
     Ctx.{ .file = file, .dir = dir_of file, .conds = List.Nil, .depth = depth }
@@ -301,7 +301,7 @@ $ skip_to_endif : Token -> List Token -> <Diag> List Token = \d l =>
     else
         skip_to_endif s.tok s.rest
 
-$ Skipped : @struct = name : @Str, tok : Token, line : List Token, rest : List Token,
+$ Skipped : @Type = @struct name : @Str, tok : Token, line : List Token, rest : List Token,
 
 # Skip tokens to the directive that ends the current group at nesting depth 0.
 # Pure: nothing in a skipped group is expanded, included or reported.
@@ -642,8 +642,8 @@ $ builtin_token : Macro -> Token -> <Macros, Diag> Token = \m tok =>
     else
         mk Kind.Num "0"
 
-$ Arg : @struct = name : @Str, toks : List Token,
-$ Args : @struct = args : List Arg, rparen : Token, rest : List Token,
+$ Arg : @Type = @struct name : @Str, toks : List Token,
+$ Args : @Type = @struct args : List Arg, rparen : Token, rest : List Token,
 
 # The arguments of an invocation, from just after its `(`. Commas at paren depth
 # 0 separate them, except within the variadic part.
@@ -905,11 +905,11 @@ $ union : List @Str -> List @Str -> List @Str = \a b =>
 # -- #if expressions --------------------------------------------------------
 
 # A preprocessor value: every `#if` computation is in intmax_t or uintmax_t.
-$ Val : @struct = v : @Int, u : @Bool,
+$ Val : @Type = @struct v : @Int, u : @Bool,
 
 # The cursor over the line being evaluated, as an effect whose handler holds
 # the remaining tokens.
-$ Cur : @effect = look : {} -> Opt Token, skip : {} -> {},
+$ Cur : @Type = @effect look : {} -> Opt Token, skip : {} -> {},
 
 $ eval_if : Token -> List Token -> <Macros, Files, Out, Diag> @Bool = \d args =>
     let l1 = replace_defined d args in
