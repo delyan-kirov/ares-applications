@@ -1,11 +1,11 @@
 $ @mod RAYLIB
 
 # Friendly aliases for the C scalar types raylib uses, so the bindings read a
-# little nicer. Transparent (`@alias`), so they interchange with the `@`-forms.
-$ I32 : @alias = @Int32
-$ U32 : @alias = @Nat32
-$ U8 : @alias = @Nat8
-$ F32 : @alias = @Float32
+# little nicer. Transparent (a global of type `@Type`), so they interchange with the `@`-forms.
+$ I32 : @Type = @Int32
+$ U32 : @Type = @Nat32
+$ U8 : @Type = @Nat8
+$ F32 : @Type = @Float32
 
 # ==========================================================================
 # Surface used by the launcher (MAIN.ares): the constants and functions this
@@ -66,7 +66,7 @@ $ isKeyPressedRepeat : I32 -> U8 = @extern "C" "IsKeyPressedRepeat" "bin/librayl
 $ Vector2 : @struct @extern "C" = x: F32, y: F32,
 $ Vector3 : @struct @extern "C" = x: @Float32, y: @Float32, z: @Float32,
 $ Vector4 : @struct @extern "C" = x: @Float32, y: @Float32, z: @Float32, w: @Float32,
-$ Quaternion : @alias = Vector4
+$ Quaternion : @Type = Vector4
 $ Matrix : @struct @extern "C" =
     m0: @Float32,
     m4: @Float32,
@@ -93,10 +93,10 @@ $ Image : @struct @extern "C" =
     mipmaps: @Int32,
     format: @Int32,
 $ Texture : @struct @extern "C" = id: U32, width: I32, height: I32, mipmaps: I32, format: I32,
-$ Texture2D : @alias = Texture
-$ TextureCubemap : @alias = Texture
+$ Texture2D : @Type = Texture
+$ TextureCubemap : @Type = Texture
 $ RenderTexture : @struct @extern "C" = id: @Nat32, texture: Texture, depth: Texture,
-$ RenderTexture2D : @alias = RenderTexture
+$ RenderTexture2D : @Type = RenderTexture
 $ NPatchInfo : @struct @extern "C" =
     source: Rectangle,
     left: @Int32,
@@ -123,7 +123,7 @@ $ Camera3D : @struct @extern "C" =
     up: Vector3,
     fovy: @Float32,
     projection: @Int32,
-$ Camera : @alias = Camera3D
+$ Camera : @Type = Camera3D
 $ Camera2D : @struct @extern "C" =
     offset: Vector2,
     target: Vector2,
@@ -150,7 +150,7 @@ $ Shader : @struct @extern "C" = id: @Nat32, locs: @Ptr,
 $ MaterialMap : @struct @extern "C" = texture: Texture2D, color: Color, value: @Float32,
 # skipped struct Material (array or bit-field member)
 $ Transform : @struct @extern "C" = translation: Vector3, rotation: Quaternion, scale: Vector3,
-$ ModelAnimPose : @alias = @Ptr
+$ ModelAnimPose : @Type = @Ptr
 # skipped struct BoneInfo (array or bit-field member)
 $ ModelSkeleton : @struct @extern "C" = boneCount: @Int32, bones: @Ptr, bindPose: ModelAnimPose,
 $ Model : @struct @extern "C" =
@@ -197,7 +197,7 @@ $ Music : @struct @extern "C" =
 $ FilePathList : @struct @extern "C" = count: @Nat32, paths: @Ptr,
 # skipped struct AutomationEvent (array or bit-field member)
 $ AutomationEventList : @struct @extern "C" = capacity: @Nat32, count: @Nat32, events: @Ptr,
-$ ConfigFlags : @alias = @Int32
+$ ConfigFlags : @Type = @Int32
 $ flag_vsync_hint : @Int32 = 64
 $ flag_fullscreen_mode : @Int32 = 2
 $ flag_window_resizable : @Int32 = 4
@@ -213,7 +213,7 @@ $ flag_window_mouse_passthrough : @Int32 = 16384
 $ flag_borderless_windowed_mode : @Int32 = 32768
 $ flag_msaa_4x_hint : @Int32 = 32
 $ flag_interlaced_hint : @Int32 = 65536
-$ TraceLogLevel : @alias = @Int32
+$ TraceLogLevel : @Type = @Int32
 $ log_all : @Int32 = 0
 $ log_trace : @Int32 = 1
 $ log_debug : @Int32 = 2
@@ -222,7 +222,7 @@ $ log_warning : @Int32 = 4
 $ log_error : @Int32 = 5
 $ log_fatal : @Int32 = 6
 $ log_none : @Int32 = 7
-$ KeyboardKey : @alias = @Int32
+$ KeyboardKey : @Type = @Int32
 $ key_null : @Int32 = 0
 $ key_apostrophe : @Int32 = 39
 $ key_comma : @Int32 = 44
@@ -325,14 +325,14 @@ $ key_back : @Int32 = 4
 $ key_menu : @Int32 = 5
 $ key_volume_up : @Int32 = 24
 $ key_volume_down : @Int32 = 25
-$ MouseButton : @alias = @Int32
+$ MouseButton : @Type = @Int32
 $ mouse_button_right : @Int32 = 1
 $ mouse_button_middle : @Int32 = 2
 $ mouse_button_side : @Int32 = 3
 $ mouse_button_extra : @Int32 = 4
 $ mouse_button_forward : @Int32 = 5
 $ mouse_button_back : @Int32 = 6
-$ MouseCursor : @alias = @Int32
+$ MouseCursor : @Type = @Int32
 $ mouse_cursor_default : @Int32 = 0
 $ mouse_cursor_arrow : @Int32 = 1
 $ mouse_cursor_ibeam : @Int32 = 2
@@ -344,7 +344,7 @@ $ mouse_cursor_resize_nwse : @Int32 = 7
 $ mouse_cursor_resize_nesw : @Int32 = 8
 $ mouse_cursor_resize_all : @Int32 = 9
 $ mouse_cursor_not_allowed : @Int32 = 10
-$ GamepadButton : @alias = @Int32
+$ GamepadButton : @Type = @Int32
 $ gamepad_button_unknown : @Int32 = 0
 $ gamepad_button_left_face_up : @Int32 = 1
 $ gamepad_button_left_face_right : @Int32 = 2
@@ -363,14 +363,14 @@ $ gamepad_button_middle : @Int32 = 14
 $ gamepad_button_middle_right : @Int32 = 15
 $ gamepad_button_left_thumb : @Int32 = 16
 $ gamepad_button_right_thumb : @Int32 = 17
-$ GamepadAxis : @alias = @Int32
+$ GamepadAxis : @Type = @Int32
 $ gamepad_axis_left_x : @Int32 = 0
 $ gamepad_axis_left_y : @Int32 = 1
 $ gamepad_axis_right_x : @Int32 = 2
 $ gamepad_axis_right_y : @Int32 = 3
 $ gamepad_axis_left_trigger : @Int32 = 4
 $ gamepad_axis_right_trigger : @Int32 = 5
-$ MaterialMapIndex : @alias = @Int32
+$ MaterialMapIndex : @Type = @Int32
 $ material_map_albedo : @Int32 = 0
 $ material_map_metalness : @Int32 = 1
 $ material_map_normal : @Int32 = 2
@@ -382,7 +382,7 @@ $ material_map_cubemap : @Int32 = 7
 $ material_map_irradiance : @Int32 = 8
 $ material_map_prefilter : @Int32 = 9
 $ material_map_brdf : @Int32 = 10
-$ ShaderLocationIndex : @alias = @Int32
+$ ShaderLocationIndex : @Type = @Int32
 $ shader_loc_vertex_position : @Int32 = 0
 $ shader_loc_vertex_texcoord01 : @Int32 = 1
 $ shader_loc_vertex_texcoord02 : @Int32 = 2
@@ -413,7 +413,7 @@ $ shader_loc_vertex_boneids : @Int32 = 26
 $ shader_loc_vertex_boneweights : @Int32 = 27
 $ shader_loc_matrix_bonetransforms : @Int32 = 28
 $ shader_loc_vertex_instancetransform : @Int32 = 29
-$ ShaderUniformDataType : @alias = @Int32
+$ ShaderUniformDataType : @Type = @Int32
 $ shader_uniform_float : @Int32 = 0
 $ shader_uniform_vec2 : @Int32 = 1
 $ shader_uniform_vec3 : @Int32 = 2
@@ -427,12 +427,12 @@ $ shader_uniform_uivec2 : @Int32 = 9
 $ shader_uniform_uivec3 : @Int32 = 10
 $ shader_uniform_uivec4 : @Int32 = 11
 $ shader_uniform_sampler2d : @Int32 = 12
-$ ShaderAttributeDataType : @alias = @Int32
+$ ShaderAttributeDataType : @Type = @Int32
 $ shader_attrib_float : @Int32 = 0
 $ shader_attrib_vec2 : @Int32 = 1
 $ shader_attrib_vec3 : @Int32 = 2
 $ shader_attrib_vec4 : @Int32 = 3
-$ PixelFormat : @alias = @Int32
+$ PixelFormat : @Type = @Int32
 $ pixelformat_uncompressed_grayscale : @Int32 = 1
 $ pixelformat_uncompressed_gray_alpha : @Int32 = 2
 $ pixelformat_uncompressed_r5g6b5 : @Int32 = 3
@@ -457,28 +457,28 @@ $ pixelformat_compressed_pvrt_rgb : @Int32 = 21
 $ pixelformat_compressed_pvrt_rgba : @Int32 = 22
 $ pixelformat_compressed_astc_4x4_rgba : @Int32 = 23
 $ pixelformat_compressed_astc_8x8_rgba : @Int32 = 24
-$ TextureFilter : @alias = @Int32
+$ TextureFilter : @Type = @Int32
 $ texture_filter_point : @Int32 = 0
 $ texture_filter_trilinear : @Int32 = 2
 $ texture_filter_anisotropic_4x : @Int32 = 3
 $ texture_filter_anisotropic_8x : @Int32 = 4
 $ texture_filter_anisotropic_16x : @Int32 = 5
-$ TextureWrap : @alias = @Int32
+$ TextureWrap : @Type = @Int32
 $ texture_wrap_repeat : @Int32 = 0
 $ texture_wrap_clamp : @Int32 = 1
 $ texture_wrap_mirror_repeat : @Int32 = 2
 $ texture_wrap_mirror_clamp : @Int32 = 3
-$ CubemapLayout : @alias = @Int32
+$ CubemapLayout : @Type = @Int32
 $ cubemap_layout_auto_detect : @Int32 = 0
 $ cubemap_layout_line_vertical : @Int32 = 1
 $ cubemap_layout_line_horizontal : @Int32 = 2
 $ cubemap_layout_cross_three_by_four : @Int32 = 3
 $ cubemap_layout_cross_four_by_three : @Int32 = 4
-$ FontType : @alias = @Int32
+$ FontType : @Type = @Int32
 $ font_default : @Int32 = 0
 $ font_bitmap : @Int32 = 1
 $ font_sdf : @Int32 = 2
-$ BlendMode : @alias = @Int32
+$ BlendMode : @Type = @Int32
 $ blend_alpha : @Int32 = 0
 $ blend_additive : @Int32 = 1
 $ blend_multiplied : @Int32 = 2
@@ -487,7 +487,7 @@ $ blend_subtract_colors : @Int32 = 4
 $ blend_alpha_premultiply : @Int32 = 5
 $ blend_custom : @Int32 = 6
 $ blend_custom_separate : @Int32 = 7
-$ Gesture : @alias = @Int32
+$ Gesture : @Type = @Int32
 $ gesture_none : @Int32 = 0
 $ gesture_tap : @Int32 = 1
 $ gesture_doubletap : @Int32 = 2
@@ -499,24 +499,24 @@ $ gesture_swipe_up : @Int32 = 64
 $ gesture_swipe_down : @Int32 = 128
 $ gesture_pinch_in : @Int32 = 256
 $ gesture_pinch_out : @Int32 = 512
-$ CameraMode : @alias = @Int32
+$ CameraMode : @Type = @Int32
 $ camera_custom : @Int32 = 0
 $ camera_free : @Int32 = 1
 $ camera_orbital : @Int32 = 2
 $ camera_first_person : @Int32 = 3
 $ camera_third_person : @Int32 = 4
-$ CameraProjection : @alias = @Int32
+$ CameraProjection : @Type = @Int32
 $ camera_perspective : @Int32 = 0
 $ camera_orthographic : @Int32 = 1
-$ NPatchLayout : @alias = @Int32
+$ NPatchLayout : @Type = @Int32
 $ npatch_nine_patch : @Int32 = 0
 $ npatch_three_patch_vertical : @Int32 = 1
 $ npatch_three_patch_horizontal : @Int32 = 2
-$ TraceLogCallback : @alias = @Ptr
+$ TraceLogCallback : @Type = @Ptr
 # skipped function-pointer typedef
-$ SaveFileDataCallback : @alias = @Ptr
+$ SaveFileDataCallback : @Type = @Ptr
 # skipped function-pointer typedef
-$ SaveFileTextCallback : @alias = @Ptr
+$ SaveFileTextCallback : @Type = @Ptr
 $ isWindowReady : {} -> @Nat8 = @extern "C" "IsWindowReady" "bin/libraylib.so"
 $ isWindowFullscreen : {} -> @Nat8 = @extern "C" "IsWindowFullscreen" "bin/libraylib.so"
 $ isWindowHidden : {} -> @Nat8 = @extern "C" "IsWindowHidden" "bin/libraylib.so"
@@ -1446,7 +1446,7 @@ $ getRayCollisionTriangle : { p0: Ray, p1: Vector3, p2: Vector3, p3: Vector3 } -
 $ getRayCollisionQuad : { p0: Ray, p1: Vector3, p2: Vector3, p3: Vector3, p4: Vector3 }
     -> RayCollision =
     @extern "C" "GetRayCollisionQuad" "bin/libraylib.so"
-$ AudioCallback : @alias = @Ptr
+$ AudioCallback : @Type = @Ptr
 $ initAudioDevice : {} -> {} = @extern "C" "InitAudioDevice" "bin/libraylib.so"
 $ closeAudioDevice : {} -> {} = @extern "C" "CloseAudioDevice" "bin/libraylib.so"
 $ isAudioDeviceReady : {} -> @Nat8 = @extern "C" "IsAudioDeviceReady" "bin/libraylib.so"

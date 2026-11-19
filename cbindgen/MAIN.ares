@@ -380,7 +380,7 @@ $ emit_enum : @Vec @Str -> @Str = \toks =>
     if is_upper_start name == 0 =>
         "# skipped enum " ++ name ++ " (name is not a Ares type)\n"
     else
-        "$ " ++ name ++ " : @alias = @Int32\n" ++ enum_consts body 0 ""
+        "$ " ++ name ++ " : @Type = @Int32\n" ++ enum_consts body 0 ""
 
 # -- emit: struct / union ----------------------------------------------------
 $ field_ok : @Vec @Str -> @Int = \g => g |> \ | [] => 0 | _ => if has_tok g "[" == 1 => 0 else 1
@@ -409,7 +409,7 @@ $ emit_record : @Vec @Str -> @Str -> @Str = \toks kw =>
     if is_upper_start name == 0 =>
         "# skipped " ++ kw ++ " " ++ name ++ " (name is not a Ares type)\n"
     else if has_tok toks s_lbrace == 0 =>
-        "$ " ++ name ++ " : @alias = @Ptr\n"
+        "$ " ++ name ++ " : @Type = @Ptr\n"
     else
         let body = take_until (drop_until toks s_lbrace) s_rbrace in
         let fields = split_on body ";" in
@@ -488,14 +488,14 @@ $ emit_typedef : @Vec @Str -> @Str = \t =>
                 if is_type_name name == 0 =>
                     "# skipped function-pointer typedef\n"
                 else
-                    "$ " ++ name ++ " : @alias = @Ptr\n"
+                    "$ " ++ name ++ " : @Type = @Ptr\n"
             # `typedef <type> Name;` -> an alias
             else
                 let name = last1 t in
                 if is_upper_start name == 0 =>
                     "# skipped typedef " ++ name ++ " (name is not a Ares type)\n"
                 else
-                    "$ " ++ name ++ " : @alias = " ++ c_type_of (init1 t) ++ "\n"
+                    "$ " ++ name ++ " : @Type = " ++ c_type_of (init1 t) ++ "\n"
         | _ => ""
 
 $ emit_decl : @Vec @Str -> @Str -> @Vec @Str -> @Str = \toks lib known =>
