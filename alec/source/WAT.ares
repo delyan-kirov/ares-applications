@@ -77,12 +77,12 @@ $ find : List Sec -> @Int -> Opt Sec = \secs id =>
         | _                  => Opt.None
 
 # The items of section `id`, a vector of whatever `f` reads.
-$ items : @Str -> List Sec -> @Int -> (@Str -> @Int -> { a, @Int }) -> List a = \s secs id f =>
+$ items : @ctx {a: @Type} -> @Str -> List Sec -> @Int -> (@Str -> @Int -> { a, @Int }) -> List a = \s secs id f =>
     find secs id |> \
         | Opt.Some.{ sec } => (let n = r_u s sec.start in read_n f s n.0 n.1 List.Nil).0
         | _                   => List.Nil
 
-$ read_n : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
+$ read_n : @ctx {a: @Type} -> (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
     -> { List a, @Int } = \f s n i acc =>
     if n == 0 =>
         { reverse acc, i }

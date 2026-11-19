@@ -103,7 +103,7 @@ $ MacroState : @Type = @struct
     counter : @Int,
     saved : Map @Str (List (Opt Macro)),
 
-$ with_macros : Map @Str Macro -> ({} -> <Macros, Files, Out, Diag> a)
+$ with_macros : @ctx {a: @Type} -> Map @Str Macro -> ({} -> <Macros, Files, Out, Diag> a)
     -> <Files, Out, Diag> a = \tbl body =>
     let go =
         do body {}

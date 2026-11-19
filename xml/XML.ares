@@ -130,9 +130,9 @@ $ parse : @Str -> Parsed Node = \src => run_parser src document
 $ parse_fragment : @Str -> Parsed (@Vec Node) = \src =>
     run_parser src (\u => content (@vec_new {}) {})
 
-$ is_ok : Parsed a -> @Bool = \r => r |> \ | Parsed.Ok.{ v } => @true | _ => @false
+$ is_ok : @ctx {a: @Type} -> Parsed a -> @Bool = \r => r |> \ | Parsed.Ok.{ v } => @true | _ => @false
 
-$ error_of : Parsed a -> Opt Err = \r =>
+$ error_of : @ctx {a: @Type} -> Parsed a -> Opt Err = \r =>
     r |> \ | Parsed.Bad.{ er } => Opt.Some.{ er } | _ => Opt.None
 
 # The failure as a diagnostic block, in the compiler's own shape: the headline,
@@ -191,7 +191,7 @@ $ render : Node -> @Str = \n =>
 # EVERY outcome of `body`: `one_of` resumes once per candidate and `fork` once
 # per branch, so a path written as straight-line code enumerates all its
 # matches, and a `no_match` prunes just the branch it is in.
-$ matches : ({} -> <Pick, Choice, Soft> a) -> @Vec a = \body =>
+$ matches : @ctx {a: @Type} -> ({} -> <Pick, Choice, Soft> a) -> @Vec a = \body =>
     do @vec_push (@vec_new {}) (body {})
     ctl k
     | Pick.one_of xs => pick_each k xs (@vec_new {})
@@ -200,7 +200,7 @@ $ matches : ({} -> <Pick, Choice, Soft> a) -> @Vec a = \body =>
     | v              => v
 
 # The first outcome, exploring no further than it has to.
-$ match_first : ({} -> <Pick, Choice, Soft> a) -> Opt a = \body =>
+$ match_first : @ctx {a: @Type} -> ({} -> <Pick, Choice, Soft> a) -> Opt a = \body =>
     do Opt.Some.{ body {} }
     ctl k
     | Pick.one_of xs => first_of k xs
@@ -209,7 +209,7 @@ $ match_first : ({} -> <Pick, Choice, Soft> a) -> Opt a = \body =>
     | v              => v
 
 # Prune this branch: it is not a match.
-$ no_match : {} -> <Pick, Choice, Soft> a = reject (broken 0 "no match" "")
+$ no_match : @ctx {a: @Type} -> {} -> <Pick, Choice, Soft> a = reject (broken 0 "no match" "")
 
 $ child : Node -> <Pick, Choice, Soft> Node = \n => one_of (kids n)
 
@@ -260,7 +260,7 @@ $ @private
 # Each clause hands `k` to a lambda, and the lambda resumes it once. By then the
 # lambda is the continuation's only owner, so the resume takes the captured stack
 # rather than copying it.
-$ scan_from : @Str -> @Int -> ({} -> <Scan, Choice, Soft, Hard> a)
+$ scan_from : @ctx {a: @Type} -> @Str -> @Int -> ({} -> <Scan, Choice, Soft, Hard> a)
     -> <Choice, Soft, Hard> a = \src from body =>
     let run =
         do body {}
@@ -274,7 +274,7 @@ $ scan_from : @Str -> @Int -> ({} -> <Scan, Choice, Soft, Hard> a)
 # The top-level cursor, for the deterministic layer: every branch in this parser
 # happens inside a `commit`, so nothing forks out here. One resume per
 # operation, as above.
-$ scan_all : @Str -> ({} -> <Scan, Hard> a) -> <Hard> a = \src body =>
+$ scan_all : @ctx {a: @Type} -> @Str -> ({} -> <Scan, Hard> a) -> <Hard> a = \src body =>
     let run =
         do body {}
         ctl k
@@ -292,7 +292,7 @@ $ scan_all : @Str -> ({} -> <Scan, Hard> a) -> <Hard> a = \src body =>
 #
 # When both ways fail, the failure that got FURTHEST through the input is the
 # one reported, which is the message a reader of a broken document wants.
-$ search : ({} -> <Choice, Soft, Hard> a) -> <Hard> Parsed a = \body =>
+$ search : @ctx {a: @Type} -> ({} -> <Choice, Soft, Hard> a) -> <Hard> Parsed a = \body =>
     do Parsed.Ok.{ body {} }
     ctl k
     | Choice.fork u  => (
@@ -308,11 +308,11 @@ $ search : ({} -> <Choice, Soft, Hard> a) -> <Hard> Parsed a = \body =>
     | x              => x
 
 # `fatal` ends the parse: handled outside every choice point, so none retries it.
-$ guard : ({} -> <Hard> (Parsed a)) -> Parsed a = \body =>
+$ guard : @ctx {a: @Type} -> ({} -> <Hard> (Parsed a)) -> Parsed a = \body =>
     do body {}
     ctl k | Hard.fatal er => Parsed.Bad.{ er } | x => x
 
-$ run_parser : @Str -> ({} -> <Scan, Hard> a) -> Parsed a = \src body =>
+$ run_parser : @ctx {a: @Type} -> @Str -> ({} -> <Scan, Hard> a) -> Parsed a = \src body =>
     guard (\u => Parsed.Ok.{ scan_all src body })
 
 # ==========================================================================
@@ -320,11 +320,11 @@ $ run_parser : @Str -> ({} -> <Scan, Hard> a) -> Parsed a = \src body =>
 # ==========================================================================
 
 # Try `p`; should anything later fail, try `q` from the same position instead.
-$ alt : ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Hard> a)
+$ alt : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Hard> a)
     -> <Scan, Choice, Soft, Hard> a = \p q =>
     if fork {} => p {} else q {}
 
-$ alt3 : ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Hard> a)
+$ alt3 : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Hard> a)
     -> ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Choice, Soft, Hard> a = \p q r =>
     alt p (\u => alt q r)
 
@@ -334,7 +334,7 @@ $ alt3 : ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Har
 # returns, so the search a long document retains is one item's worth rather than
 # the whole file's, and a soft failure that survives every alternative becomes
 # the hard failure that reports the document broken.
-$ commit : ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Hard> a = \p =>
+$ commit : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Hard> a = \p =>
     let v = view {} in
     search (\u => scan_from v.src v.at (\u2 => Span.{ .value = p {}, .end = pos {} })) |>
         \ | Parsed.Ok.{ sp } => (bump (sp.end - v.at); sp.value) | Parsed.Bad.{ er } => fatal er
@@ -758,11 +758,11 @@ $ render_kids : List Node -> @Str -> @Str = \ns acc =>
     ns |> \ | List.Cons.{ h, t } => render_kids t (acc ++ render h) | _ => acc
 
 # Resume a continuation with every candidate, collecting all of the outcomes.
-$ pick_each : (Node -> @Vec a) -> List Node -> @Vec a -> @Vec a = \k xs acc =>
+$ pick_each : @ctx {a: @Type} -> (Node -> @Vec a) -> List Node -> @Vec a -> @Vec a = \k xs acc =>
     xs |> \ | List.Cons.{ h, t } => pick_each k t (append (k h) acc) | _ => acc
 
 # Resume a continuation with each candidate until one of them yields a match.
-$ first_of : (Node -> Opt a) -> List Node -> Opt a = \k xs =>
+$ first_of : @ctx {a: @Type} -> (Node -> Opt a) -> List Node -> Opt a = \k xs =>
     xs |> \
         | List.Cons.{ h, t } =>
             (k h |> \ | Opt.Some.{ v } => Opt.Some.{ v } | _ => first_of k t)

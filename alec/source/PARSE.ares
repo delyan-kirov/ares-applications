@@ -158,7 +158,7 @@ $ TokSt : @Type = @struct cur : Token, more : List Token, src : Pull,
  - The consumer end of the pipe: the next token and a short lookahead, topped
  - up by resuming the preprocessor.
  -#
-$ with_tok : { src: Pull, body: {} -> <Tok, Scope, Tab, Unit, Diag> a }
+$ with_tok : @ctx {a: @Type} -> { src: Pull, body: {} -> <Tok, Scope, Tab, Unit, Diag> a }
     -> <Scope, Tab, Unit, Files, Diag> a =
     let go =
         do body {}
@@ -203,7 +203,7 @@ $ Frame : @Type = @struct vars : Map @Str Binding, tags : Map @Str TagB,
 
 $ new_frame : Frame = Frame.{ .vars = (new {}), .tags = (new {}) }
 
-$ with_scope : ({} -> <Scope, Tab, Unit, Files, Diag> a) -> <Tab, Unit, Files, Diag> a = \body =>
+$ with_scope : @ctx {a: @Type} -> ({} -> <Scope, Tab, Unit, Files, Diag> a) -> <Tab, Unit, Files, Diag> a = \body =>
     let go =
         do body {}
         ctl k
@@ -244,7 +244,7 @@ $ TabSt : @Type = @struct lay : Layout, next : @Int,
  - Ids start at `base`, distinct per translation unit, so the units' aggregate
  - tables can be merged by the linker without renumbering.
  -#
-$ with_tab : { target: Target, base: @Int, body: {} -> <Tab, Unit, Files, Diag> a }
+$ with_tab : @ctx {a: @Type} -> { target: Target, base: @Int, body: {} -> <Tab, Unit, Files, Diag> a }
     -> <Unit, Files, Diag> { a, Layout } =
     let go =
         do let r = body {} in \s => { r, s.lay }
@@ -280,7 +280,7 @@ $ UnitSt : @Type = @struct
     protos : Map @Str Ty,
     locals : List LVar,
 
-$ with_unit : ({} -> <Unit, Files, Diag> a) -> <Files, Diag> { a, UnitSt } = \body =>
+$ with_unit : @ctx {a: @Type} -> ({} -> <Unit, Files, Diag> a) -> <Files, Diag> { a, UnitSt } = \body =>
     let go =
         do let r = body {} in \s => { r, s }
         ctl k
@@ -894,7 +894,7 @@ $ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit
         let b2 = cast_to { b, t } in
         fold (mk_expr ENode.Bin.{ op, a2, b2 } t pos)
 
-$ bad_operands : { op: @Str, a: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> r =
+$ bad_operands : @ctx {r: @Type} -> { op: @Str, a: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> r =
     error_at pos
         (
             "invalid operands to binary "

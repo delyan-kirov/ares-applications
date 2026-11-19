@@ -200,7 +200,7 @@ $ first_file : @Vec @Str -> @Int -> @Str -> <@IO> Opt { @Str, @Str } = \cs i ski
                 | Opt.Some.{ src } => Opt.Some.{ { path, src } }
                 | _                   => first_file cs (i + 1) skip
 
-$ with_files : FileState -> ({} -> <Files, Diag, @IO> a) -> <Diag, @IO> a = \st0 body =>
+$ with_files : @ctx {a: @Type} -> FileState -> ({} -> <Files, Diag, @IO> a) -> <Diag, @IO> a = \st0 body =>
     let go =
         do body {}
         ctl k

@@ -293,9 +293,12 @@ $ base_name : @Str -> @Str = \p => base_from p (@array_len p - 1)
 $ base_from : @Str -> @Int -> @Str = \p i =>
     if i < 0 => p else if at i p == 47 => substr (i + 1) (@array_len p) p else base_from p (i - 1)
 
-$ foldl_index : (a -> @Int -> t -> a) -> a -> @Vec t -> a = \f acc v => foldl_index_from f acc v 0
+$ foldl_index : @ctx { a: @Type, t: @Type } -> (a -> @Int -> t -> a) -> a -> @Vec t
+    -> a = \f acc v =>
+    foldl_index_from f acc v 0
 
-$ foldl_index_from : (a -> @Int -> t -> a) -> a -> @Vec t -> @Int -> a = \f acc v i =>
+$ foldl_index_from : @ctx { a: @Type, t: @Type } -> (a -> @Int -> t -> a) -> a -> @Vec t -> @Int
+    -> a = \f acc v i =>
     if i >= @vec_len v => acc else foldl_index_from f (f acc i (@vec_get v i)) v (i + 1)
 
 $ last_dot : @Str -> @Int -> @Int = \s i =>

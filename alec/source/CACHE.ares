@@ -118,10 +118,12 @@ $ w_bool : List @Str -> @Bool -> List @Str = \acc b => put acc (if b => "1 " els
 $ w_str : List @Str -> @Str -> List @Str = \acc s =>
     put (put acc (to_string (@array_len s) ++ ":")) s
 
-$ w_list : (List @Str -> a -> List @Str) -> List @Str -> List a -> List @Str = \f acc l =>
+$ w_list : @ctx { a: @Type } -> (List @Str -> a -> List @Str) -> List @Str -> List a
+    -> List @Str = \f acc l =>
     foldl f (w_int acc (len l)) l
 
-$ w_vec : (List @Str -> a -> List @Str) -> List @Str -> @Vec a -> List @Str = \f acc v =>
+$ w_vec : @ctx { a: @Type } -> (List @Str -> a -> List @Str) -> List @Str -> @Vec a
+    -> List @Str = \f acc v =>
     foldl f (w_int acc (@vec_len v)) v
 
 $ w_pos : List @Str -> Pos -> List @Str = \acc p => w_int (w_int (w_str acc p.file) p.line) p.col
@@ -258,17 +260,19 @@ $ r_str : @Str -> @Int -> { @Str, @Int } = \s i =>
 $ r_float : @Str -> @Int -> { @Float64, @Int } = \s i =>
     let r = r_int s i in { f64_of_bits r.0, r.1 }
 
-$ r_list : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> { List a, @Int } = \f s i =>
+$ r_list : @ctx { a: @Type } -> (@Str -> @Int -> { a, @Int }) -> @Str -> @Int
+    -> { List a, @Int } = \f s i =>
     let n = r_int s i in r_list_go f s n.0 n.1 List.Nil
 
-$ r_list_go : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
+$ r_list_go : @ctx { a: @Type } -> (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
     -> { List a, @Int } = \f s n i acc =>
     if n == 0 =>
         { reverse acc, i }
     else
         let r = f s i in let x = r.0 in r_list_go f s (n - 1) r.1 List.Cons.{ x, acc }
 
-$ r_vec : (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> { @Vec a, @Int } = \f s i =>
+$ r_vec : @ctx { a: @Type } -> (@Str -> @Int -> { a, @Int }) -> @Str -> @Int
+    -> { @Vec a, @Int } = \f s i =>
     let r = r_list f s i in { ARES.to_vec r.0, r.1 }
 
 $ r_pos : @Str -> @Int -> { Pos, @Int } = \s i =>

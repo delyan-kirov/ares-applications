@@ -61,7 +61,7 @@ $ Walker : (s: @Type) -> @Type = @struct
 
 # Fold `w` over every countable file under each root. `excludes` are extra
 # rules, given as gitignore patterns, that apply under every root.
-$ fold : { roots: @Vec @Str, excludes: @Vec @Str, w: Walker s } -> <@IO> s =
+$ fold : @ctx {s: @Type} -> { roots: @Vec @Str, excludes: @Vec @Str, w: Walker s } -> <@IO> s =
     walk_roots w (w.init {}) roots excludes 0
 
 # The rules of an ignore file's text, for the directory `base` (with its
@@ -92,7 +92,7 @@ $ glob : @Str -> @Str -> @Bool = \p s => glob_at p 0 s 0
 
 $ @private
 
-$ walk_roots : Walker s -> s -> @Vec @Str -> @Vec @Str -> @Int
+$ walk_roots : @ctx {s: @Type} -> Walker s -> s -> @Vec @Str -> @Vec @Str -> @Int
     -> <@IO> s = \w st roots excludes i =>
     if i >= @vec_len roots =>
         st
@@ -100,7 +100,7 @@ $ walk_roots : Walker s -> s -> @Vec @Str -> @Vec @Str -> @Int
         walk_roots w (walk_root w st (trim_slash <| @vec_get roots i) excludes) roots excludes
             (i + 1)
 
-$ walk_root : Walker s -> s -> @Str -> @Vec @Str -> <@IO> s = \w st root excludes =>
+$ walk_root : @ctx {s: @Type} -> Walker s -> s -> @Str -> @Vec @Str -> <@IO> s = \w st root excludes =>
     let entries = list_dir root in
     if @vec_len entries > 0 =>
         walk w st root (fmap (rule_or_skip (root ++ "/")) excludes |> filter_map (\r => r))
@@ -117,7 +117,7 @@ $ spawn_depth : @Int = 5
 
 # One directory: its entries scanned in one loop that calls nothing unknown,
 # then the subdirectories kept in this task walked, then its files visited.
-$ walk : Walker s -> s -> @Str -> @Vec Rule -> @Vec Entry -> @Int
+$ walk : @ctx {s: @Type} -> Walker s -> s -> @Str -> @Vec Rule -> @Vec Entry -> @Int
     -> <@IO> s = \w st dir inherited entries depth =>
     let rules =
         inherited |> with_file dir entries ".gitignore" |> with_file dir entries ".ignore"
@@ -133,7 +133,7 @@ $ Scan : (s: @Type) -> @Type = @struct
     deep: @Vec @Str,
     pending: @Vec (Future s),
 
-$ walk_deep : Walker s -> s -> @Vec Rule -> @Vec @Str -> @Int -> @Int
+$ walk_deep : @ctx {s: @Type} -> Walker s -> s -> @Vec Rule -> @Vec @Str -> @Int -> @Int
     -> <@IO> s = \w st rules dirs depth i =>
     if i >= @vec_len dirs =>
         st
@@ -167,7 +167,7 @@ $ with_file : @Str -> @Vec Entry -> @Str -> @Vec Rule
         rules
 
 # The entries of `dir` from `i` on.
-$ scan_entries : Walker s -> @Str -> @Vec Rule -> @Vec Entry -> @Int -> @Int -> @Vec Found
+$ scan_entries : @ctx {s: @Type} -> Walker s -> @Str -> @Vec Rule -> @Vec Entry -> @Int -> @Int -> @Vec Found
     -> @Vec @Str -> @Vec (Future s)
     -> <@IO> Scan s = \w dir rules entries depth i files deep pending =>
     if i >= @vec_len entries =>
@@ -200,13 +200,13 @@ $ scan_entries : Walker s -> @Str -> @Vec Rule -> @Vec Entry -> @Int -> @Int -> 
 # size, each a task with a fresh state, so a big flat directory is shared out.
 $ chunk : @Int = 16
 
-$ finish : Walker s -> s -> @Vec Found -> @Vec (Future s) -> <@IO> s = \w st files pending =>
+$ finish : @ctx {s: @Type} -> Walker s -> s -> @Vec Found -> @Vec (Future s) -> <@IO> s = \w st files pending =>
     let n = @vec_len files in
     let mine = if n <= chunk => w.visit st files 0 n else st in
     let tasks = if n <= chunk => pending else spawn_chunks w files 0 pending in
     foldl (\acc f => w.merge acc (ARES.wait f)) mine tasks
 
-$ spawn_chunks : Walker s -> @Vec Found -> @Int -> @Vec (Future s)
+$ spawn_chunks : @ctx {s: @Type} -> Walker s -> @Vec Found -> @Int -> @Vec (Future s)
     -> <@IO> @Vec (Future s) = \w files lo acc =>
     if lo >= @vec_len files =>
         acc

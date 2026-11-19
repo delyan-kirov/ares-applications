@@ -277,7 +277,7 @@ $ probe_src : @Str -> @Str = \e =>
 
 $ input_path : Sh -> @Str = \sh => sh.dir ++ "/input.c"
 
-$ in_world : Sh -> @Str -> ({} -> <Diag, @IO> a) -> <@IO> Result a @Str = \sh src body =>
+$ in_world : @ctx {a: @Type} -> Sh -> @Str -> ({} -> <Diag, @IO> a) -> <@IO> Result a @Str = \sh src body =>
     write_file (input_path sh) src;
     do Result.Ok.{ body {} }
     ctl k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}

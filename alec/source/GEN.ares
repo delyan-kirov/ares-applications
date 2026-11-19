@@ -1324,7 +1324,7 @@ $ FrSt : @Type = @struct
     frame : @Int,
     labels : List Lbl,
 
-$ with_frame : FrSt -> ({} -> <Types, Fr, Diag, Bail> a)
+$ with_frame : @ctx {a: @Type} -> FrSt -> ({} -> <Types, Fr, Diag, Bail> a)
     -> <Types, Diag, Bail> { a, FrSt } = \st0 body =>
     let go =
         do let r = body {} in \s => { r, s }
@@ -1350,7 +1350,7 @@ $ with_code : ({} -> <Code, Types, Fr, Diag, Bail> {}) -> <Types, Fr, Diag, Bail
     in
     go ""
 
-$ with_types : TypeTab -> ({} -> <Types, Diag, Bail> a)
+$ with_types : @ctx {a: @Type} -> TypeTab -> ({} -> <Types, Diag, Bail> a)
     -> <Diag, Bail> { a, TypeTab } = \tt0 body =>
     let go =
         do let r = body {} in \tt => { r, tt }
