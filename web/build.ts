@@ -15,10 +15,6 @@
 // 5. the page's TypeScript, web/src/*.ts, to site/*.js with tsc,
 // 6. the smoke test, which runs every cell and drives the language server.
 //
-// `site/playground.wasm` is a checked-in binary, so it does not follow the
-// compiler the way the rest of the tree does: rebuild after every change to
-// crates/ or library/.
-//
 // Needs `wasm-ld`, `tsc`, `ffmpeg` and a `python3` with fontTools on PATH, and
 // the ARES_FONT_* variables, all of which the web dev shell supplies.
 

@@ -1,7 +1,8 @@
 # Cargo build output
 /target
 
-# web/build.ts output; web/site/index.html and playground.wasm are tracked.
+# web/build.ts output; only web/site/index.html is tracked.
+/web/site/playground.wasm
 /web/site/*.js
 /web/site/cells.json
 /web/site/favicon.svg

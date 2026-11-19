@@ -62,9 +62,6 @@
           echo "web playground shell. From the applications workspace root (..):"
           echo "    node web/build.ts       # build the wasm, cells and scripts, then smoke-test"
           echo "    node web/serve.ts       # serve http://localhost:8000"
-          echo ""
-          echo "site/playground.wasm is checked in: rebuild it after any change to"
-          echo "crates/ or library/, or the site keeps running the older compiler."
         '';
       };
     };

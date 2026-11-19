@@ -39,7 +39,7 @@ self-contained.
   page with no dependencies, so every example is compiled, run and checked as
   you type, client-side. The examples are Ares files in `web/cells/`. Build
   with `node web/build.ts` (in the `web/` dev shell) after any change to
-  `crates/`, `library/` or `web/`: it rebuilds the checked-in
+  `crates/`, `library/` or `web/`: it rebuilds
   `site/playground.wasm`, emits the page's JavaScript with `tsc`, and runs the
   smoke test.
 
