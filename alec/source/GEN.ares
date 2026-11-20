@@ -70,7 +70,7 @@ $ Fr : @Type = @effect
 # Raised when a jump cannot be expressed with structured blocks (a `case`
 # nested inside another statement, a `goto` into a block). The function is then
 # flattened and generated again.
-$ Bail : @Type = @effect unstructured : @Str -> a,
+$ Bail : @Type = @effect unstructured : @ctx { a: @Type } -> @Str -> a,
 
 # Per-function facts: the return type, the wasm locals holding the struct-return
 # pointer (-1 if none), the variadic area pointer, the frame pointer and the

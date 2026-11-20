@@ -111,10 +111,10 @@ $ Scan : @Type = @effect
 $ Choice : @Type = @effect fork : {} -> @Bool,
 
 # A failure the nearest enclosing choice point may retry.
-$ Soft : @Type = @effect reject : Err -> a,
+$ Soft : @Type = @effect reject : @ctx { a: @Type } -> Err -> a,
 
 # A failure nothing retries: the document is malformed, so say where.
-$ Hard : @Type = @effect fatal : Err -> a,
+$ Hard : @Type = @effect fatal : @ctx { a: @Type } -> Err -> a,
 
 # Pick one of several nodes; the query engine's branch point.
 $ Pick : @Type = @effect one_of : List Node -> Node,

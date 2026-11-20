@@ -12,7 +12,7 @@ $ @import LEX
 $ Err : @Type = @struct pos : Pos, msg : @Str,
 
 $ Diag : @Type = @effect
-    fail : Err -> a,
+    fail : @ctx { a: @Type } -> Err -> a,
     warn : Err -> {},
 
 $ error_at : @ctx { a: @Type } -> Pos -> @Str -> <Diag> a = \p m =>
