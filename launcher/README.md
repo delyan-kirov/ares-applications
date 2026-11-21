@@ -100,8 +100,8 @@ started with `popen` before the window opens, and `scan_apps` reads it as if it
 owned the thread, performing `Feed.found app` per entry and `Feed.pause` at each
 frame boundary. It reads only after a zero-timeout `poll(2)` says the pipe is
 ready, so no frame ever blocks on it. The handler stores the paused continuation
-in the model, each frame resumes it with `@true`, and quitting resumes it with
-`@false` so its own `@finale` around the read loop reaps the child.
+in the model, each frame resumes it with `true`, and quitting resumes it with
+`false` so its own `@finale` around the read loop reaps the child.
 
 Regenerate the bindings after a raylib upgrade:
 
@@ -147,7 +147,7 @@ whether it needs a terminal):
 
 ```
 $ fallback_apps : @Vec App =
-	[ app "Terminal" "xterm"      @false
-	, app "Files"    "xdg-open ." @false
-	, app "Browser"  "firefox"    @false ]
+	[ app "Terminal" "xterm"      false
+	, app "Files"    "xdg-open ." false
+	, app "Browser"  "firefox"    false ]
 ```

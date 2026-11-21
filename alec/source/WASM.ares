@@ -23,7 +23,7 @@ $ vt_byte : ValT -> @Int = \v =>
         | ValT.F32 => 125
         | ValT.F64 => 124
 
-$ vt_eq : ValT -> ValT -> @Bool = \a b => vt_byte a == vt_byte b
+$ vt_eq : ValT -> ValT -> Bool = \a b => vt_byte a == vt_byte b
 
 # A function signature: parameter and result types.
 $ Sig : @Type = @struct params : @Vec ValT, results : @Vec ValT,
@@ -107,7 +107,7 @@ $ memory_grow : @Str = byte 64 ++ byte 0
 
 $ Import : @Type = @struct module : @Str, name : @Str, type : @Int,
 $ Export : @Type = @struct name : @Str, kind : @Int, index : @Int,
-$ Global : @Type = @struct vt : ValT, mutable : @Bool, init : @Str,
+$ Global : @Type = @struct vt : ValT, mutable : Bool, init : @Str,
 $ Data : @Type = @struct offset : @Int, bytes : @Str,
 
 # One function body: its locals' types (beyond the parameters) and its code,
@@ -120,7 +120,7 @@ $ Module : @Type = @struct
     funcs : @Vec @Int,
     table : @Vec @Int,
     pages : @Int,
-    mem64 : @Bool,
+    mem64 : Bool,
     globals : @Vec Global,
     exports : @Vec Export,
     bodies : @Vec Body,
@@ -171,7 +171,7 @@ $ @private
 # `e` and `m` are the exponent and fraction fields, `top` the all-ones
 # exponent, `hidden` the implicit leading bit and `tiny` the scale of a
 # subnormal's fraction.
-$ float_of : @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Float64 = \e m top hidden tiny neg =>
+$ float_of : @Int -> @Int -> @Int -> @Int -> @Int -> Bool -> @Float64 = \e m top hidden tiny neg =>
     let zero = C.i2d 0 in
     let mag =
         if e == top =>
@@ -235,5 +235,5 @@ $ local_runs : @Vec ValT -> @Int -> @Vec @Str -> @Vec @Str = \ls i acc =>
 $ run_len : @Vec ValT -> @Int -> ValT -> @Int -> @Int = \ls i v n =>
     if i < @vec_len ls && vt_eq (@vec_get ls i) v => run_len ls (i + 1) v (n + 1) else n
 
-$ data_bytes : @Bool -> Data -> @Str = \m64 d =>
+$ data_bytes : Bool -> Data -> @Str = \m64 d =>
     byte 0 ++ (if m64 => i64_const d.offset else i32_const d.offset) ++ end ++ vec_bytes d.bytes

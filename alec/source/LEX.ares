@@ -35,23 +35,22 @@ $ Token : @Type = @struct
     kind : Kind,
     text : @Str,
     pos : Pos,
-    space : @Bool,
-    bol : @Bool,
+    space : Bool,
+    bol : Bool,
     hide : List @Str,
 
-$ is_ident : Token -> @Bool = \t => t.kind |> \ | Kind.Ident => @true | _ => @false
-$ is_punct : Token -> @Str -> @Bool = \t p =>
-    t.kind |> \ | Kind.Punct => @seq t.text p | _ => @false
-$ is_str : Token -> @Bool = \t => t.kind |> \ | Kind.Str => @true | _ => @false
-$ is_num : Token -> @Bool = \t => t.kind |> \ | Kind.Num => @true | _ => @false
+$ is_ident : Token -> Bool = \t => t.kind |> \ | Kind.Ident => true | _ => false
+$ is_punct : Token -> @Str -> Bool = \t p => t.kind |> \ | Kind.Punct => @seq t.text p | _ => false
+$ is_str : Token -> Bool = \t => t.kind |> \ | Kind.Str => true | _ => false
+$ is_num : Token -> Bool = \t => t.kind |> \ | Kind.Num => true | _ => false
 
 $ nowhere : Pos = Pos.{ .file = "<built-in>", .line = 0, .col = 0 }
 
 $ mk : Kind -> @Str -> Pos -> Token = \k s p =>
-    Token.{ .kind = k, .text = s, .pos = p, .space = @false, .bol = @false, .hide = List.Nil }
+    Token.{ .kind = k, .text = s, .pos = p, .space = false, .bol = false, .hide = List.Nil }
 
 # The whole file as a token stream.
-$ lex : @Str -> @Str -> List Token = \file src => let s = splice src in go file s 0 1 0 @true @false
+$ lex : @Str -> @Str -> List Token = \file src => let s = splice src in go file s 0 1 0 true false
 
 # Exactly one token spelled by `s`, or `None` when `s` lexes as zero or several
 # tokens. This is how `##` checks that a paste formed a valid token.
@@ -70,15 +69,15 @@ $ splice : @Str -> @Str = \src => if needs_splice src 0 => splice_go src 0 "" 0 
 
 $ @private
 
-$ needs_splice : @Str -> @Int -> @Bool = \s i =>
+$ needs_splice : @Str -> @Int -> Bool = \s i =>
     if i >= @array_len s =>
-        @false
+        false
     else
         @array_get s i |> \
-            | 13 => @true
+            | 13 => true
             | 92 => (
                 if i + 1 < @array_len s && @array_get s (i + 1) == 10 =>
-                    @true
+                    true
                 else
                     needs_splice s (i + 1)
             )
@@ -143,24 +142,24 @@ $ class_table : @Int -> @Str -> @Str = \c acc =>
 $ cls : @Int -> @Int = \c => @array_get classes c
 
 # `ls` is the offset where the current line starts, so a column is `i - ls + 1`.
-$ go : @Str -> @Str -> @Int -> @Int -> @Int -> @Bool -> @Bool
+$ go : @Str -> @Str -> @Int -> @Int -> @Int -> Bool -> Bool
     -> List Token = \file s i line ls bol space =>
     if i >= @array_len s =>
         List.Nil
     else
         let c = @array_get s i in
         cls c |> \
-            | 1 => go file s (i + 1) line ls bol @true
-            | 2 => go file s (i + 1) (line + 1) (i + 1) @true @false
+            | 1 => go file s (i + 1) line ls bol true
+            | 2 => go file s (i + 1) (line + 1) (i + 1) true false
             | 7 => (
                 peek s (i + 1) |> \
-                    | 47 => go file s (skip_line s i) line ls bol @true
+                    | 47 => go file s (skip_line s i) line ls bol true
                     | 42 => block_comment file s i (i + 2) line ls bol
                     | _  => token file s i c 7 line ls bol space
             )
             | k => token file s i c k line ls bol space
 
-$ token : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Bool
+$ token : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> Bool -> Bool
     -> List Token = \file s i c k line ls bol space =>
     let p = Pos.{ .file = file, .line = line, .col = i - ls + 1 } in
     let r = scan s i c k in
@@ -173,14 +172,14 @@ $ token : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Bool -> @Bool
             .bol = bol,
             .hide = List.Nil
         },
-        go file s r.end line ls @false @false
+        go file s r.end line ls false false
     }
 
 $ skip_line : @Str -> @Int -> @Int = \s i =>
     if i >= @array_len s || @array_get s i == 10 => i else skip_line s (i + 1)
 
 # A block comment is one space. It may span lines, which moves the line count on.
-$ block_comment : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Bool
+$ block_comment : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> Bool
     -> List Token = \file s start i line ls bol =>
     let c = peek s i in
     if c < 0 =>
@@ -190,14 +189,14 @@ $ block_comment : @Str -> @Str -> @Int -> @Int -> @Int -> @Int -> @Bool
                 .kind = Kind.Bad,
                 .text = "unterminated comment",
                 .pos = p,
-                .space = @true,
+                .space = true,
                 .bol = bol,
                 .hide = List.Nil
             },
             List.Nil
         }
     else if c == 42 && peek s (i + 1) == 47 =>
-        go file s (i + 2) line ls bol @true
+        go file s (i + 2) line ls bol true
     else if c == 10 =>
         block_comment file s start (i + 1) (line + 1) (i + 1) bol
     else

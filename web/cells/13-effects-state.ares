@@ -15,7 +15,7 @@ $ State : @Type = @effect
 $ runState : ({} -> <State> @Int) -> @Int -> @Int = \action s0 =>
     let h =
         do action {}
-        ctl k
+        is k
         | get u => \s => k s s
         | put n => \s => k {} n
         | x     => \s => x

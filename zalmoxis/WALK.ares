@@ -37,9 +37,9 @@ $ @import LANGS
 $ Rule : @Type = @struct
     base: @Str,
     glob: @Str,
-    negate: @Bool,
-    dir_only: @Bool,
-    anchored: @Bool,
+    negate: Bool,
+    dir_only: Bool,
+    anchored: Bool,
     shape: @Int,
     lit: @Str,
     pre: @Str,
@@ -61,7 +61,7 @@ $ Walker : (s: @Type) -> @Type = @struct
 
 # Fold `w` over every countable file under each root. `excludes` are extra
 # rules, given as gitignore patterns, that apply under every root.
-$ fold : @ctx {s: @Type} -> { roots: @Vec @Str, excludes: @Vec @Str, w: Walker s } -> <@IO> s =
+$ fold : @ctx { s: @Type } -> { roots: @Vec @Str, excludes: @Vec @Str, w: Walker s } -> <@IO> s =
     walk_roots w (w.init {}) roots excludes 0
 
 # The rules of an ignore file's text, for the directory `base` (with its
@@ -75,24 +75,24 @@ $ Verdict : @Type = @union
     Ignored: {},
     Whitelisted: {},
 
-$ verdict : @Vec Rule -> @Str -> @Str -> @Bool -> Verdict = \rules path name is_dir =>
+$ verdict : @Vec Rule -> @Str -> @Str -> Bool -> Verdict = \rules path name is_dir =>
     verdict_from rules path name is_dir (@vec_len rules - 1)
 
 # Whether the entry is skipped: ignored, or hidden and not whitelisted.
-$ skipped : @Vec Rule -> @Str -> @Str -> @Bool -> @Bool = \rules path name is_dir =>
+$ skipped : @Vec Rule -> @Str -> @Str -> Bool -> Bool = \rules path name is_dir =>
     verdict rules path name is_dir |> \
-        | Verdict.Whitelisted => @false
-        | Verdict.Ignored     => @true
+        | Verdict.Whitelisted => false
+        | Verdict.Ignored     => true
         | Verdict.Unmatched   => at 0 name == 46
 
 # A gitignore glob against a whole string: `*` and `?` stay within one `/`
 # segment, `**` crosses them (`**/` also matches no directory at all), and
 # `[...]` is a byte class with ranges, negated by a leading `!` or `^`.
-$ glob : @Str -> @Str -> @Bool = \p s => glob_at p 0 s 0
+$ glob : @Str -> @Str -> Bool = \p s => glob_at p 0 s 0
 
 $ @private
 
-$ walk_roots : @ctx {s: @Type} -> Walker s -> s -> @Vec @Str -> @Vec @Str -> @Int
+$ walk_roots : @ctx { s: @Type } -> Walker s -> s -> @Vec @Str -> @Vec @Str -> @Int
     -> <@IO> s = \w st roots excludes i =>
     if i >= @vec_len roots =>
         st
@@ -100,11 +100,12 @@ $ walk_roots : @ctx {s: @Type} -> Walker s -> s -> @Vec @Str -> @Vec @Str -> @In
         walk_roots w (walk_root w st (trim_slash <| @vec_get roots i) excludes) roots excludes
             (i + 1)
 
-$ walk_root : @ctx {s: @Type} -> Walker s -> s -> @Str -> @Vec @Str -> <@IO> s = \w st root excludes =>
+$ walk_root : @ctx { s: @Type } -> Walker s -> s -> @Str -> @Vec @Str
+    -> <@IO> s = \w st root excludes =>
     let entries = list_dir root in
     if @vec_len entries > 0 =>
-        walk w st root (fmap (rule_or_skip (root ++ "/")) excludes |> filter_map (\r => r))
-            entries 0
+        walk w st root (fmap (rule_or_skip (root ++ "/")) excludes |> filter_map (\r => r)) entries
+            0
     else
         let lang = LANGS.detect LANGS.table (base_name root) in
         if lang >= 0 => w.visit st [Found.{ .path = root, lang }] 0 1 else st
@@ -117,7 +118,7 @@ $ spawn_depth : @Int = 5
 
 # One directory: its entries scanned in one loop that calls nothing unknown,
 # then the subdirectories kept in this task walked, then its files visited.
-$ walk : @ctx {s: @Type} -> Walker s -> s -> @Str -> @Vec Rule -> @Vec Entry -> @Int
+$ walk : @ctx { s: @Type } -> Walker s -> s -> @Str -> @Vec Rule -> @Vec Entry -> @Int
     -> <@IO> s = \w st dir inherited entries depth =>
     let rules =
         inherited |> with_file dir entries ".gitignore" |> with_file dir entries ".ignore"
@@ -133,7 +134,7 @@ $ Scan : (s: @Type) -> @Type = @struct
     deep: @Vec @Str,
     pending: @Vec (Future s),
 
-$ walk_deep : @ctx {s: @Type} -> Walker s -> s -> @Vec Rule -> @Vec @Str -> @Int -> @Int
+$ walk_deep : @ctx { s: @Type } -> Walker s -> s -> @Vec Rule -> @Vec @Str -> @Int -> @Int
     -> <@IO> s = \w st rules dirs depth i =>
     if i >= @vec_len dirs =>
         st
@@ -167,8 +168,8 @@ $ with_file : @Str -> @Vec Entry -> @Str -> @Vec Rule
         rules
 
 # The entries of `dir` from `i` on.
-$ scan_entries : @ctx {s: @Type} -> Walker s -> @Str -> @Vec Rule -> @Vec Entry -> @Int -> @Int -> @Vec Found
-    -> @Vec @Str -> @Vec (Future s)
+$ scan_entries : @ctx { s: @Type } -> Walker s -> @Str -> @Vec Rule -> @Vec Entry -> @Int -> @Int
+    -> @Vec Found -> @Vec @Str -> @Vec (Future s)
     -> <@IO> Scan s = \w dir rules entries depth i files deep pending =>
     if i >= @vec_len entries =>
         Scan.{ files, deep, pending }
@@ -177,7 +178,7 @@ $ scan_entries : @ctx {s: @Type} -> Walker s -> @Str -> @Vec Rule -> @Vec Entry 
         let path = dir ++ "/" ++ e.name in
         e.kind |> \
             | EntryKind.Dir =>
-                if skipped rules path e.name @true =>
+                if skipped rules path e.name true =>
                     scan_entries w dir rules entries depth (i + 1) files deep pending
                 else if depth < spawn_depth =>
                     let task = spawn (\_ =>
@@ -188,7 +189,7 @@ $ scan_entries : @ctx {s: @Type} -> Walker s -> @Str -> @Vec Rule -> @Vec Entry 
                     scan_entries w dir rules entries depth (i + 1) files (@vec_push deep path)
                         pending
             | EntryKind.File =>
-                let lang = if skipped rules path e.name @false => 0 - 1 else language path e.name in
+                let lang = if skipped rules path e.name false => 0 - 1 else language path e.name in
                 if lang < 0 =>
                     scan_entries w dir rules entries depth (i + 1) files deep pending
                 else
@@ -200,13 +201,14 @@ $ scan_entries : @ctx {s: @Type} -> Walker s -> @Str -> @Vec Rule -> @Vec Entry 
 # size, each a task with a fresh state, so a big flat directory is shared out.
 $ chunk : @Int = 16
 
-$ finish : @ctx {s: @Type} -> Walker s -> s -> @Vec Found -> @Vec (Future s) -> <@IO> s = \w st files pending =>
+$ finish : @ctx { s: @Type } -> Walker s -> s -> @Vec Found -> @Vec (Future s)
+    -> <@IO> s = \w st files pending =>
     let n = @vec_len files in
     let mine = if n <= chunk => w.visit st files 0 n else st in
     let tasks = if n <= chunk => pending else spawn_chunks w files 0 pending in
     foldl (\acc f => w.merge acc (ARES.wait f)) mine tasks
 
-$ spawn_chunks : @ctx {s: @Type} -> Walker s -> @Vec Found -> @Int -> @Vec (Future s)
+$ spawn_chunks : @ctx { s: @Type } -> Walker s -> @Vec Found -> @Int -> @Vec (Future s)
     -> <@IO> @Vec (Future s) = \w files lo acc =>
     if lo >= @vec_len files =>
         acc
@@ -221,31 +223,29 @@ $ language : @Str -> @Str -> <@IO> @Int = \path name =>
     if lang >= 0 || ARES.contains "." name =>
         lang
     else
-        read_file path |>
-            \ | Opt.Some.{ body } => LANGS.detect_shebang LANGS.table body | _ => lang
+        read_file path |> \ | Opt.Some.{ body } => LANGS.detect_shebang LANGS.table body | _ => lang
 
-$ verdict_from : @Vec Rule -> @Str -> @Str -> @Bool -> @Int
-    -> Verdict = \rules path name is_dir i =>
+$ verdict_from : @Vec Rule -> @Str -> @Str -> Bool -> @Int -> Verdict = \rules path name is_dir i =>
     if i < 0 =>
         Verdict.Unmatched
     else
         let r = @vec_get rules i in
-        if !(applies r path name is_dir) =>
+        if not (applies r path name is_dir) =>
             verdict_from rules path name is_dir (i - 1)
         else if r.negate =>
             Verdict.Whitelisted
         else
             Verdict.Ignored
 
-$ applies : Rule -> @Str -> @Str -> @Bool -> @Bool = \r path name is_dir =>
-    if r.dir_only && !is_dir =>
-        @false
+$ applies : Rule -> @Str -> @Str -> Bool -> Bool = \r path name is_dir =>
+    if r.dir_only && not is_dir =>
+        false
     else if r.anchored =>
         starts_with r.base path && shaped r (substr (@array_len r.base) (@array_len path) path)
     else
         shaped r name
 
-$ shaped : Rule -> @Str -> @Bool = \r target =>
+$ shaped : Rule -> @Str -> Bool = \r target =>
     r.shape |> \
         | 0 => target == r.lit
         | 1 => ends_with r.lit target
@@ -275,7 +275,17 @@ $ rule : @Str -> @Str -> Opt Rule = \base line =>
             let pre = substr 0 first pat in
             let post = if last < 0 => "" else substr (last + 1) n pat in
             Opt.Some.{
-                Rule.{ base, .glob = pat, negate, dir_only, anchored, .shape = k.0, .lit = k.1, pre, post }
+                Rule.{
+                    base,
+                    .glob = pat,
+                    negate,
+                    dir_only,
+                    anchored,
+                    .shape = k.0,
+                    .lit = k.1,
+                    pre,
+                    post
+                }
             }
 
 $ last_meta : @Str -> @Int -> @Int = \g i =>
@@ -283,21 +293,21 @@ $ last_meta : @Str -> @Int -> @Int = \g i =>
 
 # How `rule` can test a glob (see `Rule`). A `*` must not cross a `/`, so the
 # suffix and prefix shapes are only for a rule matched against a bare name.
-$ shape : @Str -> @Bool -> { @Int, @Str } = \g anchored =>
+$ shape : @Str -> Bool -> { @Int, @Str } = \g anchored =>
     let n = @array_len g in
-    if !(has_meta g 0 n) =>
+    if not (has_meta g 0 n) =>
         { 0, g }
     else if anchored =>
         { 3, "" }
-    else if n > 1 && at 0 g == 42 && !(has_meta g 1 n) =>
+    else if n > 1 && at 0 g == 42 && not (has_meta g 1 n) =>
         { 1, substr 1 n g }
-    else if n > 1 && at (n - 1) g == 42 && !(has_meta g 0 (n - 1)) =>
+    else if n > 1 && at (n - 1) g == 42 && not (has_meta g 0 (n - 1)) =>
         { 2, substr 0 (n - 1) g }
     else
         { 3, "" }
 
 # Whether `g[i, n)` holds a byte the glob matcher treats specially.
-$ has_meta : @Str -> @Int -> @Int -> @Bool = \g i n => @array_scan g i metas < n
+$ has_meta : @Str -> @Int -> @Int -> Bool = \g i n => @array_scan g i metas < n
 
 $ metas : @Str = byte_set "*?[\\"
 
@@ -319,7 +329,7 @@ $ base_from : @Str -> @Int -> @Str = \p i =>
 
 # ---- glob ----
 
-$ glob_at : @Str -> @Int -> @Str -> @Int -> @Bool = \p pi s si =>
+$ glob_at : @Str -> @Int -> @Str -> @Int -> Bool = \p pi s si =>
     if pi >= @array_len p =>
         si >= @array_len s
     else
@@ -338,48 +348,48 @@ $ glob_at : @Str -> @Int -> @Str -> @Int -> @Bool = \p pi s si =>
             | c  => si < @array_len s && at si s == c && glob_at p (pi + 1) s (si + 1)
 
 # `*`: the rest of the pattern at `si`, or after one more byte of this segment.
-$ star : @Str -> @Int -> @Str -> @Int -> @Bool = \p pi s si =>
+$ star : @Str -> @Int -> @Str -> @Int -> Bool = \p pi s si =>
     if glob_at p pi s si =>
-        @true
+        true
     else if si < @array_len s && at si s != 47 =>
         star p pi s (si + 1)
     else
-        @false
+        false
 
 # `**`: like `*` across segments; `**/` may also stand for no directory.
-$ double_star : @Str -> @Int -> @Str -> @Int -> @Bool = \p pi s si =>
+$ double_star : @Str -> @Int -> @Str -> @Int -> Bool = \p pi s si =>
     if pi < @array_len p && at pi p == 47 => any_dirs p (pi + 1) s si else any_bytes p pi s si
 
-$ any_dirs : @Str -> @Int -> @Str -> @Int -> @Bool = \p pi s si =>
+$ any_dirs : @Str -> @Int -> @Str -> @Int -> Bool = \p pi s si =>
     if glob_at p pi s si =>
-        @true
+        true
     else
-        index_of_from "/" si s |> \ | Opt.Some.{ j } => any_dirs p pi s (j + 1) | _ => @false
+        index_of_from "/" si s |> \ | Opt.Some.{ j } => any_dirs p pi s (j + 1) | _ => false
 
-$ any_bytes : @Str -> @Int -> @Str -> @Int -> @Bool = \p pi s si =>
-    if glob_at p pi s si => @true else if si < @array_len s => any_bytes p pi s (si + 1) else @false
+$ any_bytes : @Str -> @Int -> @Str -> @Int -> Bool = \p pi s si =>
+    if glob_at p pi s si => true else if si < @array_len s => any_bytes p pi s (si + 1) else false
 
 # `[...]` at pattern byte `pi` (just past the `[`) against byte `si`.
-$ class_at : @Str -> @Int -> @Str -> @Int -> @Bool = \p pi s si =>
+$ class_at : @Str -> @Int -> @Str -> @Int -> Bool = \p pi s si =>
     let neg = pi < @array_len p && (at pi p == 33 || at pi p == 94) in
     let start = if neg => pi + 1 else pi in
     let close = class_end p (start + 1) in
     if close >= @array_len p =>
-        @false
+        false
     else
         let hit = in_class p start close (at si s) in
-        if hit != neg => glob_at p (close + 1) s (si + 1) else @false
+        if hit != neg => glob_at p (close + 1) s (si + 1) else false
 
 # The `]` closing a class whose members start at `i` (a `]` first is a member).
 $ class_end : @Str -> @Int -> @Int = \p i =>
     if i >= @array_len p || at i p == 93 => i else class_end p (i + 1)
 
-$ in_class : @Str -> @Int -> @Int -> @Int -> @Bool = \p i close c =>
+$ in_class : @Str -> @Int -> @Int -> @Int -> Bool = \p i close c =>
     if i >= close =>
-        @false
+        false
     else if i + 2 < close && at (i + 1) p == 45 =>
         (c >= at i p && c <= at (i + 2) p) || in_class p (i + 3) close c
     else if at i p == c =>
-        @true
+        true
     else
         in_class p (i + 1) close c

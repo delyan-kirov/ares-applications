@@ -62,7 +62,7 @@ $ Stmt : @Type = @union
 
 # A local variable. `mem` says it must live in the frame (its address is taken,
 # or it is an array, struct or union); everything else becomes a wasm local.
-$ LVar : @Type = @struct id : @Int, name : @Str, ty : Ty, mem : @Bool, align : @Int,
+$ LVar : @Type = @struct id : @Int, name : @Str, ty : Ty, mem : Bool, align : @Int,
 
 $ Func : @Type = @struct
     name : @Str,
@@ -70,7 +70,7 @@ $ Func : @Type = @struct
     params : List @Int,
     locals : List LVar,
     body : Stmt,
-    static : @Bool,
+    static : Bool,
     va : @Int,
     pos : Pos,
 
@@ -83,10 +83,10 @@ $ GVar : @Type = @struct
     ty : Ty,
     data : @Str,
     relocs : @Vec Reloc,
-    defined : @Bool,
-    init : @Bool,
-    static : @Bool,
-    tls : @Bool,
+    defined : Bool,
+    init : Bool,
+    static : Bool,
+    tls : Bool,
     align : @Int,
     pos : Pos,
 

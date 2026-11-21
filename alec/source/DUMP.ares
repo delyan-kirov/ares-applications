@@ -41,10 +41,9 @@ $ token : Token -> @Str = \t =>
         ++ t.text
 
 # The globals and functions `keep` accepts, by name and position.
-$ unit_where : TU -> (@Str -> Pos -> @Bool) -> @Str = \tu keep =>
+$ unit_where : TU -> (@Str -> Pos -> Bool) -> @Str = \tu keep =>
     foldl (\acc g => if keep g.name g.pos => acc ++ global tu.layout g else acc) "" tu.globals
-        ++ foldl (\acc f => if keep f.name f.pos => acc ++ func tu.layout f else acc) ""
-            tu.funcs
+        ++ foldl (\acc f => if keep f.name f.pos => acc ++ func tu.layout f else acc) "" tu.funcs
 
 $ @private
 

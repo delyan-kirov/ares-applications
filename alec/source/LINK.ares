@@ -42,26 +42,25 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =>
     let funcs = collect_funcs tus 0 0 (new {}) in
     let globals = collect_globals tus 0 0 (new {}) in
     let protos =
-        foldl (\m tu =>
-            fold (\acc k v => if has k acc => acc else ARES.insert k v acc) m tu.protos)
+        foldl (\m tu => fold (\acc k v => if has k acc => acc else ARES.insert k v acc) m tu.protos)
             (new {}) tus
     in
     (
-        if !(has entry funcs) =>
+        if not (has entry funcs) =>
             error_at nowhere ("undefined reference to '" ++ entry ++ "' (the entry point)")
         else
             {}
     );
     let frefs =
-        foldl (\m tu => foldl (\m2 f => ARES.insert f.name (func_refs tu f) m2) m tu.funcs)
-            (new {}) tus
+        foldl (\m tu => foldl (\m2 f => ARES.insert f.name (func_refs tu f) m2) m tu.funcs) (new {})
+            tus
     in
     let live = reach frefs globals (ARES.singleton entry) (new {}) in
     let defined = filter (\f => has f.name live) (ARES.values funcs) in
     let ordered = ARES.sort_by (\a b => ARES.cmp_str a.name b.name) defined in
     let imports = filter (\n =>
-        !(has n funcs)
-            && !(has n globals)
+        not (has n funcs)
+            && not (has n globals)
             && is_none (GEN.intrinsic n)
             && n != main_shim
             && n != "__heap_base"
@@ -80,8 +79,8 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =>
     let table_names = append (fmap (\f => f.name) ordered) imports in
     let tidx = foldl (\m n => ARES.insert n (len m + 1) m) (new {}) table_names in
     let ftys0 =
-        fold (\m k t => fn_of t |> \ | Opt.Some.{ ft } => ARES.insert k ft m | _ => m)
-            (new {}) protos
+        fold (\m k t => fn_of t |> \ | Opt.Some.{ ft } => ARES.insert k ft m | _ => m) (new {})
+            protos
     in
     let ftys = foldl (\m f => ARES.insert f.name f.ty m) ftys0 ordered in
     let ctx = Ctx.{
@@ -95,7 +94,8 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =>
     } in
     let imp =
         foldl (\acc n =>
-            let ft = unwrap_or (FnTy.{ .ret = t_int, .params = List.Nil, .variadic = @false, .proto = @false })
+            let ft = unwrap_or
+                (FnTy.{ .ret = t_int, .params = List.Nil, .variadic = false, .proto = false })
                 (get n ftys) in
             let r = type_index acc.1 (sig_of tg ft) in
             { @vec_push acc.0 Import.{ .module = "env", .name = n, .type = r.0 }, r.1 }) {
@@ -116,7 +116,7 @@ $ link : Target -> @Str -> @Vec TU -> <Diag> @Str = \tg entry tus =>
         .globals = [
             Global.{
                 .vt = ptr_vt tg,
-                .mutable = @true,
+                .mutable = true,
                 .init = (if tg.wasm64 => i64_const stack_top else i32_const stack_top)
             }
         ],
@@ -141,12 +141,10 @@ $ undefined : @Vec TU -> Set @Str = \tus =>
     let used =
         foldl (\acc tu =>
             foldl (\a g => foldl (\b r => ARES.add r.sym b) a g.relocs)
-                (
-                    foldl (\a f => foldl (\b n => ARES.add n b) a (func_refs tu f)) acc
-                        tu.funcs
-                ) tu.globals) (new {}) tus
+                (foldl (\a f => foldl (\b n => ARES.add n b) a (func_refs tu f)) acc tu.funcs)
+                tu.globals) (new {}) tus
     in
-    filter (\n => !(has n defined)) used
+    filter (\n => not (has n defined)) used
 
 # The names `f`'s body refers to.
 $ func_refs : TU -> Func -> List @Str = \tu f =>
@@ -157,10 +155,9 @@ $ exports : TU -> @Vec @Str = \tu =>
     append
         (
             filter_map (\g =>
-                if g.static || !(g.defined || g.init) => Opt.None else Opt.Some.{ g.name })
+                if g.static || not (g.defined || g.init) => Opt.None else Opt.Some.{ g.name })
                 tu.globals
-        )
-        (filter_map (\f => if f.static => Opt.None else Opt.Some.{ f.name }) tu.funcs)
+        ) (filter_map (\f => if f.static => Opt.None else Opt.Some.{ f.name }) tu.funcs)
 
 $ @private
 
@@ -208,7 +205,7 @@ $ collect_globals : @Vec TU -> @Int -> @Int -> Map @Str GVar
                             g
                         else if old.init =>
                             old
-                        else if g.defined && !old.defined =>
+                        else if g.defined && not old.defined =>
                             g
                         else if array_len old.ty < 0 && array_len g.ty >= 0 =>
                             GVar.{ .ty = g.ty | old }
@@ -236,11 +233,11 @@ $ reach : Map @Str (List @Str) -> Map @Str GVar -> List @Str -> Set @Str
                 let more = (
                     get n frefs |> \
                         | Opt.Some.{ r } => r
-                        | _                 => (
+                        | _              => (
                             get n globals |> \
                                 | Opt.Some.{ g } =>
                                     foldl (\acc r => List.Cons.{ r.sym, acc }) List.Nil g.relocs
-                                | _                 =>
+                                | _              =>
                                     if n == main_shim => ARES.singleton "main" else List.Nil
                         )
                 ) in
@@ -303,7 +300,7 @@ $ place : Layout -> @Vec GVar -> @Int -> @Int -> Map @Str @Int -> @Vec GVar
         place lay gs (i + 1) (start + (if sz < 1 => 1 else sz)) (ARES.insert g.name start addrs) acc
 
 $ data_of : Ctx -> GVar -> Opt Data = \c g =>
-    if !g.init =>
+    if not g.init =>
         Opt.None
     else
         let base = unwrap_or 0 (get g.name c.addrs) in
@@ -325,8 +322,8 @@ $ data_of : Ctx -> GVar -> Opt Data = \c g =>
 $ patch : @Str -> @Int -> @Int -> @Int -> @Str = \b off n v =>
     if n <= 0 => b else patch (@array_set b off (band v 255)) (off + 1) (n - 1) (shr_u v 8)
 
-$ all_zero : @Str -> @Int -> @Bool = \b i =>
-    if i >= @array_len b => @true else if @array_get b i != 0 => @false else all_zero b (i + 1)
+$ all_zero : @Str -> @Int -> Bool = \b i =>
+    if i >= @array_len b => true else if @array_get b i != 0 => false else all_zero b (i + 1)
 
 # -- functions --------------------------------------------------------------------------
 
@@ -344,7 +341,7 @@ $ gen_all : Ctx -> @Vec Func -> @Int -> @Vec Body -> @Vec @Int -> TypeTab
 # `argc`, or `argc` and `argv`.
 $ add_shim : Ctx -> Map @Str FnTy -> { @Vec Body, @Vec @Int, TypeTab }
     -> <Diag> { @Vec Body, @Vec @Int, TypeTab } = \c ftys g =>
-    let mt = unwrap_or (FnTy.{ .ret = t_int, .params = List.Nil, .variadic = @false, .proto = @true })
+    let mt = unwrap_or (FnTy.{ .ret = t_int, .params = List.Nil, .variadic = false, .proto = true })
         (get "main" ftys) in
     let np = len mt.params in
     let argc_ty = unwrap_or t_int (ARES.head mt.params) in

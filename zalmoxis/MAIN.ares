@@ -32,16 +32,16 @@ $ usage : @Str =
 $ Args : @Type = @struct
     roots: @Vec @Str,
     excludes: @Vec @Str,
-    files: @Bool,
-    help: @Bool,
+    files: Bool,
+    help: Bool,
     bad: @Str,
 
 $ @main : @Vec @Str -> <@IO> @Int = \argv =>
     let a = parse_args argv 1
-        Args.{ .roots = [], .excludes = [], .files = @false, .help = @false, .bad = "" } in
+        Args.{ .roots = [], .excludes = [], .files = false, .help = false, .bad = "" } in
     if a.help =>
         print usage; 0
-    else if !(is_empty a.bad) =>
+    else if not (is_empty a.bad) =>
         eprintln ("zalmoxis: " ++ a.bad); eprint usage; 2
     else
         let roots = if @vec_len a.roots == 0 => ["."] else a.roots in
@@ -53,8 +53,8 @@ $ parse_args : @Vec @Str -> @Int -> Args -> Args = \argv i a =>
         a
     else
         @vec_get argv i |> \
-            | "-h" | "--help"  => parse_args argv (i + 1) Args.{ .help = @true | a }
-            | "-f" | "--files" => parse_args argv (i + 1) Args.{ .files = @true | a }
+            | "-h" | "--help"  => parse_args argv (i + 1) Args.{ .help = true | a }
+            | "-f" | "--files" => parse_args argv (i + 1) Args.{ .files = true | a }
             | "-e" | "--exclude" =>
                 if i + 1 >= @vec_len argv =>
                     Args.{ .bad = "missing pattern after -e" | a }
@@ -92,7 +92,7 @@ $ PerFile : @Type = @struct
 # their own.
 $ Counter : @Type = @struct
     tally: Tally,
-    keep: @Bool,
+    keep: Bool,
     big: @Vec (Future Tally),
 
 # The scanner syntax of every language, built once. A global is immortal
@@ -104,7 +104,7 @@ $ syntaxes : @Vec Syntax = fmap syntax_of LANGS.table.langs
 $ big_file : @Int = 131072
 
 # Every file is read and counted by the walker task that finds it.
-$ count_all : { roots: @Vec @Str, excludes: @Vec @Str, keep: @Bool } -> <@IO> Tally =
+$ count_all : { roots: @Vec @Str, excludes: @Vec @Str, keep: Bool } -> <@IO> Tally =
     let w = Walker.{
         .init = \_ => Counter.{ .tally = empty {}, keep, .big = [] },
         .visit = visit,
@@ -139,7 +139,7 @@ $ syntax_of : Lang -> Syntax = \l =>
 
 # The tally's fields are read out first, so the tally is gone and its vectors
 # are uniquely held when they are updated, in place.
-$ count_body : Tally -> @Bool -> Found -> Syntax -> @Str -> Tally = \t keep f syn body =>
+$ count_body : Tally -> Bool -> Found -> Syntax -> @Str -> Tally = \t keep f syn body =>
     let c = COUNT.count syn body in
     let stats = t.stats in
     let per = t.per in
@@ -202,7 +202,7 @@ $ rule_line : @Str = " " ++ repeat "─" 77 ++ "\n"
 
 $ heavy_line : @Str = " " ++ repeat "━" 77 ++ "\n"
 
-$ render : Tally -> @Bool -> @Str = \t files =>
+$ render : Tally -> Bool -> @Str = \t files =>
     let rs = rows t.stats in
     let sum =
         foldl (\s r => add_rows s r.0)

@@ -12,7 +12,7 @@ $ Exn : @Type = @effect throw : @ctx { a: @Type } -> @Str -> a,
 
 $ safeDiv : @Int -> @Int -> @Int = \a b =>
     do if b == 0 => Exn.throw "divide by zero" else a / b
-    ctl k | Exn.throw msg => 0 - 1
+    is k | Exn.throw msg => 0 - 1
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     print "84 / 2 = ?(safeDiv 84 2)"; print "10 / 0 = ?(safeDiv 10 0)"; 0

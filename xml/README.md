@@ -54,7 +54,7 @@ Four effects, and nothing else, carry the parser:
 
 ```ares
 $ Scan   : @Type = @effect view : {} -> View, bump : @Int -> {},
-$ Choice : @Type = @effect fork : {} -> @Bool,
+$ Choice : @Type = @effect fork : {} -> Bool,
 $ Soft   : @Type = @effect reject : @ctx {a: @Type} -> Err -> a,
 $ Hard   : @Type = @effect fatal : @ctx {a: @Type} -> Err -> a,
 ```

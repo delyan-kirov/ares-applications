@@ -10,10 +10,10 @@ $ Target : @Type = @struct
     name : @Str,
     ptr : @Int,
     long : @Int,
-    wasm64 : @Bool,
+    wasm64 : Bool,
 
-$ wasm32 : Target = Target.{ .name = "wasm32", .ptr = 4, .long = 4, .wasm64 = @false }
-$ wasm64 : Target = Target.{ .name = "wasm64", .ptr = 8, .long = 8, .wasm64 = @true }
+$ wasm32 : Target = Target.{ .name = "wasm32", .ptr = 4, .long = 4, .wasm64 = false }
+$ wasm64 : Target = Target.{ .name = "wasm64", .ptr = 8, .long = 8, .wasm64 = true }
 
 # The predefined macros, as source the preprocessor reads before the first file.
 $ predefined : Target -> @Str = \t =>

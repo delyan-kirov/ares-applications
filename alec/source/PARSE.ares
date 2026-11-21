@@ -49,7 +49,7 @@ $ Binding : @Type = @union
     EnumC : { @Int, Ty },
 
 $ TagB : @Type = @union
-    TAgg : { @Int, @Bool },
+    TAgg : { @Int, Bool },
     TEnum : { Ty },
 
 $ Scope : @Type = @effect
@@ -57,12 +57,12 @@ $ Scope : @Type = @effect
     leave : {} -> {},
     lookup : @Str -> Opt Binding,
     bind : { @Str, Binding } -> {},
-    tag : { @Str, @Bool } -> Opt TagB,
+    tag : { @Str, Bool } -> Opt TagB,
     bind_tag : { @Str, TagB } -> {},
 
 $ Tab : @Type = @effect
     layout : {} -> Layout,
-    new_agg : { @Str, @Bool } -> @Int,
+    new_agg : { @Str, Bool } -> @Int,
     set_agg : { @Int, Agg } -> {},
     fresh : {} -> @Int,
 
@@ -119,7 +119,7 @@ $ parse_tu : { target: Target, tu: @Int, src: Pull } -> <Files, Diag> TU =
  -#
 $ start : ({} -> <Files, Out, Diag> {}) -> <Files, Diag> Pull = \body =>
     do body {}; Pull.Done
-    ctl k | Out.emit t => Pull.More.{ t, \_ => k {} }
+    is k | Out.emit t => Pull.More.{ t, \_ => k {} }
 
 #-
  - Benchmark hooks: drain a token stream through the `Tok` handler with no
@@ -137,10 +137,10 @@ $ dummy_gvar : GVar = GVar.{
     .ty = t_int,
     .data = "",
     .relocs = @vec_new {},
-    .defined = @false,
-    .init = @false,
-    .static = @false,
-    .tls = @false,
+    .defined = false,
+    .init = false,
+    .static = false,
+    .tls = false,
     .align = 1,
     .pos = nowhere
 }
@@ -158,11 +158,11 @@ $ TokSt : @Type = @struct cur : Token, more : List Token, src : Pull,
  - The consumer end of the pipe: the next token and a short lookahead, topped
  - up by resuming the preprocessor.
  -#
-$ with_tok : @ctx {a: @Type} -> { src: Pull, body: {} -> <Tok, Scope, Tab, Unit, Diag> a }
+$ with_tok : @ctx { a: @Type } -> { src: Pull, body: {} -> <Tok, Scope, Tab, Unit, Diag> a }
     -> <Scope, Tab, Unit, Files, Diag> a =
     let go =
         do body {}
-        ctl k
+        is k
         | Tok.peek n =>
             \s =>
                 n |> \
@@ -203,10 +203,11 @@ $ Frame : @Type = @struct vars : Map @Str Binding, tags : Map @Str TagB,
 
 $ new_frame : Frame = Frame.{ .vars = (new {}), .tags = (new {}) }
 
-$ with_scope : @ctx {a: @Type} -> ({} -> <Scope, Tab, Unit, Files, Diag> a) -> <Tab, Unit, Files, Diag> a = \body =>
+$ with_scope : @ctx { a: @Type } -> ({} -> <Scope, Tab, Unit, Files, Diag> a)
+    -> <Tab, Unit, Files, Diag> a = \body =>
     let go =
         do body {}
-        ctl k
+        is k
         | Scope.enter _  => \fs => (k {}) List.Cons.{ new_frame, fs }
         | Scope.leave _  => \fs => (k {}) (ARES.tail fs)
         | Scope.lookup n => \fs => (k (lookup_in { fs, n })) fs
@@ -224,17 +225,16 @@ $ on_head : { fs: List Frame, f: Frame -> Frame } -> List Frame =
 
 $ lookup_in : { fs: List Frame, n: @Str } -> Opt Binding =
     fs |> \
-        | List.Cons.{ h, t } => (
-            get n h.vars |> \ | Opt.Some.{ b } => Opt.Some.{ b } | _ => lookup_in { t, n }
-        )
+        | List.Cons.{ h, t } =>
+            (get n h.vars |> \ | Opt.Some.{ b } => Opt.Some.{ b } | _ => lookup_in { t, n })
         | _                  => Opt.None
 
-$ tag_in : { fs: List Frame, n: @Str, cur: @Bool } -> Opt TagB =
+$ tag_in : { fs: List Frame, n: @Str, cur: Bool } -> Opt TagB =
     fs |> \
         | List.Cons.{ h, t } => (
             get n h.tags |> \
                 | Opt.Some.{ b } => Opt.Some.{ b }
-                | _                 => if cur => Opt.None else tag_in { t, n, cur }
+                | _              => if cur => Opt.None else tag_in { t, n, cur }
         )
         | _                  => Opt.None
 
@@ -244,11 +244,12 @@ $ TabSt : @Type = @struct lay : Layout, next : @Int,
  - Ids start at `base`, distinct per translation unit, so the units' aggregate
  - tables can be merged by the linker without renumbering.
  -#
-$ with_tab : @ctx {a: @Type} -> { target: Target, base: @Int, body: {} -> <Tab, Unit, Files, Diag> a }
+$ with_tab : @ctx { a: @Type }
+    -> { target: Target, base: @Int, body: {} -> <Tab, Unit, Files, Diag> a }
     -> <Unit, Files, Diag> { a, Layout } =
     let go =
         do let r = body {} in \s => { r, s.lay }
-        ctl k
+        is k
         | Tab.layout _ => \s => (k s.lay) s
         | Tab.new_agg q =>
             \s =>
@@ -258,8 +259,8 @@ $ with_tab : @ctx {a: @Type} -> { target: Target, base: @Int, body: {} -> <Tab, 
                     .members = @vec_new {},
                     .size = 0,
                     .align = 1,
-                    .complete = @false,
-                    .flexible = @false
+                    .complete = false,
+                    .flexible = false
                 } in
                 (k s.next)
                     TabSt.{
@@ -268,7 +269,8 @@ $ with_tab : @ctx {a: @Type} -> { target: Target, base: @Int, body: {} -> <Tab, 
                     }
         | Tab.set_agg q =>
             \s =>
-                (k {}) TabSt.{ .lay = Layout.{ .aggs = ARES.insert q.0 q.1 s.lay.aggs | s.lay } | s }
+                (k {})
+                    TabSt.{ .lay = Layout.{ .aggs = ARES.insert q.0 q.1 s.lay.aggs | s.lay } | s }
         | Tab.fresh _  => \s => (k s.next) TabSt.{ .next = s.next + 1 | s }
     in
     go TabSt.{ .lay = Layout.{ .target = target, .aggs = (new {}) }, .next = base + 1 }
@@ -280,10 +282,11 @@ $ UnitSt : @Type = @struct
     protos : Map @Str Ty,
     locals : List LVar,
 
-$ with_unit : @ctx {a: @Type} -> ({} -> <Unit, Files, Diag> a) -> <Files, Diag> { a, UnitSt } = \body =>
+$ with_unit : @ctx { a: @Type } -> ({} -> <Unit, Files, Diag> a)
+    -> <Files, Diag> { a, UnitSt } = \body =>
     let go =
         do let r = body {} in \s => { r, s }
-        ctl k
+        is k
         | Unit.gvar g =>
             \s =>
                 (
@@ -292,7 +295,7 @@ $ with_unit : @ctx {a: @Type} -> ({} -> <Unit, Files, Diag> a) -> <Files, Diag> 
                             UnitSt.{
                                 .globals = ARES.insert g.name (merge_gvar { old, g }) s.globals | s
                             }
-                        | _                   => (k {})
+                        | _                => (k {})
                             UnitSt.{
                                 .globals = ARES.insert g.name g s.globals,
                                 .order = @vec_push s.order g.name | s
@@ -305,7 +308,7 @@ $ with_unit : @ctx {a: @Type} -> ({} -> <Unit, Files, Diag> a) -> <Files, Diag> 
         | Unit.mark id =>
             \s =>
                 (k {}) UnitSt.{
-                        .locals = fmap (\l => if l.id == id => LVar.{ .mem = @true | l } else l)
+                        .locals = fmap (\l => if l.id == id => LVar.{ .mem = true | l } else l)
                             s.locals | s
                     }
         | Unit.retype r =>
@@ -317,8 +320,8 @@ $ with_unit : @ctx {a: @Type} -> ({} -> <Unit, Files, Diag> a) -> <Files, Diag> 
         | Unit.realign r =>
             \s =>
                 (k {}) UnitSt.{
-                        .locals = fmap (\l =>
-                            if l.id == r.0 => LVar.{ .align = r.1 | l } else l) s.locals | s
+                        .locals = fmap (\l => if l.id == r.0 => LVar.{ .align = r.1 | l } else l)
+                            s.locals | s
                     }
         | Unit.begin_fn _  => \s => (k {}) UnitSt.{ .locals = List.Nil | s }
         | Unit.end_fn _    => \s => (k (reverse s.locals)) UnitSt.{ .locals = List.Nil | s }
@@ -344,7 +347,7 @@ $ merge_gvar : { old: GVar, g: GVar } -> GVar =
         old
     else
         let ty = (if array_len old.ty < 0 && array_len g.ty >= 0 => g.ty else old.ty) in
-        let take = g.defined && (!old.defined || array_len old.ty < 0) in
+        let take = g.defined && (not old.defined || array_len old.ty < 0) in
         GVar.{
             .ty = ty,
             .defined = old.defined || g.defined,
@@ -358,15 +361,15 @@ $ merge_gvar : { old: GVar, g: GVar } -> GVar =
 $ peek : {} -> <Tok> Token = Tok.peek 0
 $ peek_at : @Int -> <Tok> Token = \n => Tok.peek n
 $ next : {} -> <Tok> Token = Tok.next {}
-$ is_eof : Token -> @Bool = \t => @array_len t.text == 0
-$ at_p : @Str -> <Tok> @Bool = \s => is_punct (peek {}) s
-$ at_kw : @Str -> <Tok> @Bool = \s =>
-    let t = peek {} in t.kind |> \ | Kind.Ident => @seq t.text s | _ => @false
+$ is_eof : Token -> Bool = \t => @array_len t.text == 0
+$ at_p : @Str -> <Tok> Bool = \s => is_punct (peek {}) s
+$ at_kw : @Str -> <Tok> Bool = \s =>
+    let t = peek {} in t.kind |> \ | Kind.Ident => @seq t.text s | _ => false
 
 $ found : Token -> @Str = \t => if is_eof t => "end of input" else "'" ++ t.text ++ "'"
 
-$ accept : @Str -> <Tok> @Bool = \s => if at_p s => (next {}; @true) else @false
-$ accept_kw : @Str -> <Tok> @Bool = \s => if at_kw s => (next {}; @true) else @false
+$ accept : @Str -> <Tok> Bool = \s => if at_p s => (next {}; true) else false
+$ accept_kw : @Str -> <Tok> Bool = \s => if at_kw s => (next {}; true) else false
 
 $ expect : @Str -> <Tok, Diag> Token = \s =>
     let t = peek {} in
@@ -374,12 +377,12 @@ $ expect : @Str -> <Tok, Diag> Token = \s =>
 
 $ expect_ident : @Str -> <Tok, Diag> Token = \what =>
     let t = peek {} in
-    if is_ident t && !(is_keyword t.text) =>
+    if is_ident t && not (is_keyword t.text) =>
         next {}
     else
         error_at t.pos ("expected " ++ what ++ " before " ++ found t)
 
-$ is_keyword : @Str -> @Bool = \s =>
+$ is_keyword : @Str -> Bool = \s =>
     s |> \
         | "auto" | "break" | "case" | "char" | "const" | "continue" | "default" | "do" | "double"
             | "else" | "enum" | "extern" | "float" | "for" | "goto" | "if" | "inline" | "int"
@@ -389,26 +392,26 @@ $ is_keyword : @Str -> @Bool = \s =>
             | "_Noreturn" | "_Static_assert" | "_Thread_local" | "typeof" | "asm" | "__attribute__"
             | "bool" | "true" | "false" | "nullptr" | "static_assert" | "alignas" | "alignof"
             | "thread_local" | "constexpr" | "typeof_unqual" =>
-            @true
-        | _ => @false
+            true
+        | _ => false
 
-$ is_type_kw : @Str -> @Bool = \s =>
+$ is_type_kw : @Str -> Bool = \s =>
     s |> \
         | "void" | "_Bool" | "bool" | "char" | "short" | "int" | "long" | "float" | "double"
             | "signed" | "unsigned" | "struct" | "union" | "enum" | "typedef" | "static" | "extern"
             | "inline" | "const" | "volatile" | "restrict" | "auto" | "register" | "_Thread_local"
             | "thread_local" | "_Noreturn" | "_Atomic" | "_Alignas" | "alignas" | "__attribute__"
             | "typeof" | "typeof_unqual" | "_Complex" | "constexpr" | "__int128" =>
-            @true
-        | _ => @false
+            true
+        | _ => false
 
-$ is_typename : Token -> <Scope> @Bool = \t => is_ident t
+$ is_typename : Token -> <Scope> Bool = \t => is_ident t
     && (
         is_type_kw t.text
             || (
                 Scope.lookup t.text |> \
-                    | Opt.Some.{ b } => (b |> \ | Binding.Typedef.{ ty } => @true | _ => @false)
-                    | _                 => @false
+                    | Opt.Some.{ b } => (b |> \ | Binding.Typedef.{ ty } => true | _ => false)
+                    | _              => false
             )
     )
 
@@ -511,12 +514,12 @@ $ skip_brackets : @Int -> <Tok, Diag> {} = \depth =>
  - unit's number (static names are made unique per unit with it), and the local
  - holding the variadic argument area (-1 when the function is not variadic).
  -#
-$ Fn : @Type = @struct name : @Str, ret : Ty, loop : @Bool, sw : Opt Ty, tu : @Int, va : @Int,
+$ Fn : @Type = @struct name : @Str, ret : Ty, loop : Bool, sw : Opt Ty, tu : @Int, va : @Int,
 
 $ file_fn : @Int -> Fn = \tu =>
-    Fn.{ .name = "", .ret = t_void, .loop = @false, .sw = Opt.None, .tu = tu, .va = 0 - 1 }
+    Fn.{ .name = "", .ret = t_void, .loop = false, .sw = Opt.None, .tu = tu, .va = 0 - 1 }
 
-$ at_file : Fn -> @Bool = \c => c.name == ""
+$ at_file : Fn -> Bool = \c => c.name == ""
 
 $ cur_layout : {} -> <Tab> Layout = Tab.layout {}
 $ sizeof_ty : Ty -> <Tab> @Int = \t => size_of (Tab.layout {}) t
@@ -549,7 +552,7 @@ $ wrap_ty : { lay: Layout, t: Ty, v: @Int } -> @Int =
         | Ty.Enum.{ i } => sext v 32
         | _             => v
 
-$ ult : { a: @Int, b: @Int } -> @Bool = let x : @Nat = @cast a in let y : @Nat = @cast b in x < y
+$ ult : { a: @Int, b: @Int } -> Bool = let x : @Nat = @cast a in let y : @Nat = @cast b in x < y
 
 $ u2d : @Int -> @Float64 = \v =>
     if v >= 0 => C.i2d v else C.i2d (shr_u v 1) * 2.0 + C.i2d (band v 1)
@@ -587,7 +590,7 @@ $ eval : { lay: Layout, e: Expr } -> CVal =
                 (
                     truth (eval { lay, a }) |> \
                         | Opt.Some.{ x } =>
-                            if op == "&&" && !x =>
+                            if op == "&&" && not x =>
                                 CVal.CInt.{ 0 }
                             else if op == "||" && x =>
                                 CVal.CInt.{ 1 }
@@ -595,7 +598,7 @@ $ eval : { lay: Layout, e: Expr } -> CVal =
                                 (
                                     truth (eval { lay, b }) |> \
                                         | Opt.Some.{ y } => CVal.CInt.{ if y => 1 else 0 }
-                                        | _                 => CVal.CNone
+                                        | _              => CVal.CNone
                                 )
                         | _ => CVal.CNone
                 )
@@ -611,11 +614,11 @@ $ eval : { lay: Layout, e: Expr } -> CVal =
             if is_array e.ty || is_func e.ty => CVal.CAddr.{ g, 0 } else CVal.CNone
         | _                      => CVal.CNone
 
-$ truth : CVal -> Opt @Bool = \v =>
+$ truth : CVal -> Opt Bool = \v =>
     v |> \
         | CVal.CInt.{ i }     => Opt.Some.{ i != 0 }
         | CVal.CFlt.{ f }     => Opt.Some.{ f != 0.0 }
-        | CVal.CAddr.{ s, o } => Opt.Some.{ @true }
+        | CVal.CAddr.{ s, o } => Opt.Some.{ true }
         | _                   => Opt.None
 
 $ addr_cv : { lay: Layout, x: Expr } -> CVal =
@@ -724,15 +727,15 @@ $ int_bin : { lay: Layout, op: @Str, opt: Ty, rt: Ty, x: @Int, y: @Int } -> CVal
         | "^"  => w (bxor x y)
         | "<"  => flag (if u => ult { x, y } else x < y)
         | ">"  => flag (if u => ult { y, x } else y < x)
-        | "<=" => flag (!(if u => ult { y, x } else y < x))
-        | ">=" => flag (!(if u => ult { x, y } else x < y))
+        | "<=" => flag (not (if u => ult { y, x } else y < x))
+        | ">=" => flag (not (if u => ult { x, y } else x < y))
         | "==" => flag (x == y)
         | "!=" => flag (x != y)
         | _    => CVal.CNone
 
 # Replace a node whose operands are all constants by its value.
 $ fold : Expr -> <Tab> Expr = \e =>
-    if !(const_operands e) =>
+    if not (const_operands e) =>
         e
     else
         eval { Tab.layout {}, e } |> \
@@ -740,19 +743,19 @@ $ fold : Expr -> <Tab> Expr = \e =>
             | CVal.CFlt.{ f } => if is_flonum e.ty => mk_expr ENode.FltC.{ f } e.ty e.pos else e
             | _               => e
 
-$ is_const : Expr -> @Bool = \e =>
+$ is_const : Expr -> Bool = \e =>
     e.e |> \
-        | ENode.IntC.{ v } => @true
-        | ENode.FltC.{ f } => @true
-        | _                => @false
+        | ENode.IntC.{ v } => true
+        | ENode.FltC.{ f } => true
+        | _                => false
 
-$ const_operands : Expr -> @Bool = \e =>
+$ const_operands : Expr -> Bool = \e =>
     e.e |> \
         | ENode.Cast.{ x }       => is_const x
         | ENode.Unary.{ op, x }  => is_const x
         | ENode.Bin.{ op, a, b } => is_const a && is_const b
         | ENode.Cond.{ c, a, b } => is_const c && is_const a && is_const b
-        | _                      => @false
+        | _                      => false
 
 $ const_value : Expr -> <Tab, Diag> CVal = \e => eval { Tab.layout {}, e }
 
@@ -765,7 +768,7 @@ $ const_int : Fn -> <Tok, Scope, Tab, Unit, Diag> @Int = \c =>
 
 #-
  - Array-to-pointer and function-to-pointer decay: what an operand becomes in
- - any context but `sizeof`, `&`, and a string initializer.
+ - any context but `sizeof`, `!`, and a string initializer.
  -#
 $ rv : Expr -> Expr = \e =>
     e.ty |> \
@@ -778,37 +781,37 @@ $ rv : Expr -> Expr = \e =>
         | Ty.Func.{ f }    => mk_expr ENode.Addr.{ e } (ptr_to e.ty) e.pos
         | _                => e
 
-$ same_repr : { a: Ty, b: Ty } -> @Bool =
+$ same_repr : { a: Ty, b: Ty } -> Bool =
     a |> \
         | Ty.Int.{ x } => (
             b |> \
                 | Ty.Int.{ y } =>
                     x.size == y.size && x.unsigned == y.unsigned && (x.rank == 0) == (y.rank == 0)
-                | _            => @false
+                | _            => false
         )
-        | Ty.Float     => (b |> \ | Ty.Float => @true | _ => @false)
-        | Ty.Double    => (b |> \ | Ty.Double => @true | _ => @false)
+        | Ty.Float     => (b |> \ | Ty.Float => true | _ => false)
+        | Ty.Double    => (b |> \ | Ty.Double => true | _ => false)
         | Ty.Ptr.{ p } => is_ptr b
-        | _            => @false
+        | _            => false
 
 $ cast_to : { e: Expr, t: Ty } -> <Tab> Expr =
     if same_repr { e.ty, t } => with_ty e t else fold (mk_expr ENode.Cast.{ e } t e.pos)
 
-$ is_null : Expr -> @Bool = \e =>
+$ is_null : Expr -> Bool = \e =>
     e.e |> \
         | ENode.IntC.{ v } => v == 0 && is_integer e.ty
         | ENode.Cast.{ x } => is_ptr e.ty && is_void (base_of e.ty) && is_null x
-        | _                => @false
+        | _                => false
 
-$ is_lvalue : Expr -> @Bool = \e =>
+$ is_lvalue : Expr -> Bool = \e =>
     e.e |> \
-        | ENode.Local.{ i }     => @true
-        | ENode.Global.{ g }    => !(is_func e.ty)
-        | ENode.Deref.{ p }     => !(is_func e.ty)
-        | ENode.Field.{ x, m }  => @true
+        | ENode.Local.{ i }     => true
+        | ENode.Global.{ g }    => not (is_func e.ty)
+        | ENode.Deref.{ p }     => not (is_func e.ty)
+        | ENode.Field.{ x, m }  => true
         | ENode.SExpr.{ ss, x } => is_lvalue x
         | ENode.Comma.{ a, b }  => is_lvalue b
-        | _                     => @false
+        | _                     => false
 
 # Note that a local's address escapes, so it must live in memory.
 $ mark_mem : Expr -> <Unit> {} = \e =>
@@ -851,14 +854,14 @@ $ assign_conv : { e0: Expr, t: Ty, what: @Str } -> <Tok, Scope, Tab, Unit, Diag>
     else if is_ptr t && is_integer e.ty =>
         (
             when
-                (!(is_null e)) <| \_ =>
+                (not (is_null e)) <| \_ =>
                     warn_at e.pos (what ++ " '" ++ tname t ++ "' from integer without a cast")
         );
         cast_to { e, t }
     else if is_integer t && is_ptr e.ty =>
         (
             when
-                (!(is_bool t)) <| \_ =>
+                (not (is_bool t)) <| \_ =>
                     warn_at e.pos (what ++ " '" ++ tname t ++ "' from pointer without a cast")
         );
         cast_to { e, t }
@@ -883,10 +886,10 @@ $ default_promote : Expr -> <Tab> Expr = \e0 =>
 $ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
-    if !(is_arith a.ty) || !(is_arith b.ty) =>
+    if not (is_arith a.ty) || not (is_arith b.ty) =>
         bad_operands { op, a, b, pos }
     else if (op == "%" || op == "&" || op == "|" || op == "^")
-        && !(is_integer a.ty && is_integer b.ty) =>
+        && not (is_integer a.ty && is_integer b.ty) =>
         bad_operands { op, a, b, pos }
     else
         let t = common a.ty b.ty in
@@ -894,7 +897,8 @@ $ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit
         let b2 = cast_to { b, t } in
         fold (mk_expr ENode.Bin.{ op, a2, b2 } t pos)
 
-$ bad_operands : @ctx {r: @Type} -> { op: @Str, a: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> r =
+$ bad_operands : @ctx { r: @Type } -> { op: @Str, a: Expr, b: Expr, pos: Pos }
+    -> <Tok, Scope, Tab, Unit, Diag> r =
     error_at pos
         (
             "invalid operands to binary "
@@ -967,7 +971,7 @@ $ sub_e : { x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
 $ shift_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
-    if !(is_integer a.ty && is_integer b.ty) =>
+    if not (is_integer a.ty && is_integer b.ty) =>
         bad_operands { op, a, b, pos }
     else
         let t = promote a.ty in
@@ -1053,7 +1057,7 @@ $ mk_cond : { c0: Expr, a0: Expr, b0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit
     let b2 = (if is_void t => b else cast_to { b, t }) in
     (if is_const c => truth (const_value c) else Opt.None) |> \
         | Opt.Some.{ x } => if x => a2 else b2
-        | _                 => fold (mk_expr ENode.Cond.{ c, a2, b2 } t pos)
+        | _              => fold (mk_expr ENode.Cond.{ c, a2, b2 } t pos)
 
 $ deref_e : { e0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let e = rv e0 in
@@ -1075,13 +1079,13 @@ $ field_e : { e: Expr, name: @Str, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> E
         | Ty.Agg.{ id } =>
             let l = cur_layout {} in
             let a = agg_of l id in
-            if !a.complete =>
+            if not a.complete =>
                 error_at pos ("invalid use of incomplete type '" ++ tname e.ty ++ "'")
             else
                 (
                     find_member l a name |> \
                         | Opt.Some.{ m } => mk_expr ENode.Field.{ e, m } m.ty pos
-                        | _                 => error_at pos
+                        | _              => error_at pos
                             ("'" ++ tname e.ty ++ "' has no member named '" ++ name ++ "'")
                 )
         | _ => error_at pos
@@ -1091,11 +1095,11 @@ $ field_e : { e: Expr, name: @Str, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> E
 
 $ Spec : @Type = @struct
     ty : Ty,
-    typedef : @Bool,
-    static : @Bool,
-    extern : @Bool,
-    inline : @Bool,
-    tls : @Bool,
+    typedef : Bool,
+    static : Bool,
+    extern : Bool,
+    inline : Bool,
+    tls : Bool,
     align : @Int,
 
 #-
@@ -1117,23 +1121,23 @@ $ k_unsigned : @Int = 262144
 
 $ SpecSt : @Type = @struct spec : Spec, count : @Int, other : Ty, pos : Pos,
 
-$ declspec : { c: Fn, storage: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Spec =
+$ declspec : { c: Fn, storage: Bool } -> <Tok, Scope, Tab, Unit, Diag> Spec =
     let t = peek {} in
     let sp = Spec.{
         .ty = t_int,
-        .typedef = @false,
-        .static = @false,
-        .extern = @false,
-        .inline = @false,
-        .tls = @false,
+        .typedef = false,
+        .static = false,
+        .extern = false,
+        .inline = false,
+        .tls = false,
         .align = 0
     } in
     spec_go { c, storage, SpecSt.{ .spec = sp, .count = 0, .other = t_int, .pos = t.pos } }
 
-$ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <Tok, Scope, Tab, Unit, Diag> Spec =
+$ spec_go : { c: Fn, storage: Bool, st: SpecSt } -> <Tok, Scope, Tab, Unit, Diag> Spec =
     skip_attrs {};
     let t = peek {} in
-    if !(is_typename t) =>
+    if not (is_typename t) =>
         spec_finish st
     else
         let w = t.text in
@@ -1142,18 +1146,18 @@ $ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <Tok, Scope, Tab, Unit, Dia
             | "typedef" | "static" | "extern" | "inline" | "_Thread_local" | "thread_local" =>
                 (
                     when
-                        (!storage) <| \_ =>
+                        (not storage) <| \_ =>
                             error_at t.pos
                                 ("storage class specifier '" ++ w ++ "' is not allowed here")
                 );
                 next {};
                 let sp2 = (
                     w |> \
-                        | "typedef" => Spec.{ .typedef = @true | sp }
-                        | "static"  => Spec.{ .static = @true | sp }
-                        | "extern"  => Spec.{ .extern = @true | sp }
-                        | "inline"  => Spec.{ .inline = @true | sp }
-                        | _         => Spec.{ .tls = @true | sp }
+                        | "typedef" => Spec.{ .typedef = true | sp }
+                        | "static"  => Spec.{ .static = true | sp }
+                        | "extern"  => Spec.{ .extern = true | sp }
+                        | "inline"  => Spec.{ .inline = true | sp }
+                        | _         => Spec.{ .tls = true | sp }
                 ) in
                 spec_go { c, storage, SpecSt.{ .spec = sp2 | st } }
             | "const" | "volatile" | "restrict" | "auto" | "register" | "_Noreturn" | "constexpr" =>
@@ -1186,14 +1190,13 @@ $ spec_go : { c: Fn, storage: @Bool, st: SpecSt } -> <Tok, Scope, Tab, Unit, Dia
             | "_Complex" | "__int128" => error_at t.pos ("'" ++ w ++ "' is not supported")
             | "struct" | "union" | "enum" | "typeof" | "typeof_unqual" =>
                 spec_type { c, storage, st, t }
-            | _ if !(is_type_kw w)    => spec_type { c, storage, st, t }
+            | _ if not (is_type_kw w) => spec_type { c, storage, st, t }
             | _                       =>
                 next {};
                 spec_go { c, storage, SpecSt.{ .count = st.count + keyword_weight w | st } }
 
 # A specifier that names a whole type: a tag, `typeof`, or a typedef name.
-$ spec_type : { c: Fn, storage: @Bool, st: SpecSt, t: Token }
-    -> <Tok, Scope, Tab, Unit, Diag> Spec =
+$ spec_type : { c: Fn, storage: Bool, st: SpecSt, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Spec =
     let w = t.text in
     if st.count != 0 =>
         (
@@ -1207,15 +1210,14 @@ $ spec_type : { c: Fn, storage: @Bool, st: SpecSt, t: Token }
             next {};
             let ty = (
                 w |> \
-                    | "struct"                   => struct_decl { c, @false }
-                    | "union"                    => struct_decl { c, @true }
+                    | "struct"                   => struct_decl { c, false }
+                    | "union"                    => struct_decl { c, true }
                     | "enum"                     => enum_decl c
                     | "typeof" | "typeof_unqual" => typeof_spec c
                     | _ =>
                         Scope.lookup w |> \
-                            | Opt.Some.{ b } =>
-                                (b |> \ | Binding.Typedef.{ ty } => ty | _ => t_int)
-                            | _                 => t_int
+                            | Opt.Some.{ b } => (b |> \ | Binding.Typedef.{ ty } => ty | _ => t_int)
+                            | _              => t_int
             ) in
             spec_go { c, storage, SpecSt.{ .other = ty, .count = k_other | st } }
         )
@@ -1296,7 +1298,13 @@ $ spec_finish : SpecSt -> <Tok, Scope, Tab, Unit, Diag> Spec = \st =>
  - list is read so that a later parameter's array size can refer to it; `base`
  - and `derivs` keep its declarator, to rebuild a variably modified type.
  -#
-$ Param : @Type = @struct name : @Str, ty : Ty, pos : Pos, id : @Int, base : Ty, derivs : List Deriv,
+$ Param : @Type = @struct
+    name : @Str,
+    ty : Ty,
+    pos : Pos,
+    id : @Int,
+    base : Ty,
+    derivs : List Deriv,
 
 #-
  - A declarator, read as the derivations applied to the base type, listed from
@@ -1309,7 +1317,7 @@ $ Deriv : @Type = @union
     DPtr : {},
     DArr : { @Int },
     DVla : { Expr },
-    DFn : { List Param, @Bool, @Bool },
+    DFn : { List Param, Bool, Bool },
 
 $ Decl : @Type = @struct name : @Str, pos : Pos, derivs : List Deriv,
 
@@ -1327,7 +1335,7 @@ $ declarator : Fn -> <Tok, Scope, Tab, Unit, Diag> Decl = \c =>
             Decl.{ .derivs = append (append (ptr_derivs np) sfx) inner.derivs | inner }
         )
     else
-        let name = (if is_ident t && !(is_keyword t.text) => (next {}; t.text) else "") in
+        let name = (if is_ident t && not (is_keyword t.text) => (next {}; t.text) else "") in
         let sfx = suffixes { c, List.Nil } in
         skip_attrs {};
         Decl.{ .name = name, .pos = t.pos, .derivs = append (ptr_derivs np) sfx }
@@ -1336,12 +1344,12 @@ $ ptr_derivs : @Int -> List Deriv = \n =>
     if n <= 0 => List.Nil else List.Cons.{ Deriv.DPtr, ptr_derivs (n - 1) }
 
 # After a `(`: does a nested declarator follow, rather than a parameter list?
-$ nested_start : Token -> <Scope> @Bool = \t =>
+$ nested_start : Token -> <Scope> Bool = \t =>
     is_punct t "*"
         || is_punct t "("
         || is_punct t "["
         || is_punct t "^"
-        || (is_ident t && (t.text == "__attribute__" || !(is_typename t)))
+        || (is_ident t && (t.text == "__attribute__" || not (is_typename t)))
 
 $ pointers : @Int -> <Tok, Diag> @Int = \n =>
     if accept "*" => (skip_quals {}; pointers (n + 1)) else n
@@ -1394,10 +1402,10 @@ $ params : Fn -> <Tok, Scope, Tab, Unit, Diag> Deriv = \c =>
     Scope.enter {};
     let r = (
         if accept ")" =>
-            Deriv.DFn.{ List.Nil, @false, @false }
+            Deriv.DFn.{ List.Nil, false, false }
         else if at_kw "void" && is_punct (peek_at 1) ")" =>
-            (next {}; next {}; Deriv.DFn.{ List.Nil, @false, @true })
-        else if is_ident (peek {}) && !(is_typename (peek {})) =>
+            (next {}; next {}; Deriv.DFn.{ List.Nil, false, true })
+        else if is_ident (peek {}) && not (is_typename (peek {})) =>
             kr_names List.Nil
         else
             param_list { c, List.Nil }
@@ -1406,9 +1414,9 @@ $ params : Fn -> <Tok, Scope, Tab, Unit, Diag> Deriv = \c =>
 
 $ param_list : { c: Fn, acc: List Param } -> <Tok, Scope, Tab, Unit, Diag> Deriv =
     if accept "..." =>
-        (expect ")"; Deriv.DFn.{ reverse acc, @true, @true })
+        (expect ")"; Deriv.DFn.{ reverse acc, true, true })
     else
-        let sp = declspec { c, @false } in
+        let sp = declspec { c, false } in
         let d = declarator c in
         let ty = adjust_param (build_ty { sp.ty, d.derivs, d.pos }) in
         let id = Tab.fresh {} in
@@ -1427,7 +1435,7 @@ $ param_list : { c: Fn, acc: List Param } -> <Tok, Scope, Tab, Unit, Diag> Deriv
         if accept "," =>
             param_list { c, acc2 }
         else
-            (expect ")"; Deriv.DFn.{ reverse acc2, @false, @true })
+            (expect ")"; Deriv.DFn.{ reverse acc2, false, true })
 
 #-
  - An old-style identifier list, `f(a, b)`: the types come from the declarations
@@ -1450,7 +1458,7 @@ $ kr_names : List Param -> <Tok, Scope, Tab, Unit, Diag> Deriv = \acc =>
     if accept "," =>
         kr_names acc2
     else
-        (expect ")"; Deriv.DFn.{ reverse acc2, @false, @false })
+        (expect ")"; Deriv.DFn.{ reverse acc2, false, false })
 
 $ adjust_param : Ty -> Ty = \t =>
     t |> \
@@ -1517,21 +1525,21 @@ $ vla_dim : { c: Fn, inner: Ty, count: Expr, sets: List Expr, pos: Pos }
         error_at pos "variable length array at file scope"
     else
         let st = t_size (cur_target {}) in
-        let sid = new_local { "vla.size", st, @false } in
+        let sid = new_local { "vla.size", st, false } in
         let isz = size_expr { inner, pos } in
         let bytes = fold (mk_expr ENode.Bin.{ "*", count, isz } st pos) in
         let set = mk_expr ENode.Assign.{ mk_expr ENode.Local.{ sid } st pos, bytes } st pos in
         { Ty.Vla.{ inner, sid }, append (ARES.singleton set) sets }
 
-$ has_vla : List Deriv -> @Bool = \ds =>
-    any (\d => d |> \ | Deriv.DVla.{ e } => @true | _ => @false) ds
+$ has_vla : List Deriv -> Bool = \ds =>
+    any (\d => d |> \ | Deriv.DVla.{ e } => true | _ => false) ds
 
 #-
  - A type name that may be variably modified, and the size computations it
  - needs.
  -#
 $ typename_rt : Fn -> <Tok, Scope, Tab, Unit, Diag> { Ty, List Expr } = \c =>
-    let sp = declspec { c, @false } in
+    let sp = declspec { c, false } in
     let d = declarator c in
     if d.name != "" =>
         error_at d.pos ("unexpected name '" ++ d.name ++ "' in a type name")
@@ -1547,7 +1555,7 @@ $ after_sets : { sets: List Expr, e: Expr } -> Expr =
         | _                      => e
 
 $ typename : Fn -> <Tok, Scope, Tab, Unit, Diag> Ty = \c =>
-    let sp = declspec { c, @false } in
+    let sp = declspec { c, false } in
     let d = declarator c in
     if d.name != "" =>
         error_at d.pos ("unexpected name '" ++ d.name ++ "' in a type name")
@@ -1560,13 +1568,13 @@ $ fn_params : List Deriv -> List Param = \ds =>
         | List.Cons.{ d, r } => (d |> \ | Deriv.DFn.{ ps, va, pr } => ps | _ => List.Nil)
         | _                  => List.Nil
 
-$ struct_decl : { c: Fn, union: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
+$ struct_decl : { c: Fn, union: Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
     let pre = attr_names c in
     let t = peek {} in
-    let tag = (if is_ident t && !(is_keyword t.text) => (next {}; t.text) else "") in
+    let tag = (if is_ident t && not (is_keyword t.text) => (next {}; t.text) else "") in
     let pre2 = append (attr_names c) pre in
     let wrong_kind = "'" ++ tag ++ "' defined as wrong kind of tag" in
-    if !(at_p "{") =>
+    if not (at_p "{") =>
         (
             if tag == "" =>
                 error_at t.pos
@@ -1576,7 +1584,7 @@ $ struct_decl : { c: Fn, union: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
                             ++ "'"
                     )
             else
-                Scope.tag { tag, @false } |> \
+                Scope.tag { tag, false } |> \
                     | Opt.Some.{ b } => (
                         b |> \
                             | TagB.TAgg.{ id, u } =>
@@ -1593,7 +1601,7 @@ $ struct_decl : { c: Fn, union: @Bool } -> <Tok, Scope, Tab, Unit, Diag> Ty =
             if tag == "" =>
                 Tab.new_agg { tag, union }
             else
-                Scope.tag { tag, @true } |> \
+                Scope.tag { tag, true } |> \
                     | Opt.Some.{ b } => (
                         b |> \
                             | TagB.TAgg.{ old, u } =>
@@ -1626,8 +1634,8 @@ $ members : { c: Fn, acc: @Vec MemberDecl } -> <Tok, Scope, Tab, Unit, Diag> @Ve
     else if accept ";" =>
         members { c, acc }
     else
-        let sp = declspec { c, @false } in
-        if !(accept ";") =>
+        let sp = declspec { c, false } in
+        if not (accept ";") =>
             members { c, member_decls { c, sp, acc } }
         else if is_agg sp.ty =>
             members {
@@ -1650,7 +1658,7 @@ $ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl }
                 let w = const_int c in
                 (
                     when
-                        (!(is_integer ty)) <| \_ =>
+                        (not (is_integer ty)) <| \_ =>
                             error_at d.pos ("bit-field '" ++ d.name ++ "' has invalid type")
                 );
                 (
@@ -1663,7 +1671,8 @@ $ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl }
                 (
                     when
                         (
-                            !(is_complete (cur_layout {}) ty) && !(is_array ty && array_len ty < 0)
+                            not (is_complete (cur_layout {}) ty)
+                                && not (is_array ty && array_len ty < 0)
                         ) <| \_ => error_at d.pos ("field '" ++ d.name ++ "' has incomplete type")
                 );
                 MemberDecl.{ .name = d.name, .ty = ty, .width = 0 - 1, .align = sp.align }
@@ -1675,21 +1684,21 @@ $ member_decls : { c: Fn, sp: Spec, acc: @Vec MemberDecl }
 $ enum_decl : Fn -> <Tok, Scope, Tab, Unit, Diag> Ty = \c =>
     skip_attrs {};
     let t = peek {} in
-    let tag = (if is_ident t && !(is_keyword t.text) => (next {}; t.text) else "") in
+    let tag = (if is_ident t && not (is_keyword t.text) => (next {}; t.text) else "") in
     (when (at_p ":") <| \_ => next {}; typename c; {});
-    if !(at_p "{") =>
+    if not (at_p "{") =>
         (
             if tag == "" =>
                 error_at t.pos "expected '{' or a tag name after 'enum'"
             else
-                Scope.tag { tag, @false } |> \
+                Scope.tag { tag, false } |> \
                     | Opt.Some.{ b } => (b |> \ | TagB.TEnum.{ ty } => ty | _ => t_int)
-                    | _                 => t_int
+                    | _              => t_int
         )
     else
         (
             next {};
-            let neg = enumerators { c, 0, @false } in
+            let neg = enumerators { c, 0, false } in
             let ty = (if neg => t_int else t_uint) in
             (when (tag != "") <| \_ => Scope.bind_tag { tag, TagB.TEnum.{ ty } }); skip_attrs {}; ty
         )
@@ -1699,7 +1708,7 @@ $ enum_decl : Fn -> <Tok, Scope, Tab, Unit, Diag> Ty = \c =>
  - negative. As in GCC, an enum without negative values has unsigned an
  - underlying type (it shows in an enum bit-field), while its constants are ints.
  -#
-$ enumerators : { c: Fn, v: @Int, neg: @Bool } -> <Tok, Scope, Tab, Unit, Diag> @Bool =
+$ enumerators : { c: Fn, v: @Int, neg: Bool } -> <Tok, Scope, Tab, Unit, Diag> Bool =
     if accept "}" =>
         neg
     else
@@ -1738,8 +1747,8 @@ $ translation_unit : Fn -> <Tok, Scope, Tab, Unit, Diag> {} = \c =>
     else if at_kw "asm" =>
         (skip_attrs {}; expect ";"; translation_unit c)
     else
-        let sp = declspec { c, @true } in
-        (if sp.typedef => typedef_decls { c, sp } else global_decls { c, sp, @true });
+        let sp = declspec { c, true } in
+        (if sp.typedef => typedef_decls { c, sp } else global_decls { c, sp, true });
         translation_unit c
 
 $ typedef_decls : { c: Fn, sp: Spec } -> <Tok, Scope, Tab, Unit, Diag> {} =
@@ -1757,16 +1766,16 @@ $ typedef_decls : { c: Fn, sp: Spec } -> <Tok, Scope, Tab, Unit, Diag> {} =
  - translation unit, so it gets the unit's number; a name already declared keeps
  - the link name it was first given.
  -#
-$ link_name : { c: Fn, name: @Str, static: @Bool } -> <Scope> @Str =
+$ link_name : { c: Fn, name: @Str, static: Bool } -> <Scope> @Str =
     Scope.lookup name |> \
         | Opt.Some.{ b } =>
             (b |> \ | Binding.Gbl.{ ln, t } => ln | _ => fresh_link { c, name, static })
-        | _                 => fresh_link { c, name, static }
+        | _              => fresh_link { c, name, static }
 
-$ fresh_link : { c: Fn, name: @Str, static: @Bool } -> @Str =
+$ fresh_link : { c: Fn, name: @Str, static: Bool } -> @Str =
     if static => name ++ "." ++ to_string c.tu else name
 
-$ global_decls : { c: Fn, sp: Spec, first: @Bool } -> <Tok, Scope, Tab, Unit, Diag> {} =
+$ global_decls : { c: Fn, sp: Spec, first: Bool } -> <Tok, Scope, Tab, Unit, Diag> {} =
     if accept ";" =>
         {}
     else
@@ -1780,18 +1789,18 @@ $ global_decls : { c: Fn, sp: Spec, first: @Bool } -> <Tok, Scope, Tab, Unit, Di
             if first && (at_p "{" || (kr_style d.derivs && is_typename (peek {}))) =>
                 function_def { c, sp, d, ty, ln }
             else if accept "," =>
-                global_decls { c, sp, @false }
+                global_decls { c, sp, false }
             else
                 (expect ";"; {})
         else
             global_var { c, sp, d, ty };
-            if accept "," => global_decls { c, sp, @false } else (expect ";"; {})
+            if accept "," => global_decls { c, sp, false } else (expect ";"; {})
 
-$ kr_style : List Deriv -> @Bool = \ds =>
+$ kr_style : List Deriv -> Bool = \ds =>
     ds |> \
         | List.Cons.{ d, r } =>
-            (d |> \ | Deriv.DFn.{ ps, va, pr } => !pr && !(is_empty ps) | _ => @false)
-        | _                  => @false
+            (d |> \ | Deriv.DFn.{ ps, va, pr } => not pr && not (is_empty ps) | _ => false)
+        | _                  => false
 
 $ global_var : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> {} =
     let ln = link_name { c, d.name, sp.static } in
@@ -1800,11 +1809,11 @@ $ global_var : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, D
         let r = initializer { c, ty } in
         Scope.bind { d.name, Binding.Gbl.{ ln, r.ty } };
         let data = global_data { r.ty, r.items } in
-        Unit.gvar (gvar { ln, r.ty, data.0, data.1, @true, @true, sp, d.pos })
+        Unit.gvar (gvar { ln, r.ty, data.0, data.1, true, true, sp, d.pos })
     else
-        Unit.gvar (gvar { ln, ty, "", @vec_new {}, !sp.extern, @false, sp, d.pos })
+        Unit.gvar (gvar { ln, ty, "", @vec_new {}, not sp.extern, false, sp, d.pos })
 
-$ gvar : { n: @Str, t: Ty, data: @Str, rs: @Vec Reloc, def: @Bool, init: @Bool, sp: Spec, pos: Pos }
+$ gvar : { n: @Str, t: Ty, data: @Str, rs: @Vec Reloc, def: Bool, init: Bool, sp: Spec, pos: Pos }
     -> GVar =
     GVar.{
         .name = n,
@@ -1830,11 +1839,11 @@ $ function_def : { c: Fn, sp: Spec, d: Decl, ty0: Ty, ln: @Str }
             Scope.enter {};
             let ids = bind_params { fn_params_of { d, ty }, List.Nil } in
             let va =
-                (if f.variadic => new_local { "__va_area", ptr_to t_char, @false } else 0 - 1) in
+                (if f.variadic => new_local { "__va_area", ptr_to t_char, false } else 0 - 1) in
             let fc = Fn.{
                 .name = d.name,
                 .ret = f.ret,
-                .loop = @false,
+                .loop = false,
                 .sw = Opt.None,
                 .tu = c.tu,
                 .va = va
@@ -1870,9 +1879,8 @@ $ function_def : { c: Fn, sp: Spec, d: Decl, ty0: Ty, ln: @Str }
 $ fn_params_of : { d: Decl, ty: Ty } -> List Param =
     let ps = fn_params d.derivs in
     fn_of ty |> \
-        | Opt.Some.{ f } =>
-            fmap (\pair => Param.{ .ty = pair.1 | pair.0 }) (zip f.params ps)
-        | _                 => ps
+        | Opt.Some.{ f } => fmap (\pair => Param.{ .ty = pair.1 | pair.0 }) (zip f.params ps)
+        | _              => ps
 
 $ bind_params : { ps: List Param, acc: List @Int } -> <Tok, Scope, Tab, Unit, Diag> List @Int =
     ps |> \
@@ -1896,11 +1904,11 @@ $ vm_params : { c: Fn, ps: List Param, acc: List Expr } -> <Tok, Scope, Tab, Uni
                 ARES.head p.derivs |> \
                     | Opt.Some.{ d } => (
                         d |> \
-                            | Deriv.DArr.{ n } => @true
-                            | Deriv.DVla.{ e } => @true
-                            | _                => @false
+                            | Deriv.DArr.{ n } => true
+                            | Deriv.DVla.{ e } => true
+                            | _                => false
                     )
-                    | _                 => @false
+                    | _              => false
             ) in
             if p.name != "" && has_vla inner && outer_array =>
                 let r = build_rt { c, p.base, inner, p.pos } in
@@ -1912,7 +1920,7 @@ $ vm_params : { c: Fn, ps: List Param, acc: List Expr } -> <Tok, Scope, Tab, Uni
                 vm_params { c, rest, acc }
         | _ => acc
 
-$ new_local : { name: @Str, ty: Ty, mem: @Bool } -> <Tab, Unit> @Int =
+$ new_local : { name: @Str, ty: Ty, mem: Bool } -> <Tab, Unit> @Int =
     let id = Tab.fresh {} in
     Unit.local
         LVar.{
@@ -1930,13 +1938,13 @@ $ new_local : { name: @Str, ty: Ty, mem: @Bool } -> <Tab, Unit> @Int =
  - as the double the caller promoted it to.
  -#
 $ kr_types : { c: Fn, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> Ty =
-    if !(kr_style d.derivs) =>
+    if not (kr_style d.derivs) =>
         ty
     else
         let decls = kr_decls { c, (new {}) } in
-        let tys = fmap (\p => kr_promote (unwrap_or t_int (get p.name decls)))
-            (fn_params d.derivs) in
-        fn_of ty |> \ | Opt.Some.{ f } => func_ty f.ret tys @false @false | _ => ty
+        let tys =
+            fmap (\p => kr_promote (unwrap_or t_int (get p.name decls))) (fn_params d.derivs) in
+        fn_of ty |> \ | Opt.Some.{ f } => func_ty f.ret tys false false | _ => ty
 
 $ kr_promote : Ty -> Ty = \t => t |> \ | Ty.Float => t_double | _ => adjust_param t
 
@@ -1944,7 +1952,7 @@ $ kr_decls : { c: Fn, m: Map @Str Ty } -> <Tok, Scope, Tab, Unit, Diag> Map @Str
     if at_p "{" =>
         m
     else
-        let sp = declspec { c, @false } in kr_decls { c, kr_declarators { c, sp, m } }
+        let sp = declspec { c, false } in kr_decls { c, kr_declarators { c, sp, m } }
 
 $ kr_declarators : { c: Fn, sp: Spec, m: Map @Str Ty }
     -> <Tok, Scope, Tab, Unit, Diag> Map @Str Ty =
@@ -1959,7 +1967,7 @@ $ local_decls : { c: Fn, sp: Spec, acc: List Stmt } -> <Tok, Scope, Tab, Unit, D
     else
         let d = declarator c in
         let rt = (
-            if has_vla d.derivs && !sp.static && !sp.extern =>
+            if has_vla d.derivs && not sp.static && not sp.extern =>
                 build_rt { c, sp.ty, d.derivs, d.pos }
             else
                 { build_ty { sp.ty, d.derivs, d.pos }, List.Nil }
@@ -1976,7 +1984,7 @@ $ local_decls : { c: Fn, sp: Spec, acc: List Stmt } -> <Tok, Scope, Tab, Unit, D
                     if is_func ty =>
                         Unit.proto { d.name, ty }
                     else
-                        Unit.gvar (gvar { d.name, ty, "", @vec_new {}, @false, @false, sp, d.pos })
+                        Unit.gvar (gvar { d.name, ty, "", @vec_new {}, false, false, sp, d.pos })
                 );
                 acc1
             else if is_vla ty =>
@@ -2006,7 +2014,7 @@ $ auto_local : { c: Fn, d: Decl, ty: Ty, align: @Int, acc: List Stmt }
         else
             (
                 when
-                    (!(is_complete (cur_layout {}) ty)) <| \_ =>
+                    (not (is_complete (cur_layout {}) ty)) <| \_ =>
                         error_at d.pos ("storage size of '" ++ d.name ++ "' isn't known")
             );
             acc
@@ -2021,7 +2029,7 @@ $ retype : { id: @Int, ty: Ty } -> <Unit> {} = Unit.retype { id, ty }
 $ vla_local : { c: Fn, d: Decl, ty: Ty, acc: List Stmt }
     -> <Tok, Scope, Tab, Unit, Diag> List Stmt =
     let elem = base_of ty in
-    let id = new_local { d.name, ptr_to elem, @false } in
+    let id = new_local { d.name, ptr_to elem, false } in
     Scope.bind { d.name, Binding.Vla.{ id, ty } };
     let bytes = size_expr { ty, d.pos } in
     let alloc = mk_expr ENode.Alloca.{ bytes } (ptr_to elem) d.pos in
@@ -2033,15 +2041,15 @@ $ vla_local : { c: Fn, d: Decl, ty: Ty, acc: List Stmt }
 
 $ static_local : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> {} =
     let ln = c.name ++ "." ++ d.name ++ "." ++ to_string c.tu ++ "." ++ to_string (Tab.fresh {}) in
-    let ssp = Spec.{ .static = @true | sp } in
+    let ssp = Spec.{ .static = true | sp } in
     Scope.bind { d.name, Binding.Gbl.{ ln, ty } };
     if accept "=" =>
         let r = initializer { c, ty } in
         Scope.bind { d.name, Binding.Gbl.{ ln, r.ty } };
         let data = global_data { r.ty, r.items } in
-        Unit.gvar (gvar { ln, r.ty, data.0, data.1, @true, @true, ssp, d.pos })
+        Unit.gvar (gvar { ln, r.ty, data.0, data.1, true, true, ssp, d.pos })
     else
-        Unit.gvar (gvar { ln, ty, "", @vec_new {}, @true, @false, ssp, d.pos })
+        Unit.gvar (gvar { ln, ty, "", @vec_new {}, true, false, ssp, d.pos })
 
 # -- initializers --------------------------------------------------------------------
 
@@ -2067,15 +2075,15 @@ $ initializer : { c: Fn, ty: Ty } -> <Tok, Scope, Tab, Unit, Diag> InitR =
 $ whole : { ty: Ty, off: @Int } -> Member =
     Member.{ .name = "", .ty = ty, .offset = off, .bit_off = 0, .bit_width = 0 }
 
-$ char_array : Ty -> @Bool = \t =>
+$ char_array : Ty -> Bool = \t =>
     t |> \
         | Ty.Arr.{ b, n } =>
-            (b |> \ | Ty.Int.{ k } => k.size == 1 || k.size == 2 || k.size == 4 | _ => @false)
-        | _               => @false
+            (b |> \ | Ty.Int.{ k } => k.size == 1 || k.size == 2 || k.size == 4 | _ => false)
+        | _               => false
 
-$ is_end : {} -> <Tok> @Bool = at_p "}" || (at_p "," && is_punct (peek_at 1) "}")
+$ is_end : {} -> <Tok> Bool = at_p "}" || (at_p "," && is_punct (peek_at 1) "}")
 
-$ designator_next : {} -> <Tok> @Bool =
+$ designator_next : {} -> <Tok> Bool =
     at_p "," && (is_punct (peek_at 1) "[" || is_punct (peek_at 1) ".")
 
 #-
@@ -2170,7 +2178,7 @@ $ arr_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <Tok, Scope, Tab,
     let elem = base_of ty in
     let esz = sizeof_ty elem in
     let len = array_len ty in
-    let r = arr_items { c, elem, esz, len, off, 0, 0, @true, acc } in
+    let r = arr_items { c, elem, esz, len, off, 0, 0, true, acc } in
     InitR.{ .items = r.0, .ty = (if len < 0 => array_of elem r.1 else ty) }
 
 $ arr_items : {
@@ -2181,14 +2189,14 @@ $ arr_items : {
     off: @Int,
     i: @Int,
     maxi: @Int,
-    first: @Bool,
+    first: Bool,
     acc: List Item
 } -> <Tok, Scope, Tab, Unit, Diag> { List Item, @Int } =
     if accept "}" =>
         { acc, maxi }
     else
-        (when (!first) <| \_ => expect ","; {});
-        if !first && accept "}" =>
+        (when (not first) <| \_ => expect ","; {});
+        if not first && accept "}" =>
             { acc, maxi }
         else if accept "[" =>
             let lo = const_int c in
@@ -2201,14 +2209,14 @@ $ arr_items : {
             );
             let one = designation { c, elem, off + lo * esz, List.Nil } in
             let acc2 = replicate { one, esz, lo, hi, lo, acc } in
-            arr_items { c, elem, esz, len, off, hi + 1, max_i { maxi, hi + 1 }, @false, acc2 }
+            arr_items { c, elem, esz, len, off, hi + 1, max_i { maxi, hi + 1 }, false, acc2 }
         else if len >= 0 && i >= len =>
             warn_at (peek {}).pos "excess elements in array initializer";
             discard c;
-            arr_items { c, elem, esz, len, off, i + 1, maxi, @false, acc }
+            arr_items { c, elem, esz, len, off, i + 1, maxi, false, acc }
         else
             let r = init2 { c, elem, off + i * esz, Opt.None, acc } in
-            arr_items { c, elem, esz, len, off, i + 1, max_i { maxi, i + 1 }, @false, r.items }
+            arr_items { c, elem, esz, len, off, i + 1, max_i { maxi, i + 1 }, false, r.items }
 
 # `[lo ... hi] = x` initializes each element with the same items.
 $ replicate : { one: List Item, esz: @Int, lo: @Int, hi: @Int, k: @Int, acc: List Item }
@@ -2249,7 +2257,7 @@ $ member_named : { ty: Ty, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Member =
         | Ty.Agg.{ id } => (
             find_member l (agg_of l id) t.text |> \
                 | Opt.Some.{ m } => m
-                | _                 =>
+                | _              =>
                     error_at t.pos ("'" ++ tname ty ++ "' has no member named '" ++ t.text ++ "'")
         )
         | _             => error_at t.pos "member designator in a non-aggregate initializer"
@@ -2293,7 +2301,7 @@ $ agg_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <Tok, Scope, Tab,
     next {};
     let a =
         (ty |> \ | Ty.Agg.{ id } => agg_of (cur_layout {}) id | _ => agg_of (cur_layout {}) 0) in
-    InitR.{ .items = agg_items { c, ty, a, off, 0, @true, @false, acc }, .ty = ty }
+    InitR.{ .items = agg_items { c, ty, a, off, 0, true, false, acc }, .ty = ty }
 
 $ agg_items : {
     c: Fn,
@@ -2301,15 +2309,15 @@ $ agg_items : {
     a: Agg,
     off: @Int,
     idx: @Int,
-    first: @Bool,
-    done: @Bool,
+    first: Bool,
+    done: Bool,
     acc: List Item
 } -> <Tok, Scope, Tab, Unit, Diag> List Item =
     if accept "}" =>
         acc
     else
-        (when (!first) <| \_ => expect ","; {});
-        if !first && accept "}" =>
+        (when (not first) <| \_ => expect ","; {});
+        if not first && accept "}" =>
             acc
         else if accept "." =>
             let t = expect_ident "a member name" in
@@ -2324,16 +2332,16 @@ $ agg_items : {
                 else
                     designation { c, m.ty, off + m.offset, acc }
             ) in
-            agg_items { c, ty, a, off, at + 1, @false, @true, acc2 }
+            agg_items { c, ty, a, off, at + 1, false, true, acc2 }
         else
             let i = skip_unnamed { a, idx } in
             if i >= @vec_len a.members || (a.union && done) =>
                 warn_at (peek {}).pos "excess elements in struct initializer";
                 discard c;
-                agg_items { c, ty, a, off, i, @false, done, acc }
+                agg_items { c, ty, a, off, i, false, done, acc }
             else
                 let acc2 = init_member { c, @vec_get a.members i, off, Opt.None, acc } in
-                agg_items { c, ty, a, off, i + 1, @false, @true, acc2 }
+                agg_items { c, ty, a, off, i + 1, false, true, acc2 }
 
 #-
  - The index of the top-level member that holds `name`, directly or inside an
@@ -2375,23 +2383,23 @@ $ init_member : { c: Fn, m: Member, off: @Int, pend: Opt Expr, acc: List Item }
 
 $ agg_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Opt Expr, acc: List Item }
     -> <Tok, Scope, Tab, Unit, Diag> List Item =
-    agg_un { c, agg_of (cur_layout {}) (agg_id ty), off, 0, @true, pend, acc }
+    agg_un { c, agg_of (cur_layout {}) (agg_id ty), off, 0, true, pend, acc }
 
-$ agg_un : { c: Fn, a: Agg, off: @Int, idx: @Int, first: @Bool, pend: Opt Expr, acc: List Item }
+$ agg_un : { c: Fn, a: Agg, off: @Int, idx: @Int, first: Bool, pend: Opt Expr, acc: List Item }
     -> <Tok, Scope, Tab, Unit, Diag> List Item =
     let i = skip_unnamed { a, idx } in
-    if i >= @vec_len a.members || (a.union && !first) =>
+    if i >= @vec_len a.members || (a.union && not first) =>
         acc
-    else if is_none pend && (is_end {} || (!first && designator_next {})) =>
+    else if is_none pend && (is_end {} || (not first && designator_next {})) =>
         acc
     else
-        (when (!first) <| \_ => expect ","; {});
+        (when (not first) <| \_ => expect ","; {});
         let acc2 = init_member { c, @vec_get a.members i, off, pend, acc } in
-        agg_un { c, a, off, i + 1, @false, Opt.None, acc2 }
+        agg_un { c, a, off, i + 1, false, Opt.None, acc2 }
 
 # A local's initialization: zero the object, then each item as an assignment.
 $ init_stmts : { var: Expr, ty: Ty, items: List Item } -> List Stmt =
-    if !(is_agg ty || is_array ty) =>
+    if not (is_agg ty || is_array ty) =>
         fmap (\it =>
             Stmt.Do.{ mk_expr ENode.Assign.{ with_ty var it.m.ty, it.e } it.m.ty it.e.pos }) items
     else
@@ -2414,8 +2422,7 @@ $ global_data : { ty: Ty, items: List Item } -> <Tok, Scope, Tab, Unit, Diag> { 
     let base = sizeof_ty ty in
     let l = cur_layout {} in
     let n =
-        foldl (\m it => let e = it.m.offset + size_of l it.m.ty in if e > m => e else m) base
-            items
+        foldl (\m it => let e = it.m.offset + size_of l it.m.ty in if e > m => e else m) base items
     in
     data_go { items, zeros n, @vec_new {}, n }
 
@@ -2501,17 +2508,17 @@ $ comma_rest : { c: Fn, e: Expr } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     else
         e
 
-$ assign_ops : @Str -> @Bool = \s =>
+$ assign_ops : @Str -> Bool = \s =>
     s |> \
-        | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" => @true
-        | _ => @false
+        | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" => true
+        | _ => false
 
 $ assign : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     let lhs = conditional c in
     let t = peek {} in
     if is_punct t "=" =>
         (next {}; let rhs = assign c in mk_assign { lhs, rhs, t.pos })
-    else if (t.kind |> \ | Kind.Punct => assign_ops t.text | _ => @false) =>
+    else if (t.kind |> \ | Kind.Punct => assign_ops t.text | _ => false) =>
         next {};
         let rhs = assign c in
         op_assign { @array_slice t.text 0 (@array_len t.text - 1), lhs, rhs, t.pos }
@@ -2519,7 +2526,7 @@ $ assign : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
         lhs
 
 $ need_lvalue : { e: Expr, what: @Str } -> <Diag> {} =
-    if is_lvalue e && !(is_array e.ty) => {} else error_at e.pos ("lvalue required as " ++ what)
+    if is_lvalue e && not (is_array e.ty) => {} else error_at e.pos ("lvalue required as " ++ what)
 
 $ mk_assign : { lhs: Expr, rhs: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     need_lvalue { lhs, "left operand of assignment" };
@@ -2538,7 +2545,7 @@ $ op_assign : { op: @Str, lhs: Expr, rhs0: Expr, pos: Pos } -> <Tok, Scope, Tab,
     else if is_arith lhs.ty && is_arith rhs.ty =>
         (
             when
-                (is_bitwise op && !(is_integer lhs.ty && is_integer rhs.ty)) <| \_ =>
+                (is_bitwise op && not (is_integer lhs.ty && is_integer rhs.ty)) <| \_ =>
                     bad_operands { op, lhs, rhs, pos }
         );
         let ct = (if op == "<<" || op == ">>" => promote lhs.ty else common lhs.ty rhs.ty) in
@@ -2548,8 +2555,8 @@ $ op_assign : { op: @Str, lhs: Expr, rhs0: Expr, pos: Pos } -> <Tok, Scope, Tab,
         bad_operands { op ++ "=", lhs, rhs, pos }
 
 # The operators that take only integers.
-$ is_bitwise : @Str -> @Bool = \op =>
-    op |> \ | "%" | "&" | "|" | "^" | "<<" | ">>" => @true | _ => @false
+$ is_bitwise : @Str -> Bool = \op =>
+    op |> \ | "%" | "&" | "|" | "^" | "<<" | ">>" => true | _ => false
 
 $ conditional : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     let cnd = binary { c, 1 } in
@@ -2565,7 +2572,7 @@ $ conditional : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
 # `a ?: b` (GNU): `a` if it is nonzero, evaluating it once.
 $ gnu_elvis : { a0: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = need_scalar a0 in
-    let id = new_local { "elvis", a.ty, @false } in
+    let id = new_local { "elvis", a.ty, false } in
     let tmp = mk_expr ENode.Local.{ id } a.ty pos in
     let set = mk_expr ENode.Assign.{ tmp, a } a.ty pos in
     let sel = mk_cond { tmp, tmp, b, pos } in
@@ -2625,7 +2632,7 @@ $ unary : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     else if is_punct t "-" =>
         next {};
         let e = rv (cast_expr c) in
-        if !(is_arith e.ty) =>
+        if not (is_arith e.ty) =>
             error_at t.pos "wrong type argument to unary minus"
         else
             let p = cast_to { e, promote e.ty } in fold (mk_expr ENode.Unary.{ "-", p } p.ty t.pos)
@@ -2635,7 +2642,7 @@ $ unary : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     else if is_punct t "~" =>
         next {};
         let e = rv (cast_expr c) in
-        if !(is_integer e.ty) =>
+        if not (is_integer e.ty) =>
             error_at t.pos "wrong type argument to bit-complement"
         else
             let p = cast_to { e, promote e.ty } in fold (mk_expr ENode.Unary.{ "~", p } p.ty t.pos)
@@ -2698,7 +2705,7 @@ $ sized_ty : { ty: Ty, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
         size_expr { ty, pos }
     else if is_func ty =>
         error_at pos "invalid application of 'sizeof' to a function type"
-    else if !(is_complete (cur_layout {}) ty) && !(is_void ty) =>
+    else if not (is_complete (cur_layout {}) ty) && not (is_void ty) =>
         error_at pos ("invalid application of 'sizeof' to incomplete type '" ++ tname ty ++ "'")
     else
         int_expr (sizeof_ty ty) (t_size (cur_target {})) pos
@@ -2728,7 +2735,7 @@ $ postfix_rest : { c: Fn, e: Expr } -> <Tok, Scope, Tab, Unit, Diag> Expr =
         let p = rv e in
         (
             when
-                (!(is_ptr p.ty)) <| \_ =>
+                (not (is_ptr p.ty)) <| \_ =>
                     error_at t.pos ("invalid type argument of '->' (have '" ++ tname p.ty ++ "')")
         );
         let d = deref_e { p, t.pos } in
@@ -2737,7 +2744,7 @@ $ postfix_rest : { c: Fn, e: Expr } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     else if is_punct t "++" || is_punct t "--" =>
         next {};
         need_lvalue { e, "increment operand" };
-        (when (!(is_scalar e.ty)) <| \_ => error_at t.pos "wrong type argument to increment");
+        (when (not (is_scalar e.ty)) <| \_ => error_at t.pos "wrong type argument to increment");
         let delta = (
             if is_ptr e.ty && is_vla (base_of e.ty) =>
                 with_ty (size_expr { base_of e.ty, t.pos }) (t_ptrdiff (cur_target {}))
@@ -2773,7 +2780,7 @@ $ call_args : { c: Fn, acc: List Expr } -> <Tok, Scope, Tab, Unit, Diag> List Ex
     if accept ")" =>
         reverse acc
     else
-        (when (!(is_empty acc)) <| \_ => expect ","; {});
+        (when (not (is_empty acc)) <| \_ => expect ","; {});
         let a = assign c in call_args { c, List.Cons.{ a, acc } }
 
 #-
@@ -2784,7 +2791,7 @@ $ convert_args : { f: FnTy, name: @Str, args: List Expr, ps: List Ty, acc: List 
     -> <Tok, Scope, Tab, Unit, Diag> List Expr =
     args |> \
         | List.Nil =>
-            if f.proto && !(is_empty ps) =>
+            if f.proto && not (is_empty ps) =>
                 error_at pos ("too few arguments to function" ++ name)
             else
                 reverse acc
@@ -2795,7 +2802,7 @@ $ convert_args : { f: FnTy, name: @Str, args: List Expr, ps: List Ty, acc: List 
                 ) in
                 convert_args { f, name, rest, prest, List.Cons.{ v, acc }, pos }
             | _ =>
-                if f.proto && !f.variadic =>
+                if f.proto && not f.variadic =>
                     error_at pos ("too many arguments to function" ++ name)
                 else
                     convert_args {
@@ -2818,16 +2825,16 @@ $ compound_literal : { c: Fn, ty: Ty, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag
                 .ty = r.ty,
                 .data = data.0,
                 .relocs = data.1,
-                .defined = @true,
-                .init = @true,
-                .static = @true,
-                .tls = @false,
+                .defined = true,
+                .init = true,
+                .static = true,
+                .tls = false,
                 .align = 0,
                 .pos = pos
             };
         mk_expr ENode.Global.{ ln } r.ty pos
     else
-        let id = new_local { "compound", ty, @true } in
+        let id = new_local { "compound", ty, true } in
         let r = initializer { c, ty } in
         (when (array_len ty < 0) <| \_ => retype { id, r.ty });
         let var = mk_expr ENode.Local.{ id } r.ty pos in
@@ -2842,7 +2849,7 @@ $ primary : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
         (next {}; ident_expr { c, t })
     else if is_num t =>
         (next {}; number t)
-    else if (t.kind |> \ | Kind.Chr => @true | _ => @false) =>
+    else if (t.kind |> \ | Kind.Chr => true | _ => false) =>
         (next {}; char_const t)
     else if is_str t =>
         string_expr c
@@ -2915,7 +2922,7 @@ $ ident_expr : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Expr =
                 )
                 | _ =>
                     if at_p "(" =>
-                        let ty = func_ty t_int List.Nil @false @false in
+                        let ty = func_ty t_int List.Nil false false in
                         warn_at t.pos ("implicit declaration of function '" ++ n ++ "'");
                         Scope.bind { n, Binding.Gbl.{ n, ty } };
                         Unit.proto { n, ty };
@@ -2962,7 +2969,7 @@ $ generic : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let r = generic_assocs { c, ct, Opt.None, Opt.None } in
     expect ")"; r |> \
         | Opt.Some.{ e } => e
-        | _                 => error_at t.pos
+        | _              => error_at t.pos
             (
                 "'_Generic' selector of type '"
                     ++ tname ctrl.ty
@@ -2988,7 +2995,7 @@ $ generic_assocs : { c: Fn, ct: Ty, chosen: Opt Expr, dflt: Opt Expr }
     else
         (if is_some picked.0 => picked.0 else picked.1)
 
-$ generic_match : { a: Ty, b: Ty } -> <Tab> @Bool =
+$ generic_match : { a: Ty, b: Ty } -> <Tab> Bool =
     a |> \
         | Ty.Int.{ x } => (
             b |> \
@@ -2997,7 +3004,7 @@ $ generic_match : { a: Ty, b: Ty } -> <Tab> @Bool =
                         && x.unsigned == y.unsigned
                         && x.rank == y.rank
                         && x.plain == y.plain
-                | _ => @false
+                | _ => false
         )
         | _            => same_ty (cur_layout {}) a b
 
@@ -3116,8 +3123,7 @@ $ string_global : { c: Fn, units: @Vec @Int, w: @Int, pre: @Str, pos: Pos }
     let ty = array_of elem n in
     let ln = ".str." ++ to_string c.tu ++ "." ++ to_string (Tab.fresh {}) in
     let data =
-        foldl (\acc u => { put_le { acc.0, acc.1, w, u }, acc.1 + w }) { zeros (n * w), 0 }
-            units
+        foldl (\acc u => { put_le { acc.0, acc.1, w, u }, acc.1 + w }) { zeros (n * w), 0 } units
     in
     Unit.gvar
         GVar.{
@@ -3125,10 +3131,10 @@ $ string_global : { c: Fn, units: @Vec @Int, w: @Int, pre: @Str, pos: Pos }
             .ty = ty,
             .data = data.0,
             .relocs = @vec_new {},
-            .defined = @true,
-            .init = @true,
-            .static = @true,
-            .tls = @false,
+            .defined = true,
+            .init = true,
+            .static = true,
+            .tls = false,
             .align = 0,
             .pos = pos
         };
@@ -3151,8 +3157,8 @@ $ block_items : { c: Fn, acc: List Stmt } -> <Tok, Scope, Tab, Unit, Diag> List 
         reverse acc
     else if is_eof t =>
         error_at t.pos "expected '}' at end of input"
-    else if is_typename t && !(is_punct (peek_at 1) ":") =>
-        let sp = declspec { c, @true } in
+    else if is_typename t && not (is_punct (peek_at 1) ":") =>
+        let sp = declspec { c, true } in
         if sp.typedef =>
             (typedef_decls { c, sp }; block_items { c, acc })
         else
@@ -3165,7 +3171,7 @@ $ block_items : { c: Fn, acc: List Stmt } -> <Tok, Scope, Tab, Unit, Diag> List 
 $ test : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
     expect "("; let e = need_scalar (expr c) in expect ")"; e
 
-$ in_loop : Fn -> Fn = \c => Fn.{ .loop = @true | c }
+$ in_loop : Fn -> Fn = \c => Fn.{ .loop = true | c }
 
 $ stmt : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
     let t = peek {} in
@@ -3173,7 +3179,7 @@ $ stmt : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
         compound c
     else if is_punct t ";" =>
         (next {}; Stmt.Empty)
-    else if is_ident t && is_punct (peek_at 1) ":" && !(is_keyword t.text) =>
+    else if is_ident t && is_punct (peek_at 1) ":" && not (is_keyword t.text) =>
         next {};
         next {};
         skip_attrs {};
@@ -3181,7 +3187,7 @@ $ stmt : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
             Stmt.Label.{ t.text, Stmt.Empty }
         else
             let s = stmt c in Stmt.Label.{ t.text, s }
-    else if !(is_ident t) =>
+    else if not (is_ident t) =>
         expr_stmt c
     else
         keyword_stmt { c, t }
@@ -3205,7 +3211,7 @@ $ keyword_stmt : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Stmt =
             let body = stmt (in_loop c) in
             (
                 when
-                    (!(accept_kw "while")) <| \_ =>
+                    (not (accept_kw "while")) <| \_ =>
                         error_at (peek {}).pos ("expected 'while' before " ++ found (peek {}))
             );
             let cnd = test c in expect ";"; Stmt.DoWhile.{ body, cnd }
@@ -3215,7 +3221,11 @@ $ keyword_stmt : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Stmt =
             expect "(";
             let e0 = rv (expr c) in
             expect ")";
-            (when (!(is_integer e0.ty)) <| \_ => error_at e0.pos "switch quantity not an integer");
+            (
+                when
+                    (not (is_integer e0.ty)) <| \_ =>
+                        error_at e0.pos "switch quantity not an integer"
+            );
             let ty = promote e0.ty in
             let e = cast_to { e0, ty } in
             let body = stmt Fn.{ .sw = Opt.Some.{ ty } | c } in
@@ -3267,7 +3277,7 @@ $ return_stmt : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Stmt =
     if accept ";" =>
         (
             when
-                (!(is_void c.ret)) <| \_ =>
+                (not (is_void c.ret)) <| \_ =>
                     warn_at t.pos "'return' with no value, in function returning non-void"
         );
         Stmt.Return.{ nop t.pos }
@@ -3277,7 +3287,7 @@ $ return_stmt : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Stmt =
         if is_void c.ret =>
             (
                 when
-                    (!(is_void e.ty)) <| \_ =>
+                    (not (is_void e.ty)) <| \_ =>
                         warn_at t.pos "'return' with a value, in function returning void"
             );
             Stmt.Return.{ mk_expr ENode.Cast.{ e } t_void e.pos }
@@ -3291,7 +3301,7 @@ $ for_stmt : Fn -> <Tok, Scope, Tab, Unit, Diag> Stmt = \c =>
         if accept ";" =>
             Stmt.Empty
         else if is_typename (peek {}) =>
-            let sp = declspec { c, @true } in
+            let sp = declspec { c, true } in
             let ss = local_decls { c, sp, List.Nil } in
             Stmt.Block.{ reverse ss }
         else

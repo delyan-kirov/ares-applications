@@ -46,7 +46,7 @@ $ stamp : @Str -> <@IO> @Str = \home => capture
 # Write `units` (each library file's name and unit) under `stamp`; false when
 # the file cannot be written. A table of the units' names and byte lengths
 # comes first, so a reader can go straight to the units it wants.
-$ save : @Str -> @Str -> @Vec { @Str, TU } -> <@IO> @Bool = \path st units =>
+$ save : @Str -> @Str -> @Vec { @Str, TU } -> <@IO> Bool = \path st units =>
     let encoded = fmap (\u => { u.0, w_tu List.Nil u.1 }) units in
     let table =
         foldl (\acc e => w_int (w_str acc e.0) (foldl (\n p => n + @array_len p) 0 e.1))
@@ -59,7 +59,7 @@ $ save : @Str -> @Str -> @Vec { @Str, TU } -> <@IO> @Bool = \path st units =>
 $ load : @Str -> @Str -> Target -> <@IO> Opt (@Vec { @Str, {} -> TU }) = \path st target =>
     slurp path |> \
         | Opt.Some.{ s } =>
-            if !(starts_with magic s) =>
+            if not (starts_with magic s) =>
                 Opt.None
             else
                 let saved = r_str s (@array_len magic) in
@@ -94,10 +94,10 @@ $ slurp : @Str -> <@IO> Opt @Str = \path =>
 $ blank : @Int -> @Str -> @Str = \n s =>
     if @array_len s >= n => @array_slice s 0 n else blank n (s ++ s)
 
-$ spill : @Str -> List @Str -> <@IO> @Bool = \path parts =>
+$ spill : @Str -> List @Str -> <@IO> Bool = \path parts =>
     let f = C.fopen { path, "wb" } in
     if f == 0 =>
-        @false
+        false
     else
         for parts (\p => (C.fwrite { p, 1, @array_len p, f }; {})); (C.fclose f) == 0
 
@@ -114,7 +114,7 @@ $ drain : @Int -> @Str -> <@IO> @Str = \f acc =>
 $ put : List @Str -> @Str -> List @Str = \acc s => List.Cons.{ s, acc }
 
 $ w_int : List @Str -> @Int -> List @Str = \acc n => put acc (to_string n ++ " ")
-$ w_bool : List @Str -> @Bool -> List @Str = \acc b => put acc (if b => "1 " else "0 ")
+$ w_bool : List @Str -> Bool -> List @Str = \acc b => put acc (if b => "1 " else "0 ")
 $ w_str : List @Str -> @Str -> List @Str = \acc s =>
     put (put acc (to_string (@array_len s) ++ ":")) s
 
@@ -252,7 +252,7 @@ $ digits : @Str -> @Int -> @Int -> { @Int, @Int } = \s i acc =>
     let c = @array_get s i in
     if c >= 48 && c <= 57 => digits s (i + 1) (acc * 10 - (c - 48)) else { acc, i }
 
-$ r_bool : @Str -> @Int -> { @Bool, @Int } = \s i => let r = r_int s i in { r.0 != 0, r.1 }
+$ r_bool : @Str -> @Int -> { Bool, @Int } = \s i => let r = r_int s i in { r.0 != 0, r.1 }
 
 $ r_str : @Str -> @Int -> { @Str, @Int } = \s i =>
     let n = r_int s i in { @array_slice s n.1 (n.1 + n.0), n.1 + n.0 }

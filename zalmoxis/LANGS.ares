@@ -19,9 +19,9 @@ $ Lang : @Type = @struct
     line: @Vec @Str,
     docs: @Vec @Str,
     blocks: @Vec { @Str, @Str },
-    nested: @Bool,
+    nested: Bool,
     quotes: @Vec { @Str, @Str },
-    prose: @Bool,
+    prose: Bool,
 
 $ Table : @Type = @struct
     langs: @Vec Lang,
@@ -44,9 +44,9 @@ $ code : {
         line,
         .docs = [],
         blocks,
-        .nested = @false,
+        .nested = false,
         quotes,
-        .prose = @false
+        .prose = false
     }
 
 # Every non-blank line is a comment (prose has no code).
@@ -57,12 +57,12 @@ $ text : { name: @Str, exts: @Vec @Str } -> Lang = Lang.{
     .line = [],
     .docs = [],
     .blocks = [],
-    .nested = @false,
+    .nested = false,
     .quotes = [],
-    .prose = @true
+    .prose = true
 }
 
-$ nesting : Lang -> Lang = \l => .{ .nested = @true | l }
+$ nesting : Lang -> Lang = \l => .{ .nested = true | l }
 
 $ named : @Vec @Str -> Lang -> Lang = \files l => .{ .files = files | l }
 
@@ -241,7 +241,7 @@ $ lookup : @Vec { @Str, @Int } -> @Str -> @Int -> @Int -> @Int = \pairs key lo h
 # The language a `#!` line names, by the interpreter's base name (or the
 # command `env` runs), or -1.
 $ detect_shebang : Table -> @Str -> @Int = \t body =>
-    if !(starts_with "#!" body) =>
+    if not (starts_with "#!" body) =>
         0 - 1
     else
         let line = substr 2 (first_line_end body 0) body in

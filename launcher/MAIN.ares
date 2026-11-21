@@ -25,7 +25,7 @@ $ @import ARESxSTR
 $ @import ARESxOPT
 $ @import ARESxVEC
 
-# Spawn a program (fire-and-forget) via libc. The `&` in the command returns at
+# Spawn a program (fire-and-forget) via libc. The `!` in the command returns at
 # once. Not part of raylib, so it stays a local `@extern`.
 $ system : @Str -> <@IO> @Int = @extern "C" "system" "libc"
 
@@ -45,16 +45,16 @@ $ cmd_timeout : @Str = "2" # seconds a captured `!`/`$` command may run before i
 # -- the launchable programs --------------------------------------------------
 # The list is DISCOVERED from the system's `.desktop` files (see `scan_cmd`).
 # This hardcoded set is only the fallback when none are found. `cmd` is the raw
-# program to run (no trailing `&`); `terminal` marks a CLI/TUI app
+# program to run (no trailing `!`); `terminal` marks a CLI/TUI app
 # (`Terminal=true` in its desktop entry) that must run inside a terminal. `key`
 # is the lowercased label, computed once so filtering does not redo it per frame.
-$ App : @Type = @struct label: @Str, key: @Str, cmd: @Str, terminal: @Bool,
+$ App : @Type = @struct label: @Str, key: @Str, cmd: @Str, terminal: Bool,
 
-$ app : @Str -> @Str -> @Bool -> App = \label cmd term =>
+$ app : @Str -> @Str -> Bool -> App = \label cmd term =>
     App.{ .label = label, .key = to_lower label, .cmd = cmd, .terminal = term }
 
 $ fallback_apps : @Vec App =
-    [app "Terminal" "xterm" @false, app "Files" "xdg-open ." @false, app "Browser" "firefox" @false]
+    [app "Terminal" "xterm" false, app "Files" "xdg-open ." false, app "Browser" "firefox" false]
 
 # -- layout ------------------------------------------------------------------
 $ pad : @Int32 = 20
@@ -104,9 +104,9 @@ $ row_at : @Int32 -> @Int32 -> @Int -> Opt @Int = \mx my n =>
 
 # -- the model ---------------------------------------------------------------
 # The app scan is a coroutine (see `scan_apps`). While it runs, the model holds
-# it `Paused` at its last `Feed.pause`; resuming it with @true runs it one more
-# slice, with @false asks it to stop.
-$ Scan : @Type = @union Paused: { @Bool -> <Ui, @IO> Scan }, Done: {},
+# it `Paused` at its last `Feed.pause`; resuming it with true runs it one more
+# slice, with false asks it to stop.
+$ Scan : @Type = @union Paused: { Bool -> <Ui, @IO> Scan }, Done: {},
 
 # `visible` is `apps` filtered by `query`, kept in step by `refilter` so the
 # filter runs when either changes rather than every frame. `off` is the scroll
@@ -119,7 +119,7 @@ $ Model : @Type = @struct
     visible: @Vec App,
     output: @Str,
     off: @Int,
-    typed: @Bool,
+    typed: Bool,
     win_w: @Int32,
     win_h: @Int32,
 
@@ -133,7 +133,7 @@ $ modify : (Model -> Model) -> <Ui> {} = \f => Ui.set (f (Ui.model {}))
 $ with_model : Model -> ({} -> <Ui, @IO> {}) -> <@IO> {} = \m0 body =>
     let run =
         do body {}
-        ctl k
+        is k
         | Ui.model u => \m => (k m) m
         | Ui.set m2  => \m => (k {}) m2
         | _          => \m => {}
@@ -189,10 +189,10 @@ $ PollFd : @Type = @struct @extern "C" fd: @Int32, events: @Int16, revents: @Int
 $ poll : { fds: @Vec PollFd, n: @Nat64, timeout: @Int32 } -> <@IO> @Int32 =
     @extern "C" "poll" "libc"
 
-$ readable : @Int -> <@IO> @Bool = \f =>
+$ readable : @Int -> <@IO> Bool = \f =>
     poll { [PollFd.{ .fd = fileno f, .events = 1, .revents = 0 }], 1, 0 } > 0
 
-$ is_byte : @Int -> @Bool = \c => if c < 0 => @false else c <= 255
+$ is_byte : @Int -> Bool = \c => if c < 0 => false else c <= 255
 
 # One line from a stream, without its '\n'; `None` once the stream has ended.
 $ read_line : @Int -> @Str -> <@IO> Opt @Str = \f acc =>
@@ -212,7 +212,7 @@ $ parse_app : @Str -> Opt App = \line =>
 
 # What the scan coroutine performs: `found` delivers one app, `pause` hands the
 # frame back and answers whether to keep going.
-$ Feed : @Type = @effect found : App -> {}, pause : {} -> @Bool,
+$ Feed : @Type = @effect found : App -> {}, pause : {} -> Bool,
 
 $ lines_per_frame : @Int = 8
 
@@ -228,7 +228,7 @@ $ take : @Int -> @Int -> <Feed, @IO> {} = \f n =>
     else
         read_line f "" |> \
             | Opt.Some.{ line } => when (parse_app line) (\a => Feed.found a); take f (n - 1)
-            | _                    => {}
+            | _                 => {}
 
 $ scan_apps : @Int -> <Feed, @IO> {} = \f => @finale (\_ => pclose f; {}) <| \_ => produce f
 
@@ -237,7 +237,7 @@ $ scan_apps : @Int -> <Feed, @IO> {} = \f => @finale (\_ => pclose f; {}) <| \_ 
 # found, the fallback list stands in.
 $ scanning : ({} -> <Feed, Ui, @IO> {}) -> <Ui, @IO> Scan = \body =>
     do body {}
-    ctl k
+    is k
     | Feed.found a => modify (\m => Model.{ .apps = @vec_push m.apps a | m }); k {}
     | Feed.pause u => Scan.Paused.{ k }
     | _ =>
@@ -249,15 +249,15 @@ $ start_scan : @Int -> Scan = \f => Scan.Paused.{\go =>
     scanning <| \_ => if f == 0 => {} else if go => scan_apps f else (pclose f; {})}
 
 # Resume the scan with `go`, then store wherever it stopped next.
-$ resume_scan : @Bool -> <Ui, @IO> {} = \go =>
+$ resume_scan : Bool -> <Ui, @IO> {} = \go =>
     (Ui.model {}).scan |> \
         | Scan.Paused.{ k } => let next = k go in modify (\m => refilter Model.{ .scan = next | m })
         | _                 => {}
 
-$ scan_step : {} -> <Ui, @IO> {} = resume_scan @true
+$ scan_step : {} -> <Ui, @IO> {} = resume_scan true
 
 # Quitting mid-scan tells it to stop, so its `@finale` reaps the child.
-$ stop_scan : {} -> <Ui, @IO> {} = resume_scan @false
+$ stop_scan : {} -> <Ui, @IO> {} = resume_scan false
 
 # -- the query ---------------------------------------------------------------
 # Drain raylib's character queue onto the query. `getCharPressed` yields a C
@@ -274,11 +274,11 @@ $ read_chars : @Str -> @Str = \q =>
 
 $ drop_last : @Str -> @Str = \s => if len s > 0 => substr 0 (len s - 1) s else s
 
-$ pressed : I32 -> @Bool = \k => isKeyPressed k == 1
+$ pressed : I32 -> Bool = \k => isKeyPressed k == 1
 
 # A key fires this frame if pressed now or auto-repeating (so a held arrow key
 # keeps scrolling).
-$ key_step : I32 -> @Bool = \k => pressed k || isKeyPressedRepeat k == 1
+$ key_step : I32 -> Bool = \k => pressed k || isKeyPressedRepeat k == 1
 
 # Typed chars, backspace, and escape (which clears the query and any output).
 # Any change to the query resets the scroll and drops the output.
@@ -286,7 +286,7 @@ $ edit_step : {} -> <Ui> {} =
     let m = Ui.model {} in
     let q1 = read_chars m.query in
     let q2 = if key_step key_backspace => drop_last q1 else q1 in
-    let typed = if is_empty q2 => m.typed else @true in
+    let typed = if is_empty q2 => m.typed else true in
     if pressed key_escape =>
         Ui.set (refilter Model.{ .query = "", .output = "", .off = 0 | m })
     else if q2 == m.query =>
@@ -338,7 +338,7 @@ $ shell_quote : @Str -> @Str = \s => "'" ++ replace "'" "'\\''" s ++ "'"
 
 # `pclose` hands back a wait(2) status; `timeout` exits 124 when it had to kill
 # the command, which sits in the high byte (WEXITSTATUS).
-$ timed_out : @Int -> @Bool = \status => (status / 256) % 256 == 124
+$ timed_out : @Int -> Bool = \status => (status / 256) % 256 == 124
 
 # Run a shell command under `timeout` and capture its stdout+stderr. If it runs
 # longer than `cmd_timeout` seconds it is killed and the window shows a timeout
@@ -449,7 +449,7 @@ $ resize_step : Font -> <Ui> {} = \font =>
 
 # A hovered row is a filled rounded ("oval") box; an idle row is just its label
 # fenced by two thin divider lines (top and bottom edges).
-$ draw_row : Font -> App -> @Int32 -> @Bool -> {} = \font a y hover =>
+$ draw_row : Font -> App -> @Int32 -> Bool -> {} = \font a y hover =>
     (
         if hover =>
             drawRectangleRounded {
@@ -482,7 +482,7 @@ $ draw_list : Font -> Model -> {} = \font m =>
     let hover = row_at (getMouseX {}) (getMouseY {}) n in
     for
         (range 0 (n - 1)) <| \i =>
-            let hovered = hover |> \ | Opt.Some.{ r } => r == i | _ => @false in
+            let hovered = hover |> \ | Opt.Some.{ r } => r == i | _ => false in
             draw_row font (@vec_get m.visible (m.off + i)) (row_y i) hovered
 
 $ draw_step : Font -> <Ui, @IO> {} = \font =>
@@ -520,7 +520,7 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =>
         .visible = [],
         .output = "",
         .off = 0,
-        .typed = @false,
+        .typed = false,
         .win_w = base_w,
         .win_h = base_h,
     } in

@@ -42,7 +42,7 @@ $ build : Opts -> @Vec TU -> @Str -> <Files, @IO> Result @Str @Str = \o lib path
     do
         let user = parse_from Opts.{ .files = [path] | o } 0 (@vec_len lib) (@vec_new {}) in
         Result.Ok.{ link o.target "_start" (append user lib) }
-    ctl k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}
+    is k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}
 
 $ sh_quote : @Str -> @Str = \s => "'" ++ replace "'" "'\\''" s ++ "'"
 
@@ -66,17 +66,15 @@ $ capture : @Str -> @Str -> @Str -> <@IO> @Str = \tag cmd input =>
     unwrap_or ("exit=" ++ to_string status ++ "\n") (read_file out)
 
 # Where a suite's programs live and how their expectations are stored.
-$ Suite : @Type = @struct dir : @Str, suffix : @Str, status : @Bool,
+$ Suite : @Type = @struct dir : @Str, suffix : @Str, status : Bool,
 
-$ own : Suite = Suite.{ .dir = "tests/run", .suffix = ".expected", .status = @true }
+$ own : Suite = Suite.{ .dir = "tests/run", .suffix = ".expected", .status = true }
 
 $ source_of : Suite -> @Str -> @Str = \su t => su.dir ++ "/" ++ t ++ ".c"
 
 $ expected_of : Suite -> @Str -> <@IO> @Str = \su t =>
-    let e =
-        unwrap_or
-            "" (read_file (su.dir ++ "/" ++ t ++ (if su.status => ".expected" else ".c.expected")))
-    in
+    let e = unwrap_or ""
+        (read_file (su.dir ++ "/" ++ t ++ (if su.status => ".expected" else ".c.expected"))) in
     if su.status => e else e ++ "exit=0\n"
 
 $ regen : @Str -> <@IO> {} = \t =>
@@ -111,7 +109,7 @@ $ run_target : Suite -> Opts -> @Vec @Str -> <@IO> { Set @Str, @Int } = \su o te
             let lib = fmap (\unit => unit {}) (ARES.values (library o)) in
             with_files (file_state o) (\u => run_all su o lib tests 0 (new {}) 0)
         )
-        ctl k
+        is k
         | Diag.fail e => (eprintln ("C library: " ++ render "error" e); { (new {}), 0 })
         | Diag.warn e => k {}
     in
@@ -135,8 +133,7 @@ $ run_all : Suite -> Opts -> @Vec TU -> @Vec @Str -> @Int -> Set @Str -> @Int
 $ indent : @Str -> @Str = \s => join "\n" (fmap (\l => "        " ++ l) (lines s))
 
 $ all_tests : Suite -> <@IO> @Vec @Str = \su =>
-    fmap (\n => substr 0 (len n - 2) n)
-        (filter (\n => ends_with ".c" n) (read_dir su.dir))
+    fmap (\n => substr 0 (len n - 2) n) (filter (\n => ends_with ".c" n) (read_dir su.dir))
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     C.system ("mkdir -p " ++ scratch);
@@ -145,8 +142,8 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =>
     let su = (
         si |> \
             | Opt.Some.{ i } =>
-                Suite.{ .dir = @vec_get rest (i + 1), .suffix = ".c.expected", .status = @false }
-            | _                 => own
+                Suite.{ .dir = @vec_get rest (i + 1), .suffix = ".c.expected", .status = false }
+            | _              => own
     ) in
     let named = filter (\a => a != "--regen" && a != "--suite" && a != su.dir) rest in
     let tests = if @vec_len named > 0 => named else all_tests su in
@@ -161,11 +158,11 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =>
             .files = @vec_new {},
             .incs = @vec_new {},
             .defs = "",
-            .stdlib = @true,
+            .stdlib = true,
             .home = home,
-            .dump = @false,
-            .verbose = @false,
-            .quiet = @true
+            .dump = false,
+            .verbose = false,
+            .quiet = true
         } in
         println
             (
@@ -179,7 +176,6 @@ $ @main : @Vec @Str -> <@IO> @Int = \args =>
         let r64 = run_target su Opts.{ .target = wasm64 | o } tests in
         let failed = merge r64.0 r32.0 in
         let passed = r32.1 + r64.1 in
-        println
-            ("\n" ++ to_string passed ++ " passed, " ++ to_string (len failed) ++ " failed");
+        println ("\n" ++ to_string passed ++ " passed, " ++ to_string (len failed) ++ " failed");
         for (to_list failed) (\f => println ("  failed: " ++ f));
         if len failed == 0 => 0 else 1

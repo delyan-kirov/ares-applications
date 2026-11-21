@@ -19,10 +19,10 @@ $ @import ARESxBITS
 $ @import WASM
 
 # The whole module.
-$ module_lines : @Str -> List @Str = \s => render s (\n => @true) @true
+$ module_lines : @Str -> List @Str = \s => render s (\n => true) true
 
 # Only the functions whose names `keep` accepts.
-$ function_lines : @Str -> (@Str -> @Bool) -> List @Str = \s keep => render s keep @false
+$ function_lines : @Str -> (@Str -> Bool) -> List @Str = \s keep => render s keep false
 
 $ @private
 
@@ -33,7 +33,7 @@ $ Imp : @Type = @struct module : @Str, name : @Str, kind : @Int, index : @Int,
 # What printing an instruction needs: function names by index.
 $ Names : @Type = @struct funcs : Map @Int @Str,
 
-$ render : @Str -> (@Str -> @Bool) -> @Bool -> List @Str = \s keep full =>
+$ render : @Str -> (@Str -> Bool) -> Bool -> List @Str = \s keep full =>
     if @array_len s < 8 || @array_slice s 0 4 != "\0asm" =>
         ARES.singleton ";; not a WebAssembly module"
     else
@@ -43,7 +43,7 @@ $ render : @Str -> (@Str -> @Bool) -> @Bool -> List @Str = \s keep full =>
         let nimp = len (filter (\i => i.kind == 0) imports) in
         let ftypes = items s secs 3 r_u in
         let funcs = code_lines s secs nm nimp ftypes keep in
-        if !full =>
+        if not full =>
             funcs
         else
             let head = concat [
@@ -77,12 +77,13 @@ $ find : List Sec -> @Int -> Opt Sec = \secs id =>
         | _                  => Opt.None
 
 # The items of section `id`, a vector of whatever `f` reads.
-$ items : @ctx {a: @Type} -> @Str -> List Sec -> @Int -> (@Str -> @Int -> { a, @Int }) -> List a = \s secs id f =>
+$ items : @ctx { a: @Type } -> @Str -> List Sec -> @Int -> (@Str -> @Int -> { a, @Int })
+    -> List a = \s secs id f =>
     find secs id |> \
         | Opt.Some.{ sec } => (let n = r_u s sec.start in read_n f s n.0 n.1 List.Nil).0
-        | _                   => List.Nil
+        | _                => List.Nil
 
-$ read_n : @ctx {a: @Type} -> (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
+$ read_n : @ctx { a: @Type } -> (@Str -> @Int -> { a, @Int }) -> @Str -> @Int -> @Int -> List a
     -> { List a, @Int } = \f s n i acc =>
     if n == 0 =>
         { reverse acc, i }
@@ -291,14 +292,14 @@ $ r_assoc : @Str -> @Int -> { { @Int, @Str }, @Int } = \s i =>
 
 # -- code ----------------------------------------------------------------------
 
-$ code_lines : @Str -> List Sec -> Names -> @Int -> List @Int -> (@Str -> @Bool)
+$ code_lines : @Str -> List Sec -> Names -> @Int -> List @Int -> (@Str -> Bool)
     -> List @Str = \s secs nm nimp ftypes keep =>
     find secs 10 |> \
         | Opt.Some.{ sec } =>
             let n = r_u s sec.start in bodies s nm nimp ftypes keep n.0 n.1 nimp List.Nil
-        | _ => List.Nil
+        | _                => List.Nil
 
-$ bodies : @Str -> Names -> @Int -> List @Int -> (@Str -> @Bool) -> @Int -> @Int -> @Int
+$ bodies : @Str -> Names -> @Int -> List @Int -> (@Str -> Bool) -> @Int -> @Int -> @Int
     -> List (List @Str) -> List @Str = \s nm nimp ftypes keep n i idx acc =>
     if n == 0 =>
         concat (reverse acc)
@@ -599,4 +600,4 @@ $ numeric : @Vec @Str = [
     "i64.extend32_s"
 ]
 
-$ &assert (@vec_len numeric == 128 && @vec_len memops == 23) "WAT: opcode tables out of step"
+$ !assert (@vec_len numeric == 128 && @vec_len memops == 23) "WAT: opcode tables out of step"

@@ -97,7 +97,7 @@ $ load_lib : Opts -> <@IO> Opt (Map @Str ({} -> TU)) = \o =>
         let lib = library o in
         Opt.Some.{ ARES.map_values (\get => let tu = get {} in \u => tu) lib }
     )
-    ctl k
+    is k
     | Diag.fail e => (eprintln ("C library: " ++ render "error" e); Opt.None)
     | Diag.warn e => k {}
 
@@ -152,7 +152,7 @@ $ read_line_opt : @Str -> <@IO> Opt @Str = \acc =>
         Opt.None
 
 # Whether an entry is finished: every bracket closed and no line continued.
-$ complete : @Str -> @Bool = \s => depth s 0 0 0 <= 0 && !(ends_with "\\" (trim_right s))
+$ complete : @Str -> Bool = \s => depth s 0 0 0 <= 0 && not (ends_with "\\" (trim_right s))
 
 # Open brackets, skipping string and character literals and comments; an
 # unterminated comment counts as open.
@@ -245,9 +245,9 @@ $ classify : Sh -> @Str -> <@IO> Entry = \sh e =>
             | _ => Entry.Stmts
 
 # `(name *)0` parses only when `name` names a type.
-$ is_type : Sh -> @Str -> <@IO> @Bool = \sh name =>
+$ is_type : Sh -> @Str -> <@IO> Bool = \sh name =>
     parse_src sh (prelude ++ "void __alec_t(void) { (void)(" ++ name ++ " *)0; }\n") |>
-        \ | Result.Ok.{ tu } => @true | _ => @false
+        \ | Result.Ok.{ tu } => true | _ => false
 
 # A declaration parsed in the session, with the `;` it may have left off added:
 # the text the session keeps, and its unit.
@@ -277,10 +277,11 @@ $ probe_src : @Str -> @Str = \e =>
 
 $ input_path : Sh -> @Str = \sh => sh.dir ++ "/input.c"
 
-$ in_world : @ctx {a: @Type} -> Sh -> @Str -> ({} -> <Diag, @IO> a) -> <@IO> Result a @Str = \sh src body =>
+$ in_world : @ctx { a: @Type } -> Sh -> @Str -> ({} -> <Diag, @IO> a)
+    -> <@IO> Result a @Str = \sh src body =>
     write_file (input_path sh) src;
     do Result.Ok.{ body {} }
-    ctl k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}
+    is k | Diag.fail e => Result.Err.{ render "error" e } | Diag.warn e => k {}
 
 $ src_opts : Sh -> Opts = \sh => Opts.{ .files = [input_path sh] | sh.o }
 
@@ -339,7 +340,7 @@ $ probe : Sh -> @Str -> <@IO> Result { Ty, Layout } @Str = \sh e =>
                         )
                         | _                 => Result.Ok.{ { t_void, tu.layout } }
                 )
-                | _                 => Result.Ok.{ { t_void, tu.layout } }
+                | _              => Result.Ok.{ { t_void, tu.layout } }
         )
         | Result.Err.{ msg } => Result.Err.{ msg }
 
@@ -358,7 +359,7 @@ $ run_expr : Sh -> @Str -> <@IO> {} = \sh e =>
                                 read_file (value_path sh) |> \
                                     | Opt.Some.{ v } =>
                                         println ("  // " ++ shown v ++ " : " ++ ty_name p.1 p.0)
-                                    | _                 => {}
+                                    | _              => {}
                             )
                         | Result.Err.{ msg } => println msg
                 )
@@ -411,9 +412,9 @@ $ writer : Ty -> { @Str, @Str } = \t =>
     else
         { "(void)(", "fputs(\"v{...}\", __alec_f);" }
 
-$ is_char : Ty -> @Bool = \t => t |> \ | Ty.Int.{ k } => k.size == 1 && k.rank == 1 | _ => @false
+$ is_char : Ty -> Bool = \t => t |> \ | Ty.Int.{ k } => k.size == 1 && k.rank == 1 | _ => false
 
-$ is_chars : Ty -> @Bool = \t => is_pointerish t && is_char (base_of t)
+$ is_chars : Ty -> Bool = \t => is_pointerish t && is_char (base_of t)
 
 $ c_escape : @Str -> @Str = \s => replace "\"" "\\\"" (replace s "\\" "\\\\")
 
@@ -496,7 +497,7 @@ $ command : Sh -> @Str -> <@IO> Opt Sh = \sh t =>
                     let o = Opts.{ .target = (if rest == "wasm64" => wasm64 else wasm32) | sh.o } in
                     load_lib o |> \
                         | Opt.Some.{ lib } => Opt.Some.{ Sh.{ .o = o, .lib = lib | sh } }
-                        | _                   => Opt.Some.{ sh }
+                        | _                => Opt.Some.{ sh }
                 )
             else
                 (
@@ -514,11 +515,11 @@ $ command : Sh -> @Str -> <@IO> Opt Sh = \sh t =>
             Opt.Some.{ sh }
         )
 
-$ nothing : Sh -> @Str -> <@IO> @Bool = \sh code =>
+$ nothing : Sh -> @Str -> <@IO> Bool = \sh code =>
     if code == "" =>
-        (println "alec: no entry yet; give some C after the command"; @true)
+        (println "alec: no entry yet; give some C after the command"; true)
     else
-        @false
+        false
 
 # `pp` first means after preprocessing, with the session and <stdio.h> in
 # effect; only the entry's own tokens are shown.
@@ -528,7 +529,7 @@ $ show_tokens : Sh -> @Str -> <@IO> {} = \sh rest =>
     let code = if given == "" => sh.last else given in
     if nothing sh code =>
         {}
-    else if !pp =>
+    else if not pp =>
         for (lex "<input>" code) (\t => println (DUMP.token t))
     else
         in_world sh (decl_src code) (\u =>
@@ -558,7 +559,7 @@ $ show_ast : Sh -> @Str -> <@IO> {} = \sh code =>
 
 # A declaration's functions are kept alive by a `main` that takes their
 # addresses; otherwise only `main` itself is shown.
-$ show_wasm : Sh -> @Str -> @Bool -> <@IO> {} = \sh code all =>
+$ show_wasm : Sh -> @Str -> Bool -> <@IO> {} = \sh code all =>
     let c = if all => sh.last else code in
     if nothing sh c =>
         {}
@@ -576,7 +577,7 @@ $ show_wasm : Sh -> @Str -> @Bool -> <@IO> {} = \sh code all =>
                             \n => any (\m => m == n) mine
                         }
                     )
-                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n => @false }
+                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n => false }
             )
             | Entry.Stmts      => { build_src sh (stmt_src c), \n => n == "main" }
             | Entry.Expr       => (
@@ -586,7 +587,7 @@ $ show_wasm : Sh -> @Str -> @Bool -> <@IO> {} = \sh code all =>
                             (if is_void p.0 => stmt_src (c ++ ";") else value_src sh c p.0),
                         \n => n == "main"
                     }
-                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n => @false }
+                    | Result.Err.{ msg } => { Result.Err.{ msg }, \n => false }
             ) in
         r.0 |> \
             | Result.Ok.{ bytes } =>

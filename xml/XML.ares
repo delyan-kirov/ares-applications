@@ -75,7 +75,7 @@ $ kids : Node -> List Node = \n => n |> \ | Node.Elem.{ e } => e.kids | _ => Lis
 # How many children, without building a vector of them.
 $ kid_count : Node -> @Int = \n => list_len (kids n) 0
 
-$ is_elem : Node -> @Bool = \n => n |> \ | Node.Elem.{ e } => @true | _ => @false
+$ is_elem : Node -> Bool = \n => n |> \ | Node.Elem.{ e } => true | _ => false
 
 $ attr : Node -> @Str -> Opt @Str = \n want => attr_at (attrs n) want 0
 
@@ -108,7 +108,7 @@ $ Scan : @Type = @effect
     bump : @Int -> {},
 
 # A nondeterministic branch. Which way it goes is the handler's business.
-$ Choice : @Type = @effect fork : {} -> @Bool,
+$ Choice : @Type = @effect fork : {} -> Bool,
 
 # A failure the nearest enclosing choice point may retry.
 $ Soft : @Type = @effect reject : @ctx { a: @Type } -> Err -> a,
@@ -130,9 +130,10 @@ $ parse : @Str -> Parsed Node = \src => run_parser src document
 $ parse_fragment : @Str -> Parsed (@Vec Node) = \src =>
     run_parser src (\u => content (@vec_new {}) {})
 
-$ is_ok : @ctx {a: @Type} -> Parsed a -> @Bool = \r => r |> \ | Parsed.Ok.{ v } => @true | _ => @false
+$ is_ok : @ctx { a: @Type } -> Parsed a -> Bool = \r =>
+    r |> \ | Parsed.Ok.{ v } => true | _ => false
 
-$ error_of : @ctx {a: @Type} -> Parsed a -> Opt Err = \r =>
+$ error_of : @ctx { a: @Type } -> Parsed a -> Opt Err = \r =>
     r |> \ | Parsed.Bad.{ er } => Opt.Some.{ er } | _ => Opt.None
 
 # The failure as a diagnostic block, in the compiler's own shape: the headline,
@@ -143,7 +144,7 @@ $ error_of : @ctx {a: @Type} -> Parsed a -> Opt Err = \r =>
 #       --> sample.xml:13:2
 #        | <    <tags><tag>effects</tag></tags>
 #        |  ^
-#     note: found a space. A literal `<` in text must be written `&lt;`
+#     note: found a space. A literal `<` in text must be written `!lt;`
 $ report : @Str -> @Str -> Err -> @Str = \file src er =>
     let lc = line_col src er.at in
     let line = line_at src er.at in
@@ -191,25 +192,25 @@ $ render : Node -> @Str = \n =>
 # EVERY outcome of `body`: `one_of` resumes once per candidate and `fork` once
 # per branch, so a path written as straight-line code enumerates all its
 # matches, and a `no_match` prunes just the branch it is in.
-$ matches : @ctx {a: @Type} -> ({} -> <Pick, Choice, Soft> a) -> @Vec a = \body =>
+$ matches : @ctx { a: @Type } -> ({} -> <Pick, Choice, Soft> a) -> @Vec a = \body =>
     do @vec_push (@vec_new {}) (body {})
-    ctl k
+    is k
     | Pick.one_of xs => pick_each k xs (@vec_new {})
-    | Choice.fork u  => append (k @false) (k @true)
+    | Choice.fork u  => append (k false) (k true)
     | Soft.reject er => @vec_new {}
     | v              => v
 
 # The first outcome, exploring no further than it has to.
-$ match_first : @ctx {a: @Type} -> ({} -> <Pick, Choice, Soft> a) -> Opt a = \body =>
+$ match_first : @ctx { a: @Type } -> ({} -> <Pick, Choice, Soft> a) -> Opt a = \body =>
     do Opt.Some.{ body {} }
-    ctl k
+    is k
     | Pick.one_of xs => first_of k xs
-    | Choice.fork u  => (k @true |> \ | Opt.Some.{ v } => Opt.Some.{ v } | _ => k @false)
+    | Choice.fork u  => (k true |> \ | Opt.Some.{ v } => Opt.Some.{ v } | _ => k false)
     | Soft.reject er => Opt.None
     | v              => v
 
 # Prune this branch: it is not a match.
-$ no_match : @ctx {a: @Type} -> {} -> <Pick, Choice, Soft> a = reject (broken 0 "no match" "")
+$ no_match : @ctx { a: @Type } -> {} -> <Pick, Choice, Soft> a = reject (broken 0 "no match" "")
 
 $ child : Node -> <Pick, Choice, Soft> Node = \n => one_of (kids n)
 
@@ -260,11 +261,11 @@ $ @private
 # Each clause hands `k` to a lambda, and the lambda resumes it once. By then the
 # lambda is the continuation's only owner, so the resume takes the captured stack
 # rather than copying it.
-$ scan_from : @ctx {a: @Type} -> @Str -> @Int -> ({} -> <Scan, Choice, Soft, Hard> a)
+$ scan_from : @ctx { a: @Type } -> @Str -> @Int -> ({} -> <Scan, Choice, Soft, Hard> a)
     -> <Choice, Soft, Hard> a = \src from body =>
     let run =
         do body {}
-        ctl k
+        is k
         | Scan.view u => \p => (k View.{ .src = src, .at = p }) p
         | Scan.bump n => \p => (k {}) (p + n)
         | x           => \p => x
@@ -274,10 +275,10 @@ $ scan_from : @ctx {a: @Type} -> @Str -> @Int -> ({} -> <Scan, Choice, Soft, Har
 # The top-level cursor, for the deterministic layer: every branch in this parser
 # happens inside a `commit`, so nothing forks out here. One resume per
 # operation, as above.
-$ scan_all : @ctx {a: @Type} -> @Str -> ({} -> <Scan, Hard> a) -> <Hard> a = \src body =>
+$ scan_all : @ctx { a: @Type } -> @Str -> ({} -> <Scan, Hard> a) -> <Hard> a = \src body =>
     let run =
         do body {}
-        ctl k
+        is k
         | Scan.view u => \p => (k View.{ .src = src, .at = p }) p
         | Scan.bump n => \p => (k {}) (p + n)
         | x           => \p => x
@@ -292,14 +293,14 @@ $ scan_all : @ctx {a: @Type} -> @Str -> ({} -> <Scan, Hard> a) -> <Hard> a = \sr
 #
 # When both ways fail, the failure that got FURTHEST through the input is the
 # one reported, which is the message a reader of a broken document wants.
-$ search : @ctx {a: @Type} -> ({} -> <Choice, Soft, Hard> a) -> <Hard> Parsed a = \body =>
+$ search : @ctx { a: @Type } -> ({} -> <Choice, Soft, Hard> a) -> <Hard> Parsed a = \body =>
     do Parsed.Ok.{ body {} }
-    ctl k
+    is k
     | Choice.fork u  => (
-        k @true |> \
+        k true |> \
             | Parsed.Ok.{ v }   => Parsed.Ok.{ v }
             | Parsed.Bad.{ e1 } => (
-                k @false |> \
+                k false |> \
                     | Parsed.Ok.{ w }   => Parsed.Ok.{ w }
                     | Parsed.Bad.{ e2 } => Parsed.Bad.{ furthest e1 e2 }
             )
@@ -308,11 +309,11 @@ $ search : @ctx {a: @Type} -> ({} -> <Choice, Soft, Hard> a) -> <Hard> Parsed a 
     | x              => x
 
 # `fatal` ends the parse: handled outside every choice point, so none retries it.
-$ guard : @ctx {a: @Type} -> ({} -> <Hard> (Parsed a)) -> Parsed a = \body =>
+$ guard : @ctx { a: @Type } -> ({} -> <Hard> (Parsed a)) -> Parsed a = \body =>
     do body {}
-    ctl k | Hard.fatal er => Parsed.Bad.{ er } | x => x
+    is k | Hard.fatal er => Parsed.Bad.{ er } | x => x
 
-$ run_parser : @ctx {a: @Type} -> @Str -> ({} -> <Scan, Hard> a) -> Parsed a = \src body =>
+$ run_parser : @ctx { a: @Type } -> @Str -> ({} -> <Scan, Hard> a) -> Parsed a = \src body =>
     guard (\u => Parsed.Ok.{ scan_all src body })
 
 # ==========================================================================
@@ -320,12 +321,13 @@ $ run_parser : @ctx {a: @Type} -> @Str -> ({} -> <Scan, Hard> a) -> Parsed a = \
 # ==========================================================================
 
 # Try `p`; should anything later fail, try `q` from the same position instead.
-$ alt : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Hard> a)
-    -> <Scan, Choice, Soft, Hard> a = \p q =>
+$ alt : @ctx { a: @Type } -> ({} -> <Scan, Choice, Soft, Hard> a)
+    -> ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Choice, Soft, Hard> a = \p q =>
     if fork {} => p {} else q {}
 
-$ alt3 : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Hard> a)
-    -> ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Choice, Soft, Hard> a = \p q r =>
+$ alt3 : @ctx { a: @Type } -> ({} -> <Scan, Choice, Soft, Hard> a)
+    -> ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan, Choice, Soft, Hard> a)
+    -> <Scan, Choice, Soft, Hard> a = \p q r =>
     alt p (\u => alt q r)
 
 # A CUT. Run `p` under its own choice handler, over its own cursor opened at the
@@ -334,7 +336,7 @@ $ alt3 : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> ({} -> <Scan
 # returns, so the search a long document retains is one item's worth rather than
 # the whole file's, and a soft failure that survives every alternative becomes
 # the hard failure that reports the document broken.
-$ commit : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Hard> a = \p =>
+$ commit : @ctx { a: @Type } -> ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Hard> a = \p =>
     let v = view {} in
     search (\u => scan_from v.src v.at (\u2 => Span.{ .value = p {}, .end = pos {} })) |>
         \ | Parsed.Ok.{ sp } => (bump (sp.end - v.at); sp.value) | Parsed.Bad.{ er } => fatal er
@@ -348,25 +350,25 @@ $ commit : @ctx {a: @Type} -> ({} -> <Scan, Choice, Soft, Hard> a) -> <Scan, Har
 # The byte at `off` from the cursor, or -1 past the end.
 $ byte : View -> @Int -> @Int = \v off => byte_at v.src (v.at + off)
 
-$ ended : View -> @Bool = \v => v.at >= @array_len v.src
+$ ended : View -> Bool = \v => v.at >= @array_len v.src
 
 # Does `want` sit at the cursor?
-$ at_lit : View -> @Str -> @Bool = \v want => match_at v.src v.at want 0
+$ at_lit : View -> @Str -> Bool = \v want => match_at v.src v.at want 0
 
 # The end of the run of bytes satisfying `ok` that starts at the cursor.
-$ run_to : View -> (@Int -> @Bool) -> @Int = \v ok => run_end v.src v.at ok
+$ run_to : View -> (@Int -> Bool) -> @Int = \v ok => run_end v.src v.at ok
 
 # -- operations -------------------------------------------------------------
 
 $ pos : {} -> <Scan> @Int = (view {}).at
 
-$ at_end : {} -> <Scan> @Bool = ended (view {})
+$ at_end : {} -> <Scan> Bool = ended (view {})
 
-$ ahead : @Str -> {} -> <Scan> @Bool = \s u => at_lit (view {}) s
+$ ahead : @Str -> {} -> <Scan> Bool = \s u => at_lit (view {}) s
 
 # Bytes while `ok` holds, in one step: measure the run, then make a single
 # `bump` of it.
-$ take_while : (@Int -> @Bool) -> {} -> <Scan> @Str = \ok u =>
+$ take_while : (@Int -> Bool) -> {} -> <Scan> @Str = \ok u =>
     let v = view {} in let to = run_to v ok in (bump (to - v.at); @array_slice v.src v.at to)
 
 $ skip_space : {} -> <Scan> {} = let v = view {} in bump (run_to v is_space_byte - v.at)
@@ -399,7 +401,7 @@ $ until_past : @Str -> @Str -> @Int -> {} -> <Scan, Hard> @Str = \close what ope
     let v = view {} in
     index_of_from close v.at v.src |> \
         | Opt.Some.{ at } => (bump (at + @array_len close - v.at); @array_slice v.src v.at at)
-        | _                  => fatal
+        | _               => fatal
             (
                 broken opened
                     (
@@ -473,7 +475,7 @@ $ text : {} -> <Scan, Choice, Soft, Hard> Node =
 
 $ attr_list : @Vec Attr -> {} -> <Scan, Choice, Soft, Hard> @Vec Attr = \acc u => (
     skip_space {};
-    if is_name_start (byte (view {}) 0) == @false =>
+    if is_name_start (byte (view {}) 0) == false =>
         acc
     else
         let n = xml_name {} in
@@ -493,7 +495,7 @@ $ element : {} -> <Scan, Choice, Soft, Hard> Node =
     (
         lit "<" {};
         let v = view {} in
-        if is_name_start (byte v 0) == @false =>
+        if is_name_start (byte v 0) == false =>
             reject (after_lt v opened)
         else
             let n = xml_name {} in
@@ -540,7 +542,7 @@ $ closes : @Str -> @Int -> @Vec Attr -> @Vec Node -> @Str -> @Int
 # A `<` the grammar could not continue. What a reader needs depends on what
 # followed it: `<!` opens one of three things, `</` closes something that is not
 # open here, and anything else is a literal `<` that should have been written
-# `&lt;` (the usual mistake, and the usual fix).
+# `!lt;` (the usual mistake, and the usual fix).
 $ after_lt : View -> @Int -> Err = \v opened =>
     let c = byte v 0 in
     if c == 33 =>
@@ -712,24 +714,24 @@ $ found_at : @Str -> @Int -> @Str = \src at =>
 
 $ at_most : @Int -> @Int -> @Int = \a b => if a < b => a else b
 
-$ is_space_byte : @Int -> @Bool = \c => c == 32 || c == 9 || c == 10 || c == 13
+$ is_space_byte : @Int -> Bool = \c => c == 32 || c == 9 || c == 10 || c == 13
 
-$ is_name_start : @Int -> @Bool = \c => is_alpha c || c == 95 || c == 58
+$ is_name_start : @Int -> Bool = \c => is_alpha c || c == 95 || c == 58
 
-$ is_name_char : @Int -> @Bool = \c => is_name_start c || is_digit c || c == 45 || c == 46
+$ is_name_char : @Int -> Bool = \c => is_name_start c || is_digit c || c == 45 || c == 46
 
-$ match_at : @Str -> @Int -> @Str -> @Int -> @Bool = \src at want i =>
+$ match_at : @Str -> @Int -> @Str -> @Int -> Bool = \src at want i =>
     if i >= @array_len want =>
-        @true
+        true
     else if at + i >= @array_len src =>
-        @false
+        false
     else if @array_get src (at + i) != @array_get want i =>
-        @false
+        false
     else
         match_at src at want (i + 1)
 
 # The end of the run of bytes satisfying `ok` that starts at `from`.
-$ run_end : @Str -> @Int -> (@Int -> @Bool) -> @Int = \src from ok =>
+$ run_end : @Str -> @Int -> (@Int -> Bool) -> @Int = \src from ok =>
     if from >= @array_len src =>
         from
     else if ok (@array_get src from) =>
@@ -758,14 +760,13 @@ $ render_kids : List Node -> @Str -> @Str = \ns acc =>
     ns |> \ | List.Cons.{ h, t } => render_kids t (acc ++ render h) | _ => acc
 
 # Resume a continuation with every candidate, collecting all of the outcomes.
-$ pick_each : @ctx {a: @Type} -> (Node -> @Vec a) -> List Node -> @Vec a -> @Vec a = \k xs acc =>
+$ pick_each : @ctx { a: @Type } -> (Node -> @Vec a) -> List Node -> @Vec a -> @Vec a = \k xs acc =>
     xs |> \ | List.Cons.{ h, t } => pick_each k t (append (k h) acc) | _ => acc
 
 # Resume a continuation with each candidate until one of them yields a match.
-$ first_of : @ctx {a: @Type} -> (Node -> Opt a) -> List Node -> Opt a = \k xs =>
+$ first_of : @ctx { a: @Type } -> (Node -> Opt a) -> List Node -> Opt a = \k xs =>
     xs |> \
-        | List.Cons.{ h, t } =>
-            (k h |> \ | Opt.Some.{ v } => Opt.Some.{ v } | _ => first_of k t)
+        | List.Cons.{ h, t } => (k h |> \ | Opt.Some.{ v } => Opt.Some.{ v } | _ => first_of k t)
         | _                  => Opt.None
 
 # -- lists ------------------------------------------------------------------
@@ -773,7 +774,7 @@ $ first_of : @ctx {a: @Type} -> (Node -> Opt a) -> List Node -> Opt a = \k xs =>
 $ list_len : List Node -> @Int -> @Int = \l acc =>
     l |> \ | List.Cons.{ h, t } => list_len t (acc + 1) | _ => acc
 
-$ list_filter : (Node -> @Bool) -> List Node -> List Node = \ok l =>
+$ list_filter : (Node -> Bool) -> List Node -> List Node = \ok l =>
     l |> \
         | List.Cons.{ h, t } => (if ok h => List.Cons.{ h, list_filter ok t } else list_filter ok t)
         | _                  => List.Nil
@@ -786,11 +787,11 @@ $ list_onto : @Vec Node -> @Int -> List Node -> List Node = \v i acc =>
 
 # -- entities ---------------------------------------------------------------
 
-$ encode : @Str -> @Str = \s => encode_onto s 0 "" @false
+$ encode : @Str -> @Str = \s => encode_onto s 0 "" false
 
-$ encode_attr : @Str -> @Str = \s => encode_onto s 0 "" @true
+$ encode_attr : @Str -> @Str = \s => encode_onto s 0 "" true
 
-$ encode_onto : @Str -> @Int -> @Str -> @Bool -> @Str = \s i acc in_attr =>
+$ encode_onto : @Str -> @Int -> @Str -> Bool -> @Str = \s i acc in_attr =>
     if i >= @array_len s =>
         acc
     else
@@ -822,9 +823,9 @@ $ decode_onto : @Str -> @Int -> @Str -> @Str = \s i acc =>
                 let body = @array_slice s (i + 1) end in
                 entity body |> \
                     | Opt.Some.{ rep } => decode_onto s (end + 1) (acc ++ rep)
-                    | _                   => decode_onto s (i + 1) (@array_push acc 38)
+                    | _                => decode_onto s (i + 1) (@array_push acc 38)
             )
-            | _                   => decode_onto s (i + 1) (@array_push acc 38)
+            | _                => decode_onto s (i + 1) (@array_push acc 38)
 
 # A named or numeric reference, or `None` for anything left alone.
 $ entity : @Str -> Opt @Str = \body =>
@@ -853,7 +854,7 @@ $ numeric_entity : @Str -> Opt @Str = \body =>
     let n = if hex => from_hex digits 0 0 else from_str digits in
     n |> \
         | Opt.Some.{ v } => if v > 0 && v < 256 => Opt.Some.{ from_byte v } else Opt.None
-        | _                 => Opt.None
+        | _              => Opt.None
 
 $ from_hex : @Str -> @Int -> @Int -> Opt @Int = \s i acc =>
     if i >= @array_len s =>

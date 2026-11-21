@@ -28,12 +28,12 @@ $ pp : @Str -> @Str -> {} -> <Files, Out, Diag> {} = \path src u =>
 $ run : ({} -> <Files, Diag, @IO> @Int) -> <@IO> @Int = \body =>
     do (
         do body {}
-        ctl k
+        is k
         | Files.include r  => k Loaded.Missing
-        | Files.has_file r => k @false
+        | Files.has_file r => k false
         | Files.once p     => k {}
     )
-    ctl k | Diag.fail e => (println (render "error" e); 0) | Diag.warn e => k {}
+    is k | Diag.fail e => (println (render "error" e); 0) | Diag.warn e => k {}
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     let path = @vec_get args 1 in

@@ -27,10 +27,10 @@ $ Syntax : @Type = @struct
     docs: @Vec @Str,
     opens: @Vec @Str,
     closes: @Vec @Str,
-    nested: @Bool,
+    nested: Bool,
     qopens: @Vec @Str,
     qcloses: @Vec @Str,
-    prose: @Bool,
+    prose: Bool,
     any: @Str,
     nl: @Str,
     solid: @Str,
@@ -57,9 +57,9 @@ $ syntax : {
     line: @Vec @Str,
     docs: @Vec @Str,
     blocks: @Vec { @Str, @Str },
-    nested: @Bool,
+    nested: Bool,
     quotes: @Vec { @Str, @Str },
-    prose: @Bool
+    prose: Bool
 } -> Syntax =
     let opens = fmap (\b => b.0) blocks in
     let closes = fmap (\b => b.1) blocks in
@@ -192,7 +192,7 @@ $ step : Syntax -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Int -> @Int
                     step syn s next eol 0 0 0 has_code 1
                 else
                     step syn s next eol 1 k (depth - 1) has_code 1
-            else if !syn.nested =>
+            else if not syn.nested =>
                 step syn s (j + 1) eol 1 k depth has_code 1
             else if starts_at s j (@vec_get syn.opens k) =>
                 step syn s (j + @array_len (@vec_get syn.opens k)) eol 1 k (depth + 1) has_code 1
@@ -212,7 +212,7 @@ $ step : Syntax -> @Str -> @Int -> @Int -> @Int -> @Int -> @Int -> @Int -> @Int
                 step syn s (j + 1) eol 2 k 0 1 0
 
 # Whether the comment at `j` is a doc marker with nothing after it.
-$ empty_doc : Syntax -> @Str -> @Int -> @Int -> @Bool = \syn s j eol =>
+$ empty_doc : Syntax -> @Str -> @Int -> @Int -> Bool = \syn s j eol =>
     let d = token syn.docs s j 0 in
     d >= 0 && @array_scan s (j + @array_len (@vec_get syn.docs d)) syn.solid >= eol
 
@@ -225,7 +225,7 @@ $ token : @Vec @Str -> @Str -> @Int -> @Int -> @Int = \toks s j t =>
     else
         token toks s j (t + 1)
 
-$ starts_at : @Str -> @Int -> @Str -> @Bool = \s j tok => @array_match s j tok
+$ starts_at : @Str -> @Int -> @Str -> Bool = \s j tok => @array_match s j tok
 
 # ---- prose ----
 
