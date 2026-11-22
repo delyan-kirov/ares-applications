@@ -9,7 +9,7 @@ $ @mod MAIN
 $ @import ARESxSTR
 $ @import HOST
 
-$ IArea : (t: @Type) -> @Type = @struct
+$ IArea : (t: @Type) -> @Class = @struct
     area: t -> @Int,
 
 $ Rect : @Type = @struct
@@ -23,9 +23,9 @@ $ Square : @Type = @struct
 
 $ impl_IArea_for_Square : IArea Square = .{ .area = \s => s.side * s.side }
 
-# `d` is a `@use` field: in scope by name in the body, found by type at every
+# `d` is an instance field: in scope by name in the body, found by type at every
 # call site, including the recursive one, so no call writes it.
-$ total : @ctx { t: @Type } -> @use { d: IArea t } -> @Vec t -> @Int = \xs =>
+$ total : @ctx { t: @Type, d: IArea t } -> @Vec t -> @Int = \xs =>
     xs |> \ | [] => 0 | h :: rest => d.area h + total rest
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
