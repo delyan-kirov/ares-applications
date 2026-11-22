@@ -124,7 +124,7 @@ $ Model : @Type = @struct
     win_h: @Int32,
 
 # The launcher's state, as an effect: `model` reads it, `set` replaces it.
-$ Ui : @Type = @effect model : {} -> Model, set : Model -> {},
+$ Ui : @Effect = model : {} -> Model, set : Model -> {},
 
 $ modify : (Model -> Model) -> <Ui> {} = \f => Ui.set (f (Ui.model {}))
 
@@ -212,7 +212,7 @@ $ parse_app : @Str -> Opt App = \line =>
 
 # What the scan coroutine performs: `found` delivers one app, `pause` hands the
 # frame back and answers whether to keep going.
-$ Feed : @Type = @effect found : App -> {}, pause : {} -> Bool,
+$ Feed : @Effect = found : App -> {}, pause : {} -> Bool,
 
 $ lines_per_frame : @Int = 8
 

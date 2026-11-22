@@ -103,21 +103,21 @@ $ elements : Node -> List Node = \n => list_filter is_elem (kids n)
 # rewinding the continuation's job.
 $ View : @Type = @struct src : @Str, at : @Int,
 
-$ Scan : @Type = @effect
+$ Scan : @Effect =
     view : {} -> View,
     bump : @Int -> {},
 
 # A nondeterministic branch. Which way it goes is the handler's business.
-$ Choice : @Type = @effect fork : {} -> Bool,
+$ Choice : @Effect = fork : {} -> Bool,
 
 # A failure the nearest enclosing choice point may retry.
-$ Soft : @Type = @effect reject : @ctx { a: @Type } -> Err -> a,
+$ Soft : @Effect = reject : @ctx { a: @Type } -> Err -> a,
 
 # A failure nothing retries: the document is malformed, so say where.
-$ Hard : @Type = @effect fatal : @ctx { a: @Type } -> Err -> a,
+$ Hard : @Effect = fatal : @ctx { a: @Type } -> Err -> a,
 
 # Pick one of several nodes; the query engine's branch point.
-$ Pick : @Type = @effect one_of : List Node -> Node,
+$ Pick : @Effect = one_of : List Node -> Node,
 
 # ==========================================================================
 # Parsing

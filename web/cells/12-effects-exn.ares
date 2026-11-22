@@ -8,7 +8,7 @@ $ @mod MAIN
 $ @import ARESxSTR
 $ @import HOST
 
-$ Exn : @Type = @effect throw : @ctx { a: @Type } -> @Str -> a,
+$ Exn : @Effect = throw : @ctx { a: @Type } -> @Str -> a,
 
 $ safeDiv : @Int -> @Int -> @Int = \a b =>
     do if b == 0 => Exn.throw "divide by zero" else a / b

@@ -53,10 +53,10 @@ a Ares string is a byte vector and this library does not encode UTF-8 yet.
 Four effects, and nothing else, carry the parser:
 
 ```ares
-$ Scan   : @Type = @effect view : {} -> View, bump : @Int -> {},
-$ Choice : @Type = @effect fork : {} -> Bool,
-$ Soft   : @Type = @effect reject : @ctx {a: @Type} -> Err -> a,
-$ Hard   : @Type = @effect fatal : @ctx {a: @Type} -> Err -> a,
+$ Scan   : @Effect = view : {} -> View, bump : @Int -> {},
+$ Choice : @Effect = fork : {} -> Bool,
+$ Soft   : @Effect = reject : @ctx {a: @Type} -> Err -> a,
+$ Hard   : @Effect = fatal : @ctx {a: @Type} -> Err -> a,
 ```
 
 **The cursor is a handler's parameter.** `view` reports the input and the offset

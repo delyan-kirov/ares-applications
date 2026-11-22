@@ -11,7 +11,7 @@ $ @mod MAIN
 $ @import ARESxSTR
 $ @import HOST
 
-$ Yield : @Type = @effect yield : @Int -> {},
+$ Yield : @Effect = yield : @Int -> {},
 
 $ sumGen : ({} -> <Yield> {}) -> @Int = \gen =>
     do gen {}

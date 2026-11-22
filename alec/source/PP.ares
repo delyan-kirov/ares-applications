@@ -45,7 +45,7 @@ $ Loaded : @Type = @union
     Skip : {},
     Missing : {},
 
-$ Macros : @Type = @effect
+$ Macros : @Effect =
     find : @Str -> Opt Macro,
     define : Macro -> {},
     undef : @Str -> {},
@@ -53,12 +53,12 @@ $ Macros : @Type = @effect
     push_macro : @Str -> {},
     pop_macro : @Str -> {},
 
-$ Files : @Type = @effect
+$ Files : @Effect =
     include : Request -> Loaded,
     has_file : Request -> Bool,
     once : @Str -> {},
 
-$ Out : @Type = @effect emit : Token -> {},
+$ Out : @Effect = emit : Token -> {},
 
 # Preprocess one file's token stream, emitting the result through `Out`.
 $ preprocess : @Str -> List Token -> <Macros, Files, Out, Diag> {} = \file toks =>
@@ -901,7 +901,7 @@ $ Val : @Type = @struct v : @Int, u : Bool,
 
 # The cursor over the line being evaluated, as an effect whose handler holds
 # the remaining tokens.
-$ Cur : @Type = @effect look : {} -> Opt Token, skip : {} -> {},
+$ Cur : @Effect = look : {} -> Opt Token, skip : {} -> {},
 
 $ eval_if : Token -> List Token -> <Macros, Files, Out, Diag> Bool = \d args =>
     let l1 = replace_defined d args in

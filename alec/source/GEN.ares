@@ -54,11 +54,11 @@ $ Lbl : @Type = @union
     LPlain : {},
     LDisp : { List @Str, @Int },
 
-$ Code : @Type = @effect emit : @Str -> {},
+$ Code : @Effect = emit : @Str -> {},
 
-$ Types : @Type = @effect type_of : Sig -> @Int,
+$ Types : @Effect = type_of : Sig -> @Int,
 
-$ Fr : @Type = @effect
+$ Fr : @Effect =
     tmp : ValT -> @Int,
     slot : @Int -> Slot,
     set_slot : { @Int, Slot } -> {},
@@ -70,7 +70,7 @@ $ Fr : @Type = @effect
 # Raised when a jump cannot be expressed with structured blocks (a `case`
 # nested inside another statement, a `goto` into a block). The function is then
 # flattened and generated again.
-$ Bail : @Type = @effect unstructured : @ctx { a: @Type } -> @Str -> a,
+$ Bail : @Effect = unstructured : @ctx { a: @Type } -> @Str -> a,
 
 # Per-function facts: the return type, the wasm locals holding the struct-return
 # pointer (-1 if none), the variadic area pointer, the frame pointer and the
@@ -1429,7 +1429,7 @@ $ jump : Ctx -> F -> Expr -> List { @Int, @Int, @Str } -> @Str
 # `fresh` numbers labels. The case labels of the switches being flattened
 # are queues in the handler's state, one per enclosing switch: each case label
 # met in the walk takes the next name of the innermost one.
-$ Flat : @Type = @effect
+$ Flat : @Effect =
     fresh : {} -> @Int,
     open_cases : List @Str -> {},
     close_cases : {} -> {},

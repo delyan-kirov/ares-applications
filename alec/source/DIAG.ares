@@ -11,7 +11,7 @@ $ @import LEX
 
 $ Err : @Type = @struct pos : Pos, msg : @Str,
 
-$ Diag : @Type = @effect
+$ Diag : @Effect =
     fail : @ctx { a: @Type } -> Err -> a,
     warn : Err -> {},
 

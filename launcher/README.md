@@ -79,7 +79,7 @@ The UI state is one `Model` record, reached through an effect instead of being
 threaded through every function:
 
 ```
-$ Ui : @Type = @effect model : {} -> Model, set : Model -> {},
+$ Ui : @Effect = model : {} -> Model, set : Model -> {},
 ```
 
 `with_model` handles it by passing the model along, and the frame loop is CORE's

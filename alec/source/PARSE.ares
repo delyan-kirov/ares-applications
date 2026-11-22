@@ -37,7 +37,7 @@ $ @import ARESxVEC
 
 # -- the effects ---------------------------------------------------------------
 
-$ Tok : @Type = @effect
+$ Tok : @Effect =
     peek : @Int -> Token,
     next : {} -> Token,
 
@@ -52,7 +52,7 @@ $ TagB : @Type = @union
     TAgg : { @Int, Bool },
     TEnum : { Ty },
 
-$ Scope : @Type = @effect
+$ Scope : @Effect =
     enter : {} -> {},
     leave : {} -> {},
     lookup : @Str -> Opt Binding,
@@ -60,13 +60,13 @@ $ Scope : @Type = @effect
     tag : { @Str, Bool } -> Opt TagB,
     bind_tag : { @Str, TagB } -> {},
 
-$ Tab : @Type = @effect
+$ Tab : @Effect =
     layout : {} -> Layout,
     new_agg : { @Str, Bool } -> @Int,
     set_agg : { @Int, Agg } -> {},
     fresh : {} -> @Int,
 
-$ Unit : @Type = @effect
+$ Unit : @Effect =
     gvar : GVar -> {},
     func : Func -> {},
     proto : { @Str, Ty } -> {},
