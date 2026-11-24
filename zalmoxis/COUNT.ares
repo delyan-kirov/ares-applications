@@ -23,27 +23,15 @@ $ @import ARESxVEC
 # `closes[k]`. A line that holds nothing but a `docs` marker (an empty `///`)
 # is blank. `prose` counts every non-blank line as a comment (Markdown).
 $ Syntax : @Type = @struct
-    line: @Vec @Str,
-    docs: @Vec @Str,
-    opens: @Vec @Str,
-    closes: @Vec @Str,
+    line docs opens closes: @Vec @Str,
     nested: Bool,
-    qopens: @Vec @Str,
-    qcloses: @Vec @Str,
+    qopens qcloses: @Vec @Str,
     prose: Bool,
-    any: @Str,
-    nl: @Str,
-    solid: @Str,
-    bstart: @Str,
-    qstart: @Str,
-    lstart: @Str,
-    bmasks: @Vec @Str,
-    qmasks: @Vec @Str,
+    any nl solid bstart qstart lstart: @Str,
+    bmasks qmasks: @Vec @Str,
 
 $ Counts : @Type = @struct
-    code: @Int,
-    comments: @Int,
-    blanks: @Int,
+    code comments blanks: @Int,
 
 # The scan masks for a language: `any` stops at the first byte of every
 # opener and at a backslash, a block's mask at its closer (and its opener,
@@ -54,8 +42,7 @@ $ Counts : @Type = @struct
 # `qstart` and `lstart` mark the first bytes of block openers, quotes and line
 # comments, so a byte rules out whole lists of openers at a glance.
 $ syntax : {
-    line: @Vec @Str,
-    docs: @Vec @Str,
+    line docs: @Vec @Str,
     blocks: @Vec { @Str, @Str },
     nested: Bool,
     quotes: @Vec { @Str, @Str },

@@ -35,9 +35,7 @@ $ @import ARESxSTR
 $ Ctx : @Type = @struct
     lay : Layout,
     tg : Target,
-    addrs : Map @Str @Int,
-    fidx : Map @Str @Int,
-    tidx : Map @Str @Int,
+    addrs fidx tidx : Map @Str @Int,
     ftys : Map @Str FnTy,
     heap : @Int,
 
@@ -79,10 +77,7 @@ $ Bail : @Effect = unstructured : @ctx { a: @Type } -> @Str -> a,
 # are then flattened too.
 $ F : @Type = @struct
     ret : Ty,
-    sret : @Int,
-    va : @Int,
-    fp : @Int,
-    saved : @Int,
+    sret va fp saved : @Int,
     name : @Str,
     flat : Bool,
 
@@ -1315,8 +1310,7 @@ $ find_disp : List Lbl -> @Str -> @Int -> Opt { @Int, @Int, @Int } = \ls l i =>
 $ FrSt : @Type = @struct
     slots : Map @Int Slot,
     locals : @Vec ValT,
-    nparams : @Int,
-    frame : @Int,
+    nparams frame : @Int,
     labels : List Lbl,
 
 $ with_frame : @ctx { a: @Type } -> FrSt -> ({} -> <Types, Fr, Diag, Bail> a)
@@ -1435,7 +1429,7 @@ $ Flat : @Effect =
     close_cases : {} -> {},
     take_case : {} -> @Str,
 
-$ FlatCx : @Type = @struct brk : @Str, cont : @Str, prefix : @Str,
+$ FlatCx : @Type = @struct brk cont prefix : @Str,
 
 $ FlatSt : @Type = @struct n : @Int, queues : List (List @Str),
 

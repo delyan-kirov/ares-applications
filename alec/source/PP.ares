@@ -50,8 +50,7 @@ $ Macros : @Effect =
     define : Macro -> {},
     undef : @Str -> {},
     counter : {} -> @Int,
-    push_macro : @Str -> {},
-    pop_macro : @Str -> {},
+    push_macro pop_macro : @Str -> {},
 
 $ Files : @Effect =
     include : Request -> Loaded,
@@ -142,7 +141,7 @@ $ initial_macros : Map @Str Macro =
 
 $ @private
 
-$ Ctx : @Type = @struct file : @Str, dir : @Str, conds : List Cond, depth : @Int,
+$ Ctx : @Type = @struct file dir : @Str, conds : List Cond, depth : @Int,
 $ Cond : @Type = @struct pos : Pos, seen_else : Bool,
 
 $ ctx_for : @Str -> @Int -> Ctx = \file depth =>
@@ -300,7 +299,7 @@ $ skip_to_endif : Token -> List Token -> <Diag> List Token = \d l =>
     else
         skip_to_endif s.tok s.rest
 
-$ Skipped : @Type = @struct name : @Str, tok : Token, line : List Token, rest : List Token,
+$ Skipped : @Type = @struct name : @Str, tok : Token, line rest : List Token,
 
 # Skip tokens to the directive that ends the current group at nesting depth 0.
 # Pure: nothing in a skipped group is expanded, included or reported.

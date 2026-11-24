@@ -23,7 +23,7 @@ $ @import ARESxVEC
 # `char`, a distinct type from `signed char` with the same representation.
 $ IntK : @Type = @struct size : @Int, unsigned : Bool, rank : @Int, plain : Bool,
 
-$ FnTy : @Type = @struct ret : Ty, params : List Ty, variadic : Bool, proto : Bool,
+$ FnTy : @Type = @struct ret : Ty, params : List Ty, variadic proto : Bool,
 
 $ Ty : @Type = @union
     Void : {},
@@ -42,16 +42,14 @@ $ Ty : @Type = @union
 
 # `bit_width` 0 is an ordinary member; otherwise a bit-field of that many bits
 # starting `bit_off` bits into the storage unit at `offset`.
-$ Member : @Type = @struct name : @Str, ty : Ty, offset : @Int, bit_off : @Int, bit_width : @Int,
+$ Member : @Type = @struct name : @Str, ty : Ty, offset bit_off bit_width : @Int,
 
 $ Agg : @Type = @struct
     tag : @Str,
     union : Bool,
     members : @Vec Member,
-    size : @Int,
-    align : @Int,
-    complete : Bool,
-    flexible : Bool,
+    size align : @Int,
+    complete flexible : Bool,
 
 $ Layout : @Type = @struct target : Target, aggs : Map @Int Agg,
 
@@ -176,7 +174,7 @@ $ is_complete : Layout -> Ty -> Bool = \lay t =>
 # name, type, bit width (-1 for an ordinary member). Unnamed struct or union
 # members are flattened into the enclosing aggregate, offsets adjusted, so a
 # member lookup is one search.
-$ MemberDecl : @Type = @struct name : @Str, ty : Ty, width : @Int, align : @Int,
+$ MemberDecl : @Type = @struct name : @Str, ty : Ty, width align : @Int,
 
 # `packed` lays members out at byte alignment; `min_align` (from an
 # `aligned(N)` attribute, else 0) raises the aggregate's alignment.

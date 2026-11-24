@@ -48,7 +48,7 @@ $ cmd_timeout : @Str = "2" # seconds a captured `!`/`$` command may run before i
 # program to run (no trailing `!`); `terminal` marks a CLI/TUI app
 # (`Terminal=true` in its desktop entry) that must run inside a terminal. `key`
 # is the lowercased label, computed once so filtering does not redo it per frame.
-$ App : @Type = @struct label: @Str, key: @Str, cmd: @Str, terminal: Bool,
+$ App : @Type = @struct label key cmd: @Str, terminal: Bool,
 
 $ app : @Str -> @Str -> Bool -> App = \label cmd term =>
     App.{ .label = label, .key = to_lower label, .cmd = cmd, .terminal = term }
@@ -120,8 +120,7 @@ $ Model : @Type = @struct
     output: @Str,
     off: @Int,
     typed: Bool,
-    win_w: @Int32,
-    win_h: @Int32,
+    win_w win_h: @Int32,
 
 # The launcher's state, as an effect: `model` reads it, `set` replaces it.
 $ Ui : @Effect = model : {} -> Model, set : Model -> {},
@@ -179,13 +178,13 @@ $ scan_cmd : @Str =
         ++ "' \"$@\" 2>/dev/null ) | sort -u"
 
 # `popen` hands back a FILE* as a word-sized @Int, exactly like `C.fopen`.
-$ popen : { cmd: @Str, mode: @Str } -> <@IO> @Int = @extern "C" "popen" "libc"
+$ popen : { cmd mode: @Str } -> <@IO> @Int = @extern "C" "popen" "libc"
 $ pclose : @Int -> <@IO> @Int = @extern "C" "pclose" "libc"
 $ fileno : @Int -> <@IO> @Int32 = @extern "C" "fileno" "libc"
 
 # Has the pipe anything to read (data, or its end)? A zero-timeout poll(2), so it
 # never blocks. 1 is POLLIN; hang-up is always reported.
-$ PollFd : @Type = @struct @extern "C" fd: @Int32, events: @Int16, revents: @Int16,
+$ PollFd : @Type = @struct @extern "C" fd: @Int32, events revents: @Int16,
 $ poll : { fds: @Vec PollFd, n: @Nat64, timeout: @Int32 } -> <@IO> @Int32 =
     @extern "C" "poll" "libc"
 

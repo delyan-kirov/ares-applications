@@ -8,8 +8,7 @@ $ @mod CFG
 
 $ Target : @Type = @struct
     name : @Str,
-    ptr : @Int,
-    long : @Int,
+    ptr long : @Int,
     wasm64 : Bool,
 
 $ wasm32 : Target = Target.{ .name = "wasm32", .ptr = 4, .long = 4, .wasm64 = false }

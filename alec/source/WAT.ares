@@ -26,9 +26,9 @@ $ function_lines : @Str -> (@Str -> Bool) -> List @Str = \s keep => render s kee
 
 $ @private
 
-$ Sec : @Type = @struct id : @Int, start : @Int, end : @Int,
+$ Sec : @Type = @struct id start end : @Int,
 
-$ Imp : @Type = @struct module : @Str, name : @Str, kind : @Int, index : @Int,
+$ Imp : @Type = @struct module name : @Str, kind index : @Int,
 
 # What printing an instruction needs: function names by index.
 $ Names : @Type = @struct funcs : Map @Int @Str,

@@ -72,8 +72,7 @@ $ load : @Str -> @Str -> Target -> <@IO> Opt (@Vec { @Str, {} -> TU }) = \path s
 
 $ @private
 
-$ fread : { buf: @Str, size: @Int, n: @Int, stream: @Int } -> <@IO> @Int =
-    @extern "C" "fread" "libc"
+$ fread : { buf: @Str, size n stream: @Int } -> <@IO> @Int = @extern "C" "fread" "libc"
 
 # The whole file. Natively `fread` fills a fresh buffer in place, in one call;
 # the interpreter hands C a copy of the buffer, which leaves ours empty, and

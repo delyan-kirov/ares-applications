@@ -26,7 +26,7 @@ $ Kind : @Type = @union
     Other: {},
     Bad: {},
 
-$ Pos : @Type = @struct file : @Str, line : @Int, col : @Int,
+$ Pos : @Type = @struct file : @Str, line col : @Int,
 
 # `space`: whitespace or a comment came before the token. `bol`: it is the first
 # token on its line, which is what makes a `#` a directive. `hide` is the token's
@@ -35,8 +35,7 @@ $ Token : @Type = @struct
     kind : Kind,
     text : @Str,
     pos : Pos,
-    space : Bool,
-    bol : Bool,
+    space bol : Bool,
     hide : List @Str,
 
 $ is_ident : Token -> Bool = \t => t.kind |> \ | Kind.Ident => true | _ => false

@@ -27,10 +27,10 @@ $ mouse_button_left : I32 = 0
 $ texture_filter_bilinear : I32 = 1
 
 # -- window & lifecycle --
-$ initWindow : { p0: I32, p1: I32, p2: @Str } -> {} = @extern "C" "InitWindow" "bin/libraylib.so"
+$ initWindow : { p0 p1: I32, p2: @Str } -> {} = @extern "C" "InitWindow" "bin/libraylib.so"
 $ closeWindow : {} -> {} = @extern "C" "CloseWindow" "bin/libraylib.so"
 $ windowShouldClose : {} -> U8 = @extern "C" "WindowShouldClose" "bin/libraylib.so"
-$ setWindowSize : { p0: I32, p1: I32 } -> {} = @extern "C" "SetWindowSize" "bin/libraylib.so"
+$ setWindowSize : { p0 p1: I32 } -> {} = @extern "C" "SetWindowSize" "bin/libraylib.so"
 $ setTargetFPS : I32 -> {} = @extern "C" "SetTargetFPS" "bin/libraylib.so"
 $ setConfigFlags : U32 -> {} = @extern "C" "SetConfigFlags" "bin/libraylib.so"
 
@@ -38,15 +38,14 @@ $ setConfigFlags : U32 -> {} = @extern "C" "SetConfigFlags" "bin/libraylib.so"
 $ beginDrawing : {} -> {} = @extern "C" "BeginDrawing" "bin/libraylib.so"
 $ endDrawing : {} -> {} = @extern "C" "EndDrawing" "bin/libraylib.so"
 $ clearBackground : Color -> {} = @extern "C" "ClearBackground" "bin/libraylib.so"
-$ drawLine : { p0: I32, p1: I32, p2: I32, p3: I32, p4: Color } -> {} =
-    @extern "C" "DrawLine" "bin/libraylib.so"
-$ drawRectangle : { p0: I32, p1: I32, p2: I32, p3: I32, p4: Color } -> {} =
+$ drawLine : { p0 p1 p2 p3: I32, p4: Color } -> {} = @extern "C" "DrawLine" "bin/libraylib.so"
+$ drawRectangle : { p0 p1 p2 p3: I32, p4: Color } -> {} =
     @extern "C" "DrawRectangle" "bin/libraylib.so"
 $ drawRectangleRounded : { p0: Rectangle, p1: F32, p2: I32, p3: Color } -> {} =
     @extern "C" "DrawRectangleRounded" "bin/libraylib.so"
-$ drawTextEx : { p0: Font, p1: @Str, p2: Vector2, p3: F32, p4: F32, p5: Color } -> {} =
+$ drawTextEx : { p0: Font, p1: @Str, p2: Vector2, p3 p4: F32, p5: Color } -> {} =
     @extern "C" "DrawTextEx" "bin/libraylib.so"
-$ measureTextEx : { p0: Font, p1: @Str, p2: F32, p3: F32 } -> Vector2 =
+$ measureTextEx : { p0: Font, p1: @Str, p2 p3: F32 } -> Vector2 =
     @extern "C" "MeasureTextEx" "bin/libraylib.so"
 $ loadFontEx : { p0: @Str, p1: I32, p2: @Ptr, p3: I32 } -> Font =
     @extern "C" "LoadFontEx" "bin/libraylib.so"
@@ -63,87 +62,45 @@ $ isKeyPressed : I32 -> U8 = @extern "C" "IsKeyPressed" "bin/libraylib.so"
 $ isKeyPressedRepeat : I32 -> U8 = @extern "C" "IsKeyPressedRepeat" "bin/libraylib.so"
 
 # skipped enum bool (name is not a Ares type)
-$ Vector2 : @Type = @struct @extern "C" x: F32, y: F32,
-$ Vector3 : @Type = @struct @extern "C" x: @Float32, y: @Float32, z: @Float32,
-$ Vector4 : @Type = @struct @extern "C" x: @Float32, y: @Float32, z: @Float32, w: @Float32,
+$ Vector2 : @Type = @struct @extern "C" x y: F32,
+$ Vector3 : @Type = @struct @extern "C" x y z: @Float32,
+$ Vector4 : @Type = @struct @extern "C" x y z w: @Float32,
 $ Quaternion : @Type = Vector4
 $ Matrix : @Type = @struct @extern "C"
-    m0: @Float32,
-    m4: @Float32,
-    m8: @Float32,
-    m12: @Float32,
-    m1: @Float32,
-    m5: @Float32,
-    m9: @Float32,
-    m13: @Float32,
-    m2: @Float32,
-    m6: @Float32,
-    m10: @Float32,
-    m14: @Float32,
-    m3: @Float32,
-    m7: @Float32,
-    m11: @Float32,
-    m15: @Float32,
-$ Color : @Type = @struct @extern "C" r: U8, g: U8, b: U8, a: U8,
-$ Rectangle : @Type = @struct @extern "C" x: F32, y: F32, width: F32, height: F32,
+    m0 m4 m8 m12 m1 m5 m9 m13 m2 m6 m10 m14 m3 m7 m11 m15: @Float32,
+$ Color : @Type = @struct @extern "C" r g b a: U8,
+$ Rectangle : @Type = @struct @extern "C" x y width height: F32,
 $ Image : @Type = @struct @extern "C"
     data: @Ptr,
-    width: @Int32,
-    height: @Int32,
-    mipmaps: @Int32,
-    format: @Int32,
-$ Texture : @Type = @struct @extern "C" id: U32, width: I32, height: I32, mipmaps: I32, format: I32,
+    width height mipmaps format: @Int32,
+$ Texture : @Type = @struct @extern "C" id: U32, width height mipmaps format: I32,
 $ Texture2D : @Type = Texture
 $ TextureCubemap : @Type = Texture
-$ RenderTexture : @Type = @struct @extern "C" id: @Nat32, texture: Texture, depth: Texture,
+$ RenderTexture : @Type = @struct @extern "C" id: @Nat32, texture depth: Texture,
 $ RenderTexture2D : @Type = RenderTexture
 $ NPatchInfo : @Type = @struct @extern "C"
     source: Rectangle,
-    left: @Int32,
-    top: @Int32,
-    right: @Int32,
-    bottom: @Int32,
-    layout: @Int32,
+    left top right bottom layout: @Int32,
 $ GlyphInfo : @Type = @struct @extern "C"
-    value: @Int32,
-    offsetX: @Int32,
-    offsetY: @Int32,
-    advanceX: @Int32,
+    value offsetX offsetY advanceX: @Int32,
     image: Image,
 $ Font : @Type = @struct @extern "C"
-    baseSize: I32,
-    glyphCount: I32,
-    glyphPadding: I32,
+    baseSize glyphCount glyphPadding: I32,
     texture: Texture2D,
-    recs: @Ptr,
-    glyphs: @Ptr,
+    recs glyphs: @Ptr,
 $ Camera3D : @Type = @struct @extern "C"
-    position: Vector3,
-    target: Vector3,
-    up: Vector3,
+    position target up: Vector3,
     fovy: @Float32,
     projection: @Int32,
 $ Camera : @Type = Camera3D
 $ Camera2D : @Type = @struct @extern "C"
-    offset: Vector2,
-    target: Vector2,
-    rotation: @Float32,
-    zoom: @Float32,
+    offset target: Vector2,
+    rotation zoom: @Float32,
 $ Mesh : @Type = @struct @extern "C"
-    vertexCount: @Int32,
-    triangleCount: @Int32,
-    vertices: @Ptr,
-    texcoords: @Ptr,
-    texcoords2: @Ptr,
-    normals: @Ptr,
-    tangents: @Ptr,
-    colors: @Ptr,
-    indices: @Ptr,
+    vertexCount triangleCount: @Int32,
+    vertices texcoords texcoords2 normals tangents colors indices: @Ptr,
     boneCount: @Int32,
-    boneIndices: @Ptr,
-    boneWeights: @Ptr,
-    animVertices: @Ptr,
-    animNormals: @Ptr,
+    boneIndices boneWeights animVertices animNormals: @Ptr,
     vaoId: @Nat32,
     vboId: @Ptr,
 $ Shader : @Type = @struct @extern "C" id: @Nat32, locs: @Ptr,
@@ -161,36 +118,26 @@ $ ModelSkeleton : @Type = @struct @extern "C"
     bindPose: ModelAnimPose,
 $ Model : @Type = @struct @extern "C"
     transform: Matrix,
-    meshCount: @Int32,
-    materialCount: @Int32,
-    meshes: @Ptr,
-    materials: @Ptr,
-    meshMaterial: @Ptr,
+    meshCount materialCount: @Int32,
+    meshes materials meshMaterial: @Ptr,
     skeleton: ModelSkeleton,
     currentPose: ModelAnimPose,
     boneMatrices: @Ptr,
 # skipped struct ModelAnimation (array or bit-field member)
-$ Ray : @Type = @struct @extern "C" position: Vector3, direction: Vector3,
+$ Ray : @Type = @struct @extern "C" position direction: Vector3,
 $ RayCollision : @Type = @struct @extern "C"
     hit: @Nat8,
     distance: @Float32,
-    point: Vector3,
-    normal: Vector3,
-$ BoundingBox : @Type = @struct @extern "C" min: Vector3, max: Vector3,
+    point normal: Vector3,
+$ BoundingBox : @Type = @struct @extern "C" min max: Vector3,
 $ Wave : @Type = @struct @extern "C"
-    frameCount: @Nat32,
-    sampleRate: @Nat32,
-    sampleSize: @Nat32,
-    channels: @Nat32,
+    frameCount sampleRate sampleSize channels: @Nat32,
     data: @Ptr,
 # skipped struct rAudioBuffer (name is not a Ares type)
 # skipped struct rAudioProcessor (name is not a Ares type)
 $ AudioStream : @Type = @struct @extern "C"
-    buffer: @Ptr,
-    processor: @Ptr,
-    sampleRate: @Nat32,
-    sampleSize: @Nat32,
-    channels: @Nat32,
+    buffer processor: @Ptr,
+    sampleRate sampleSize channels: @Nat32,
 $ Sound : @Type = @struct @extern "C" stream: AudioStream, frameCount: @Nat32,
 $ Music : @Type = @struct @extern "C"
     stream: AudioStream,
@@ -202,7 +149,7 @@ $ Music : @Type = @struct @extern "C"
 # skipped struct VrStereoConfig (array or bit-field member)
 $ FilePathList : @Type = @struct @extern "C" count: @Nat32, paths: @Ptr,
 # skipped struct AutomationEvent (array or bit-field member)
-$ AutomationEventList : @Type = @struct @extern "C" capacity: @Nat32, count: @Nat32, events: @Ptr,
+$ AutomationEventList : @Type = @struct @extern "C" capacity count: @Nat32, events: @Ptr,
 $ ConfigFlags : @Type = @Int32
 $ flag_vsync_hint : @Int32 = 64
 $ flag_fullscreen_mode : @Int32 = 2
@@ -541,13 +488,10 @@ $ restoreWindow : {} -> {} = @extern "C" "RestoreWindow" "bin/libraylib.so"
 $ setWindowIcon : Image -> {} = @extern "C" "SetWindowIcon" "bin/libraylib.so"
 $ setWindowIcons : { p0: @Ptr, p1: @Int32 } -> {} = @extern "C" "SetWindowIcons" "bin/libraylib.so"
 $ setWindowTitle : @Str -> {} = @extern "C" "SetWindowTitle" "bin/libraylib.so"
-$ setWindowPosition : { p0: @Int32, p1: @Int32 } -> {} =
-    @extern "C" "SetWindowPosition" "bin/libraylib.so"
+$ setWindowPosition : { p0 p1: @Int32 } -> {} = @extern "C" "SetWindowPosition" "bin/libraylib.so"
 $ setWindowMonitor : @Int32 -> {} = @extern "C" "SetWindowMonitor" "bin/libraylib.so"
-$ setWindowMinSize : { p0: @Int32, p1: @Int32 } -> {} =
-    @extern "C" "SetWindowMinSize" "bin/libraylib.so"
-$ setWindowMaxSize : { p0: @Int32, p1: @Int32 } -> {} =
-    @extern "C" "SetWindowMaxSize" "bin/libraylib.so"
+$ setWindowMinSize : { p0 p1: @Int32 } -> {} = @extern "C" "SetWindowMinSize" "bin/libraylib.so"
+$ setWindowMaxSize : { p0 p1: @Int32 } -> {} = @extern "C" "SetWindowMaxSize" "bin/libraylib.so"
 $ setWindowOpacity : @Float32 -> {} = @extern "C" "SetWindowOpacity" "bin/libraylib.so"
 $ setWindowFocused : {} -> {} = @extern "C" "SetWindowFocused" "bin/libraylib.so"
 $ getWindowHandle : {} -> @Ptr = @extern "C" "GetWindowHandle" "bin/libraylib.so"
@@ -589,15 +533,15 @@ $ beginShaderMode : Shader -> {} = @extern "C" "BeginShaderMode" "bin/libraylib.
 $ endShaderMode : {} -> {} = @extern "C" "EndShaderMode" "bin/libraylib.so"
 $ beginBlendMode : @Int32 -> {} = @extern "C" "BeginBlendMode" "bin/libraylib.so"
 $ endBlendMode : {} -> {} = @extern "C" "EndBlendMode" "bin/libraylib.so"
-$ beginScissorMode : { p0: @Int32, p1: @Int32, p2: @Int32, p3: @Int32 } -> {} =
+$ beginScissorMode : { p0 p1 p2 p3: @Int32 } -> {} =
     @extern "C" "BeginScissorMode" "bin/libraylib.so"
 $ endScissorMode : {} -> {} = @extern "C" "EndScissorMode" "bin/libraylib.so"
 # skipped fn beginVrStereoMode (uses an unrepresentable type)
 $ endVrStereoMode : {} -> {} = @extern "C" "EndVrStereoMode" "bin/libraylib.so"
 # skipped fn loadVrStereoConfig (uses an unrepresentable type)
 # skipped fn unloadVrStereoConfig (uses an unrepresentable type)
-$ loadShader : { p0: @Str, p1: @Str } -> Shader = @extern "C" "LoadShader" "bin/libraylib.so"
-$ loadShaderFromMemory : { p0: @Str, p1: @Str } -> Shader =
+$ loadShader : { p0 p1: @Str } -> Shader = @extern "C" "LoadShader" "bin/libraylib.so"
+$ loadShaderFromMemory : { p0 p1: @Str } -> Shader =
     @extern "C" "LoadShaderFromMemory" "bin/libraylib.so"
 $ isShaderValid : Shader -> @Nat8 = @extern "C" "IsShaderValid" "bin/libraylib.so"
 $ getShaderLocation : { p0: Shader, p1: @Str } -> @Int32 =
@@ -606,7 +550,7 @@ $ getShaderLocationAttrib : { p0: Shader, p1: @Str } -> @Int32 =
     @extern "C" "GetShaderLocationAttrib" "bin/libraylib.so"
 $ setShaderValue : { p0: Shader, p1: @Int32, p2: @Ptr, p3: @Int32 } -> {} =
     @extern "C" "SetShaderValue" "bin/libraylib.so"
-$ setShaderValueV : { p0: Shader, p1: @Int32, p2: @Ptr, p3: @Int32, p4: @Int32 } -> {} =
+$ setShaderValueV : { p0: Shader, p1: @Int32, p2: @Ptr, p3 p4: @Int32 } -> {} =
     @extern "C" "SetShaderValueV" "bin/libraylib.so"
 $ setShaderValueMatrix : { p0: Shader, p1: @Int32, p2: Matrix } -> {} =
     @extern "C" "SetShaderValueMatrix" "bin/libraylib.so"
@@ -615,11 +559,11 @@ $ setShaderValueTexture : { p0: Shader, p1: @Int32, p2: Texture2D } -> {} =
 $ unloadShader : Shader -> {} = @extern "C" "UnloadShader" "bin/libraylib.so"
 $ getScreenToWorldRay : { p0: Vector2, p1: Camera } -> Ray =
     @extern "C" "GetScreenToWorldRay" "bin/libraylib.so"
-$ getScreenToWorldRayEx : { p0: Vector2, p1: Camera, p2: @Int32, p3: @Int32 } -> Ray =
+$ getScreenToWorldRayEx : { p0: Vector2, p1: Camera, p2 p3: @Int32 } -> Ray =
     @extern "C" "GetScreenToWorldRayEx" "bin/libraylib.so"
 $ getWorldToScreen : { p0: Vector3, p1: Camera } -> Vector2 =
     @extern "C" "GetWorldToScreen" "bin/libraylib.so"
-$ getWorldToScreenEx : { p0: Vector3, p1: Camera, p2: @Int32, p3: @Int32 } -> Vector2 =
+$ getWorldToScreenEx : { p0: Vector3, p1: Camera, p2 p3: @Int32 } -> Vector2 =
     @extern "C" "GetWorldToScreenEx" "bin/libraylib.so"
 $ getWorldToScreen2D : { p0: Vector2, p1: Camera2D } -> Vector2 =
     @extern "C" "GetWorldToScreen2D" "bin/libraylib.so"
@@ -634,9 +578,8 @@ $ swapScreenBuffer : {} -> {} = @extern "C" "SwapScreenBuffer" "bin/libraylib.so
 $ pollInputEvents : {} -> {} = @extern "C" "PollInputEvents" "bin/libraylib.so"
 $ waitTime : @Float64 -> {} = @extern "C" "WaitTime" "bin/libraylib.so"
 $ setRandomSeed : @Nat32 -> {} = @extern "C" "SetRandomSeed" "bin/libraylib.so"
-$ getRandomValue : { p0: @Int32, p1: @Int32 } -> @Int32 =
-    @extern "C" "GetRandomValue" "bin/libraylib.so"
-$ loadRandomSequence : { p0: @Nat32, p1: @Int32, p2: @Int32 } -> @Ptr =
+$ getRandomValue : { p0 p1: @Int32 } -> @Int32 = @extern "C" "GetRandomValue" "bin/libraylib.so"
+$ loadRandomSequence : { p0: @Nat32, p1 p2: @Int32 } -> @Ptr =
     @extern "C" "LoadRandomSequence" "bin/libraylib.so"
 $ unloadRandomSequence : @Ptr -> {} = @extern "C" "UnloadRandomSequence" "bin/libraylib.so"
 $ takeScreenshot : @Str -> {} = @extern "C" "TakeScreenshot" "bin/libraylib.so"
@@ -656,25 +599,22 @@ $ exportDataAsCode : { p0: @Str, p1: @Int32, p2: @Str } -> @Nat8 =
     @extern "C" "ExportDataAsCode" "bin/libraylib.so"
 $ loadFileText : @Str -> @Str = @extern "C" "LoadFileText" "bin/libraylib.so"
 $ unloadFileText : @Str -> {} = @extern "C" "UnloadFileText" "bin/libraylib.so"
-$ saveFileText : { p0: @Str, p1: @Str } -> @Nat8 = @extern "C" "SaveFileText" "bin/libraylib.so"
+$ saveFileText : { p0 p1: @Str } -> @Nat8 = @extern "C" "SaveFileText" "bin/libraylib.so"
 # skipped fn setLoadFileDataCallback (uses an unrepresentable type)
 $ setSaveFileDataCallback : SaveFileDataCallback -> {} =
     @extern "C" "SetSaveFileDataCallback" "bin/libraylib.so"
 # skipped fn setLoadFileTextCallback (uses an unrepresentable type)
 $ setSaveFileTextCallback : SaveFileTextCallback -> {} =
     @extern "C" "SetSaveFileTextCallback" "bin/libraylib.so"
-$ fileRename : { p0: @Str, p1: @Str } -> @Int32 = @extern "C" "FileRename" "bin/libraylib.so"
+$ fileRename : { p0 p1: @Str } -> @Int32 = @extern "C" "FileRename" "bin/libraylib.so"
 $ fileRemove : @Str -> @Int32 = @extern "C" "FileRemove" "bin/libraylib.so"
-$ fileCopy : { p0: @Str, p1: @Str } -> @Int32 = @extern "C" "FileCopy" "bin/libraylib.so"
-$ fileMove : { p0: @Str, p1: @Str } -> @Int32 = @extern "C" "FileMove" "bin/libraylib.so"
-$ fileTextReplace : { p0: @Str, p1: @Str, p2: @Str } -> @Int32 =
-    @extern "C" "FileTextReplace" "bin/libraylib.so"
-$ fileTextFindIndex : { p0: @Str, p1: @Str } -> @Int32 =
-    @extern "C" "FileTextFindIndex" "bin/libraylib.so"
+$ fileCopy : { p0 p1: @Str } -> @Int32 = @extern "C" "FileCopy" "bin/libraylib.so"
+$ fileMove : { p0 p1: @Str } -> @Int32 = @extern "C" "FileMove" "bin/libraylib.so"
+$ fileTextReplace : { p0 p1 p2: @Str } -> @Int32 = @extern "C" "FileTextReplace" "bin/libraylib.so"
+$ fileTextFindIndex : { p0 p1: @Str } -> @Int32 = @extern "C" "FileTextFindIndex" "bin/libraylib.so"
 $ fileExists : @Str -> @Nat8 = @extern "C" "FileExists" "bin/libraylib.so"
 $ directoryExists : @Str -> @Nat8 = @extern "C" "DirectoryExists" "bin/libraylib.so"
-$ isFileExtension : { p0: @Str, p1: @Str } -> @Nat8 =
-    @extern "C" "IsFileExtension" "bin/libraylib.so"
+$ isFileExtension : { p0 p1: @Str } -> @Nat8 = @extern "C" "IsFileExtension" "bin/libraylib.so"
 $ getFileLength : @Str -> @Int32 = @extern "C" "GetFileLength" "bin/libraylib.so"
 $ getFileModTime : @Str -> @Int64 = @extern "C" "GetFileModTime" "bin/libraylib.so"
 $ getFileExtension : @Str -> @Str = @extern "C" "GetFileExtension" "bin/libraylib.so"
@@ -689,14 +629,14 @@ $ changeDirectory : @Str -> @Nat8 = @extern "C" "ChangeDirectory" "bin/libraylib
 $ isPathFile : @Str -> @Nat8 = @extern "C" "IsPathFile" "bin/libraylib.so"
 $ isFileNameValid : @Str -> @Nat8 = @extern "C" "IsFileNameValid" "bin/libraylib.so"
 $ loadDirectoryFiles : @Str -> FilePathList = @extern "C" "LoadDirectoryFiles" "bin/libraylib.so"
-$ loadDirectoryFilesEx : { p0: @Str, p1: @Str, p2: @Nat8 } -> FilePathList =
+$ loadDirectoryFilesEx : { p0 p1: @Str, p2: @Nat8 } -> FilePathList =
     @extern "C" "LoadDirectoryFilesEx" "bin/libraylib.so"
 $ unloadDirectoryFiles : FilePathList -> {} = @extern "C" "UnloadDirectoryFiles" "bin/libraylib.so"
 $ isFileDropped : {} -> @Nat8 = @extern "C" "IsFileDropped" "bin/libraylib.so"
 $ loadDroppedFiles : {} -> FilePathList = @extern "C" "LoadDroppedFiles" "bin/libraylib.so"
 $ unloadDroppedFiles : FilePathList -> {} = @extern "C" "UnloadDroppedFiles" "bin/libraylib.so"
 $ getDirectoryFileCount : @Str -> @Nat32 = @extern "C" "GetDirectoryFileCount" "bin/libraylib.so"
-$ getDirectoryFileCountEx : { p0: @Str, p1: @Str, p2: @Nat8 } -> @Nat32 =
+$ getDirectoryFileCountEx : { p0 p1: @Str, p2: @Nat8 } -> @Nat32 =
     @extern "C" "GetDirectoryFileCountEx" "bin/libraylib.so"
 $ compressData : { p0: @Str, p1: @Int32, p2: @Ptr } -> @Str =
     @extern "C" "CompressData" "bin/libraylib.so"
@@ -732,32 +672,29 @@ $ getKeyName : @Int32 -> @Str = @extern "C" "GetKeyName" "bin/libraylib.so"
 $ setExitKey : @Int32 -> {} = @extern "C" "SetExitKey" "bin/libraylib.so"
 $ isGamepadAvailable : @Int32 -> @Nat8 = @extern "C" "IsGamepadAvailable" "bin/libraylib.so"
 $ getGamepadName : @Int32 -> @Str = @extern "C" "GetGamepadName" "bin/libraylib.so"
-$ isGamepadButtonPressed : { p0: @Int32, p1: @Int32 } -> @Nat8 =
+$ isGamepadButtonPressed : { p0 p1: @Int32 } -> @Nat8 =
     @extern "C" "IsGamepadButtonPressed" "bin/libraylib.so"
-$ isGamepadButtonDown : { p0: @Int32, p1: @Int32 } -> @Nat8 =
+$ isGamepadButtonDown : { p0 p1: @Int32 } -> @Nat8 =
     @extern "C" "IsGamepadButtonDown" "bin/libraylib.so"
-$ isGamepadButtonReleased : { p0: @Int32, p1: @Int32 } -> @Nat8 =
+$ isGamepadButtonReleased : { p0 p1: @Int32 } -> @Nat8 =
     @extern "C" "IsGamepadButtonReleased" "bin/libraylib.so"
-$ isGamepadButtonUp : { p0: @Int32, p1: @Int32 } -> @Nat8 =
+$ isGamepadButtonUp : { p0 p1: @Int32 } -> @Nat8 =
     @extern "C" "IsGamepadButtonUp" "bin/libraylib.so"
 $ getGamepadButtonPressed : {} -> @Int32 = @extern "C" "GetGamepadButtonPressed" "bin/libraylib.so"
 $ getGamepadAxisCount : @Int32 -> @Int32 = @extern "C" "GetGamepadAxisCount" "bin/libraylib.so"
-$ getGamepadAxisMovement : { p0: @Int32, p1: @Int32 } -> @Float32 =
+$ getGamepadAxisMovement : { p0 p1: @Int32 } -> @Float32 =
     @extern "C" "GetGamepadAxisMovement" "bin/libraylib.so"
 $ setGamepadMappings : @Str -> @Int32 = @extern "C" "SetGamepadMappings" "bin/libraylib.so"
-$ setGamepadVibration : { p0: @Int32, p1: @Float32, p2: @Float32, p3: @Float32 } -> {} =
+$ setGamepadVibration : { p0: @Int32, p1 p2 p3: @Float32 } -> {} =
     @extern "C" "SetGamepadVibration" "bin/libraylib.so"
 $ isMouseButtonDown : @Int32 -> @Nat8 = @extern "C" "IsMouseButtonDown" "bin/libraylib.so"
 $ isMouseButtonReleased : @Int32 -> @Nat8 = @extern "C" "IsMouseButtonReleased" "bin/libraylib.so"
 $ isMouseButtonUp : @Int32 -> @Nat8 = @extern "C" "IsMouseButtonUp" "bin/libraylib.so"
 $ getMousePosition : {} -> Vector2 = @extern "C" "GetMousePosition" "bin/libraylib.so"
 $ getMouseDelta : {} -> Vector2 = @extern "C" "GetMouseDelta" "bin/libraylib.so"
-$ setMousePosition : { p0: @Int32, p1: @Int32 } -> {} =
-    @extern "C" "SetMousePosition" "bin/libraylib.so"
-$ setMouseOffset : { p0: @Int32, p1: @Int32 } -> {} =
-    @extern "C" "SetMouseOffset" "bin/libraylib.so"
-$ setMouseScale : { p0: @Float32, p1: @Float32 } -> {} =
-    @extern "C" "SetMouseScale" "bin/libraylib.so"
+$ setMousePosition : { p0 p1: @Int32 } -> {} = @extern "C" "SetMousePosition" "bin/libraylib.so"
+$ setMouseOffset : { p0 p1: @Int32 } -> {} = @extern "C" "SetMouseOffset" "bin/libraylib.so"
+$ setMouseScale : { p0 p1: @Float32 } -> {} = @extern "C" "SetMouseScale" "bin/libraylib.so"
 $ getMouseWheelMoveV : {} -> Vector2 = @extern "C" "GetMouseWheelMoveV" "bin/libraylib.so"
 $ setMouseCursor : @Int32 -> {} = @extern "C" "SetMouseCursor" "bin/libraylib.so"
 $ getTouchX : {} -> @Int32 = @extern "C" "GetTouchX" "bin/libraylib.so"
@@ -774,97 +711,63 @@ $ getGestureDragAngle : {} -> @Float32 = @extern "C" "GetGestureDragAngle" "bin/
 $ getGesturePinchVector : {} -> Vector2 = @extern "C" "GetGesturePinchVector" "bin/libraylib.so"
 $ getGesturePinchAngle : {} -> @Float32 = @extern "C" "GetGesturePinchAngle" "bin/libraylib.so"
 $ updateCamera : { p0: @Ptr, p1: @Int32 } -> {} = @extern "C" "UpdateCamera" "bin/libraylib.so"
-$ updateCameraPro : { p0: @Ptr, p1: Vector3, p2: Vector3, p3: @Float32 } -> {} =
+$ updateCameraPro : { p0: @Ptr, p1 p2: Vector3, p3: @Float32 } -> {} =
     @extern "C" "UpdateCameraPro" "bin/libraylib.so"
 $ setShapesTexture : { p0: Texture2D, p1: Rectangle } -> {} =
     @extern "C" "SetShapesTexture" "bin/libraylib.so"
 $ getShapesTexture : {} -> Texture2D = @extern "C" "GetShapesTexture" "bin/libraylib.so"
 $ getShapesTextureRectangle : {} -> Rectangle =
     @extern "C" "GetShapesTextureRectangle" "bin/libraylib.so"
-$ drawPixel : { p0: @Int32, p1: @Int32, p2: Color } -> {} =
-    @extern "C" "DrawPixel" "bin/libraylib.so"
+$ drawPixel : { p0 p1: @Int32, p2: Color } -> {} = @extern "C" "DrawPixel" "bin/libraylib.so"
 $ drawPixelV : { p0: Vector2, p1: Color } -> {} = @extern "C" "DrawPixelV" "bin/libraylib.so"
-$ drawLineV : { p0: Vector2, p1: Vector2, p2: Color } -> {} =
-    @extern "C" "DrawLineV" "bin/libraylib.so"
-$ drawLineEx : { p0: Vector2, p1: Vector2, p2: @Float32, p3: Color } -> {} =
+$ drawLineV : { p0 p1: Vector2, p2: Color } -> {} = @extern "C" "DrawLineV" "bin/libraylib.so"
+$ drawLineEx : { p0 p1: Vector2, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawLineEx" "bin/libraylib.so"
 $ drawLineStrip : { p0: @Ptr, p1: @Int32, p2: Color } -> {} =
     @extern "C" "DrawLineStrip" "bin/libraylib.so"
-$ drawLineBezier : { p0: Vector2, p1: Vector2, p2: @Float32, p3: Color } -> {} =
+$ drawLineBezier : { p0 p1: Vector2, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawLineBezier" "bin/libraylib.so"
-$ drawLineDashed : { p0: Vector2, p1: Vector2, p2: @Int32, p3: @Int32, p4: Color } -> {} =
+$ drawLineDashed : { p0 p1: Vector2, p2 p3: @Int32, p4: Color } -> {} =
     @extern "C" "DrawLineDashed" "bin/libraylib.so"
-$ drawCircle : { p0: @Int32, p1: @Int32, p2: @Float32, p3: Color } -> {} =
+$ drawCircle : { p0 p1: @Int32, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawCircle" "bin/libraylib.so"
 $ drawCircleV : { p0: Vector2, p1: @Float32, p2: Color } -> {} =
     @extern "C" "DrawCircleV" "bin/libraylib.so"
-$ drawCircleGradient : { p0: Vector2, p1: @Float32, p2: Color, p3: Color } -> {} =
+$ drawCircleGradient : { p0: Vector2, p1: @Float32, p2 p3: Color } -> {} =
     @extern "C" "DrawCircleGradient" "bin/libraylib.so"
-$ drawCircleSector : {
-    p0: Vector2,
-    p1: @Float32,
-    p2: @Float32,
-    p3: @Float32,
-    p4: @Int32,
-    p5: Color
-} -> {} =
+$ drawCircleSector : { p0: Vector2, p1 p2 p3: @Float32, p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCircleSector" "bin/libraylib.so"
-$ drawCircleSectorLines : {
-    p0: Vector2,
-    p1: @Float32,
-    p2: @Float32,
-    p3: @Float32,
-    p4: @Int32,
-    p5: Color
-} -> {} =
+$ drawCircleSectorLines : { p0: Vector2, p1 p2 p3: @Float32, p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCircleSectorLines" "bin/libraylib.so"
-$ drawCircleLines : { p0: @Int32, p1: @Int32, p2: @Float32, p3: Color } -> {} =
+$ drawCircleLines : { p0 p1: @Int32, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawCircleLines" "bin/libraylib.so"
 $ drawCircleLinesV : { p0: Vector2, p1: @Float32, p2: Color } -> {} =
     @extern "C" "DrawCircleLinesV" "bin/libraylib.so"
-$ drawEllipse : { p0: @Int32, p1: @Int32, p2: @Float32, p3: @Float32, p4: Color } -> {} =
+$ drawEllipse : { p0 p1: @Int32, p2 p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawEllipse" "bin/libraylib.so"
-$ drawEllipseV : { p0: Vector2, p1: @Float32, p2: @Float32, p3: Color } -> {} =
+$ drawEllipseV : { p0: Vector2, p1 p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawEllipseV" "bin/libraylib.so"
-$ drawEllipseLines : { p0: @Int32, p1: @Int32, p2: @Float32, p3: @Float32, p4: Color } -> {} =
+$ drawEllipseLines : { p0 p1: @Int32, p2 p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawEllipseLines" "bin/libraylib.so"
-$ drawEllipseLinesV : { p0: Vector2, p1: @Float32, p2: @Float32, p3: Color } -> {} =
+$ drawEllipseLinesV : { p0: Vector2, p1 p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawEllipseLinesV" "bin/libraylib.so"
-$ drawRing : {
-    p0: Vector2,
-    p1: @Float32,
-    p2: @Float32,
-    p3: @Float32,
-    p4: @Float32,
-    p5: @Int32,
-    p6: Color
-} -> {} =
+$ drawRing : { p0: Vector2, p1 p2 p3 p4: @Float32, p5: @Int32, p6: Color } -> {} =
     @extern "C" "DrawRing" "bin/libraylib.so"
-$ drawRingLines : {
-    p0: Vector2,
-    p1: @Float32,
-    p2: @Float32,
-    p3: @Float32,
-    p4: @Float32,
-    p5: @Int32,
-    p6: Color
-} -> {} =
+$ drawRingLines : { p0: Vector2, p1 p2 p3 p4: @Float32, p5: @Int32, p6: Color } -> {} =
     @extern "C" "DrawRingLines" "bin/libraylib.so"
-$ drawRectangleV : { p0: Vector2, p1: Vector2, p2: Color } -> {} =
+$ drawRectangleV : { p0 p1: Vector2, p2: Color } -> {} =
     @extern "C" "DrawRectangleV" "bin/libraylib.so"
 $ drawRectangleRec : { p0: Rectangle, p1: Color } -> {} =
     @extern "C" "DrawRectangleRec" "bin/libraylib.so"
 $ drawRectanglePro : { p0: Rectangle, p1: Vector2, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawRectanglePro" "bin/libraylib.so"
-$ drawRectangleGradientV : { p0: @Int32, p1: @Int32, p2: @Int32, p3: @Int32, p4: Color, p5: Color }
-    -> {} =
+$ drawRectangleGradientV : { p0 p1 p2 p3: @Int32, p4 p5: Color } -> {} =
     @extern "C" "DrawRectangleGradientV" "bin/libraylib.so"
-$ drawRectangleGradientH : { p0: @Int32, p1: @Int32, p2: @Int32, p3: @Int32, p4: Color, p5: Color }
-    -> {} =
+$ drawRectangleGradientH : { p0 p1 p2 p3: @Int32, p4 p5: Color } -> {} =
     @extern "C" "DrawRectangleGradientH" "bin/libraylib.so"
-$ drawRectangleGradientEx : { p0: Rectangle, p1: Color, p2: Color, p3: Color, p4: Color } -> {} =
+$ drawRectangleGradientEx : { p0: Rectangle, p1 p2 p3 p4: Color } -> {} =
     @extern "C" "DrawRectangleGradientEx" "bin/libraylib.so"
-$ drawRectangleLines : { p0: @Int32, p1: @Int32, p2: @Int32, p3: @Int32, p4: Color } -> {} =
+$ drawRectangleLines : { p0 p1 p2 p3: @Int32, p4: Color } -> {} =
     @extern "C" "DrawRectangleLines" "bin/libraylib.so"
 $ drawRectangleLinesEx : { p0: Rectangle, p1: @Float32, p2: Color } -> {} =
     @extern "C" "DrawRectangleLinesEx" "bin/libraylib.so"
@@ -873,20 +776,19 @@ $ drawRectangleRoundedLines : { p0: Rectangle, p1: @Float32, p2: @Int32, p3: Col
 $ drawRectangleRoundedLinesEx : { p0: Rectangle, p1: @Float32, p2: @Int32, p3: @Float32, p4: Color }
     -> {} =
     @extern "C" "DrawRectangleRoundedLinesEx" "bin/libraylib.so"
-$ drawTriangle : { p0: Vector2, p1: Vector2, p2: Vector2, p3: Color } -> {} =
+$ drawTriangle : { p0 p1 p2: Vector2, p3: Color } -> {} =
     @extern "C" "DrawTriangle" "bin/libraylib.so"
-$ drawTriangleLines : { p0: Vector2, p1: Vector2, p2: Vector2, p3: Color } -> {} =
+$ drawTriangleLines : { p0 p1 p2: Vector2, p3: Color } -> {} =
     @extern "C" "DrawTriangleLines" "bin/libraylib.so"
 $ drawTriangleFan : { p0: @Ptr, p1: @Int32, p2: Color } -> {} =
     @extern "C" "DrawTriangleFan" "bin/libraylib.so"
 $ drawTriangleStrip : { p0: @Ptr, p1: @Int32, p2: Color } -> {} =
     @extern "C" "DrawTriangleStrip" "bin/libraylib.so"
-$ drawPoly : { p0: Vector2, p1: @Int32, p2: @Float32, p3: @Float32, p4: Color } -> {} =
+$ drawPoly : { p0: Vector2, p1: @Int32, p2 p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawPoly" "bin/libraylib.so"
-$ drawPolyLines : { p0: Vector2, p1: @Int32, p2: @Float32, p3: @Float32, p4: Color } -> {} =
+$ drawPolyLines : { p0: Vector2, p1: @Int32, p2 p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawPolyLines" "bin/libraylib.so"
-$ drawPolyLinesEx : { p0: Vector2, p1: @Int32, p2: @Float32, p3: @Float32, p4: @Float32, p5: Color }
-    -> {} =
+$ drawPolyLinesEx : { p0: Vector2, p1: @Int32, p2 p3 p4: @Float32, p5: Color } -> {} =
     @extern "C" "DrawPolyLinesEx" "bin/libraylib.so"
 $ drawSplineLinear : { p0: @Ptr, p1: @Int32, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawSplineLinear" "bin/libraylib.so"
@@ -898,85 +800,55 @@ $ drawSplineBezierQuadratic : { p0: @Ptr, p1: @Int32, p2: @Float32, p3: Color } 
     @extern "C" "DrawSplineBezierQuadratic" "bin/libraylib.so"
 $ drawSplineBezierCubic : { p0: @Ptr, p1: @Int32, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawSplineBezierCubic" "bin/libraylib.so"
-$ drawSplineSegmentLinear : { p0: Vector2, p1: Vector2, p2: @Float32, p3: Color } -> {} =
+$ drawSplineSegmentLinear : { p0 p1: Vector2, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawSplineSegmentLinear" "bin/libraylib.so"
-$ drawSplineSegmentBasis : {
-    p0: Vector2,
-    p1: Vector2,
-    p2: Vector2,
-    p3: Vector2,
-    p4: @Float32,
-    p5: Color
-} -> {} =
+$ drawSplineSegmentBasis : { p0 p1 p2 p3: Vector2, p4: @Float32, p5: Color } -> {} =
     @extern "C" "DrawSplineSegmentBasis" "bin/libraylib.so"
-$ drawSplineSegmentCatmullRom : {
-    p0: Vector2,
-    p1: Vector2,
-    p2: Vector2,
-    p3: Vector2,
-    p4: @Float32,
-    p5: Color
-} -> {} =
+$ drawSplineSegmentCatmullRom : { p0 p1 p2 p3: Vector2, p4: @Float32, p5: Color } -> {} =
     @extern "C" "DrawSplineSegmentCatmullRom" "bin/libraylib.so"
-$ drawSplineSegmentBezierQuadratic : {
-    p0: Vector2,
-    p1: Vector2,
-    p2: Vector2,
-    p3: @Float32,
-    p4: Color
-} -> {} =
+$ drawSplineSegmentBezierQuadratic : { p0 p1 p2: Vector2, p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawSplineSegmentBezierQuadratic" "bin/libraylib.so"
-$ drawSplineSegmentBezierCubic : {
-    p0: Vector2,
-    p1: Vector2,
-    p2: Vector2,
-    p3: Vector2,
-    p4: @Float32,
-    p5: Color
-} -> {} =
+$ drawSplineSegmentBezierCubic : { p0 p1 p2 p3: Vector2, p4: @Float32, p5: Color } -> {} =
     @extern "C" "DrawSplineSegmentBezierCubic" "bin/libraylib.so"
-$ getSplinePointLinear : { p0: Vector2, p1: Vector2, p2: @Float32 } -> Vector2 =
+$ getSplinePointLinear : { p0 p1: Vector2, p2: @Float32 } -> Vector2 =
     @extern "C" "GetSplinePointLinear" "bin/libraylib.so"
-$ getSplinePointBasis : { p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, p4: @Float32 }
-    -> Vector2 =
+$ getSplinePointBasis : { p0 p1 p2 p3: Vector2, p4: @Float32 } -> Vector2 =
     @extern "C" "GetSplinePointBasis" "bin/libraylib.so"
-$ getSplinePointCatmullRom : { p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, p4: @Float32 }
-    -> Vector2 =
+$ getSplinePointCatmullRom : { p0 p1 p2 p3: Vector2, p4: @Float32 } -> Vector2 =
     @extern "C" "GetSplinePointCatmullRom" "bin/libraylib.so"
-$ getSplinePointBezierQuad : { p0: Vector2, p1: Vector2, p2: Vector2, p3: @Float32 } -> Vector2 =
+$ getSplinePointBezierQuad : { p0 p1 p2: Vector2, p3: @Float32 } -> Vector2 =
     @extern "C" "GetSplinePointBezierQuad" "bin/libraylib.so"
-$ getSplinePointBezierCubic : { p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, p4: @Float32 }
-    -> Vector2 =
+$ getSplinePointBezierCubic : { p0 p1 p2 p3: Vector2, p4: @Float32 } -> Vector2 =
     @extern "C" "GetSplinePointBezierCubic" "bin/libraylib.so"
-$ checkCollisionRecs : { p0: Rectangle, p1: Rectangle } -> @Nat8 =
+$ checkCollisionRecs : { p0 p1: Rectangle } -> @Nat8 =
     @extern "C" "CheckCollisionRecs" "bin/libraylib.so"
 $ checkCollisionCircles : { p0: Vector2, p1: @Float32, p2: Vector2, p3: @Float32 } -> @Nat8 =
     @extern "C" "CheckCollisionCircles" "bin/libraylib.so"
 $ checkCollisionCircleRec : { p0: Vector2, p1: @Float32, p2: Rectangle } -> @Nat8 =
     @extern "C" "CheckCollisionCircleRec" "bin/libraylib.so"
-$ checkCollisionCircleLine : { p0: Vector2, p1: @Float32, p2: Vector2, p3: Vector2 } -> @Nat8 =
+$ checkCollisionCircleLine : { p0: Vector2, p1: @Float32, p2 p3: Vector2 } -> @Nat8 =
     @extern "C" "CheckCollisionCircleLine" "bin/libraylib.so"
 $ checkCollisionPointRec : { p0: Vector2, p1: Rectangle } -> @Nat8 =
     @extern "C" "CheckCollisionPointRec" "bin/libraylib.so"
-$ checkCollisionPointCircle : { p0: Vector2, p1: Vector2, p2: @Float32 } -> @Nat8 =
+$ checkCollisionPointCircle : { p0 p1: Vector2, p2: @Float32 } -> @Nat8 =
     @extern "C" "CheckCollisionPointCircle" "bin/libraylib.so"
-$ checkCollisionPointTriangle : { p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2 } -> @Nat8 =
+$ checkCollisionPointTriangle : { p0 p1 p2 p3: Vector2 } -> @Nat8 =
     @extern "C" "CheckCollisionPointTriangle" "bin/libraylib.so"
-$ checkCollisionPointLine : { p0: Vector2, p1: Vector2, p2: Vector2, p3: @Int32 } -> @Nat8 =
+$ checkCollisionPointLine : { p0 p1 p2: Vector2, p3: @Int32 } -> @Nat8 =
     @extern "C" "CheckCollisionPointLine" "bin/libraylib.so"
 $ checkCollisionPointPoly : { p0: Vector2, p1: @Ptr, p2: @Int32 } -> @Nat8 =
     @extern "C" "CheckCollisionPointPoly" "bin/libraylib.so"
-$ checkCollisionLines : { p0: Vector2, p1: Vector2, p2: Vector2, p3: Vector2, p4: @Ptr } -> @Nat8 =
+$ checkCollisionLines : { p0 p1 p2 p3: Vector2, p4: @Ptr } -> @Nat8 =
     @extern "C" "CheckCollisionLines" "bin/libraylib.so"
-$ getCollisionRec : { p0: Rectangle, p1: Rectangle } -> Rectangle =
+$ getCollisionRec : { p0 p1: Rectangle } -> Rectangle =
     @extern "C" "GetCollisionRec" "bin/libraylib.so"
 $ loadImage : @Str -> Image = @extern "C" "LoadImage" "bin/libraylib.so"
-$ loadImageRaw : { p0: @Str, p1: @Int32, p2: @Int32, p3: @Int32, p4: @Int32 } -> Image =
+$ loadImageRaw : { p0: @Str, p1 p2 p3 p4: @Int32 } -> Image =
     @extern "C" "LoadImageRaw" "bin/libraylib.so"
 $ loadImageAnim : { p0: @Str, p1: @Ptr } -> Image = @extern "C" "LoadImageAnim" "bin/libraylib.so"
-$ loadImageAnimFromMemory : { p0: @Str, p1: @Str, p2: @Int32, p3: @Ptr } -> Image =
+$ loadImageAnimFromMemory : { p0 p1: @Str, p2: @Int32, p3: @Ptr } -> Image =
     @extern "C" "LoadImageAnimFromMemory" "bin/libraylib.so"
-$ loadImageFromMemory : { p0: @Str, p1: @Str, p2: @Int32 } -> Image =
+$ loadImageFromMemory : { p0 p1: @Str, p2: @Int32 } -> Image =
     @extern "C" "LoadImageFromMemory" "bin/libraylib.so"
 $ loadImageFromTexture : Texture2D -> Image = @extern "C" "LoadImageFromTexture" "bin/libraylib.so"
 $ loadImageFromScreen : {} -> Image = @extern "C" "LoadImageFromScreen" "bin/libraylib.so"
@@ -987,24 +859,23 @@ $ exportImageToMemory : { p0: Image, p1: @Str, p2: @Ptr } -> @Str =
     @extern "C" "ExportImageToMemory" "bin/libraylib.so"
 $ exportImageAsCode : { p0: Image, p1: @Str } -> @Nat8 =
     @extern "C" "ExportImageAsCode" "bin/libraylib.so"
-$ genImageColor : { p0: @Int32, p1: @Int32, p2: Color } -> Image =
+$ genImageColor : { p0 p1: @Int32, p2: Color } -> Image =
     @extern "C" "GenImageColor" "bin/libraylib.so"
-$ genImageGradientLinear : { p0: @Int32, p1: @Int32, p2: @Int32, p3: Color, p4: Color } -> Image =
+$ genImageGradientLinear : { p0 p1 p2: @Int32, p3 p4: Color } -> Image =
     @extern "C" "GenImageGradientLinear" "bin/libraylib.so"
-$ genImageGradientRadial : { p0: @Int32, p1: @Int32, p2: @Float32, p3: Color, p4: Color } -> Image =
+$ genImageGradientRadial : { p0 p1: @Int32, p2: @Float32, p3 p4: Color } -> Image =
     @extern "C" "GenImageGradientRadial" "bin/libraylib.so"
-$ genImageGradientSquare : { p0: @Int32, p1: @Int32, p2: @Float32, p3: Color, p4: Color } -> Image =
+$ genImageGradientSquare : { p0 p1: @Int32, p2: @Float32, p3 p4: Color } -> Image =
     @extern "C" "GenImageGradientSquare" "bin/libraylib.so"
-$ genImageChecked : { p0: @Int32, p1: @Int32, p2: @Int32, p3: @Int32, p4: Color, p5: Color }
-    -> Image =
+$ genImageChecked : { p0 p1 p2 p3: @Int32, p4 p5: Color } -> Image =
     @extern "C" "GenImageChecked" "bin/libraylib.so"
-$ genImageWhiteNoise : { p0: @Int32, p1: @Int32, p2: @Float32 } -> Image =
+$ genImageWhiteNoise : { p0 p1: @Int32, p2: @Float32 } -> Image =
     @extern "C" "GenImageWhiteNoise" "bin/libraylib.so"
-$ genImagePerlinNoise : { p0: @Int32, p1: @Int32, p2: @Int32, p3: @Int32, p4: @Float32 } -> Image =
+$ genImagePerlinNoise : { p0 p1 p2 p3: @Int32, p4: @Float32 } -> Image =
     @extern "C" "GenImagePerlinNoise" "bin/libraylib.so"
-$ genImageCellular : { p0: @Int32, p1: @Int32, p2: @Int32 } -> Image =
+$ genImageCellular : { p0 p1 p2: @Int32 } -> Image =
     @extern "C" "GenImageCellular" "bin/libraylib.so"
-$ genImageText : { p0: @Int32, p1: @Int32, p2: @Str } -> Image =
+$ genImageText : { p0 p1: @Int32, p2: @Str } -> Image =
     @extern "C" "GenImageText" "bin/libraylib.so"
 $ imageCopy : Image -> Image = @extern "C" "ImageCopy" "bin/libraylib.so"
 $ imageFromImage : { p0: Image, p1: Rectangle } -> Image =
@@ -1013,7 +884,7 @@ $ imageFromChannel : { p0: Image, p1: @Int32 } -> Image =
     @extern "C" "ImageFromChannel" "bin/libraylib.so"
 $ imageText : { p0: @Str, p1: @Int32, p2: Color } -> Image =
     @extern "C" "ImageText" "bin/libraylib.so"
-$ imageTextEx : { p0: Font, p1: @Str, p2: @Float32, p3: @Float32, p4: Color } -> Image =
+$ imageTextEx : { p0: Font, p1: @Str, p2 p3: @Float32, p4: Color } -> Image =
     @extern "C" "ImageTextEx" "bin/libraylib.so"
 $ imageFormat : { p0: @Ptr, p1: @Int32 } -> {} = @extern "C" "ImageFormat" "bin/libraylib.so"
 $ imageToPOT : { p0: @Ptr, p1: Color } -> {} = @extern "C" "ImageToPOT" "bin/libraylib.so"
@@ -1026,17 +897,14 @@ $ imageAlphaMask : { p0: @Ptr, p1: Image } -> {} = @extern "C" "ImageAlphaMask" 
 $ imageAlphaPremultiply : @Ptr -> {} = @extern "C" "ImageAlphaPremultiply" "bin/libraylib.so"
 $ imageBlurGaussian : { p0: @Ptr, p1: @Int32 } -> {} =
     @extern "C" "ImageBlurGaussian" "bin/libraylib.so"
-$ imageKernelConvolution : { p0: @Ptr, p1: @Ptr, p2: @Int32 } -> {} =
+$ imageKernelConvolution : { p0 p1: @Ptr, p2: @Int32 } -> {} =
     @extern "C" "ImageKernelConvolution" "bin/libraylib.so"
-$ imageResize : { p0: @Ptr, p1: @Int32, p2: @Int32 } -> {} =
-    @extern "C" "ImageResize" "bin/libraylib.so"
-$ imageResizeNN : { p0: @Ptr, p1: @Int32, p2: @Int32 } -> {} =
-    @extern "C" "ImageResizeNN" "bin/libraylib.so"
-$ imageResizeCanvas : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: @Int32, p4: @Int32, p5: Color }
-    -> {} =
+$ imageResize : { p0: @Ptr, p1 p2: @Int32 } -> {} = @extern "C" "ImageResize" "bin/libraylib.so"
+$ imageResizeNN : { p0: @Ptr, p1 p2: @Int32 } -> {} = @extern "C" "ImageResizeNN" "bin/libraylib.so"
+$ imageResizeCanvas : { p0: @Ptr, p1 p2 p3 p4: @Int32, p5: Color } -> {} =
     @extern "C" "ImageResizeCanvas" "bin/libraylib.so"
 $ imageMipmaps : @Ptr -> {} = @extern "C" "ImageMipmaps" "bin/libraylib.so"
-$ imageDither : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: @Int32, p4: @Int32 } -> {} =
+$ imageDither : { p0: @Ptr, p1 p2 p3 p4: @Int32 } -> {} =
     @extern "C" "ImageDither" "bin/libraylib.so"
 $ imageFlipVertical : @Ptr -> {} = @extern "C" "ImageFlipVertical" "bin/libraylib.so"
 $ imageFlipHorizontal : @Ptr -> {} = @extern "C" "ImageFlipHorizontal" "bin/libraylib.so"
@@ -1050,7 +918,7 @@ $ imageColorContrast : { p0: @Ptr, p1: @Float32 } -> {} =
     @extern "C" "ImageColorContrast" "bin/libraylib.so"
 $ imageColorBrightness : { p0: @Ptr, p1: @Int32 } -> {} =
     @extern "C" "ImageColorBrightness" "bin/libraylib.so"
-$ imageColorReplace : { p0: @Ptr, p1: Color, p2: Color } -> {} =
+$ imageColorReplace : { p0: @Ptr, p1 p2: Color } -> {} =
     @extern "C" "ImageColorReplace" "bin/libraylib.so"
 $ loadImageColors : Image -> @Ptr = @extern "C" "LoadImageColors" "bin/libraylib.so"
 $ loadImagePalette : { p0: Image, p1: @Int32, p2: @Ptr } -> @Ptr =
@@ -1059,74 +927,58 @@ $ unloadImageColors : @Ptr -> {} = @extern "C" "UnloadImageColors" "bin/librayli
 $ unloadImagePalette : @Ptr -> {} = @extern "C" "UnloadImagePalette" "bin/libraylib.so"
 $ getImageAlphaBorder : { p0: Image, p1: @Float32 } -> Rectangle =
     @extern "C" "GetImageAlphaBorder" "bin/libraylib.so"
-$ getImageColor : { p0: Image, p1: @Int32, p2: @Int32 } -> Color =
+$ getImageColor : { p0: Image, p1 p2: @Int32 } -> Color =
     @extern "C" "GetImageColor" "bin/libraylib.so"
 $ imageClearBackground : { p0: @Ptr, p1: Color } -> {} =
     @extern "C" "ImageClearBackground" "bin/libraylib.so"
-$ imageDrawPixel : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: Color } -> {} =
+$ imageDrawPixel : { p0: @Ptr, p1 p2: @Int32, p3: Color } -> {} =
     @extern "C" "ImageDrawPixel" "bin/libraylib.so"
 $ imageDrawPixelV : { p0: @Ptr, p1: Vector2, p2: Color } -> {} =
     @extern "C" "ImageDrawPixelV" "bin/libraylib.so"
-$ imageDrawLine : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: @Int32, p4: @Int32, p5: Color } -> {} =
+$ imageDrawLine : { p0: @Ptr, p1 p2 p3 p4: @Int32, p5: Color } -> {} =
     @extern "C" "ImageDrawLine" "bin/libraylib.so"
-$ imageDrawLineV : { p0: @Ptr, p1: Vector2, p2: Vector2, p3: Color } -> {} =
+$ imageDrawLineV : { p0: @Ptr, p1 p2: Vector2, p3: Color } -> {} =
     @extern "C" "ImageDrawLineV" "bin/libraylib.so"
-$ imageDrawLineEx : { p0: @Ptr, p1: Vector2, p2: Vector2, p3: @Int32, p4: Color } -> {} =
+$ imageDrawLineEx : { p0: @Ptr, p1 p2: Vector2, p3: @Int32, p4: Color } -> {} =
     @extern "C" "ImageDrawLineEx" "bin/libraylib.so"
-$ imageDrawCircle : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: @Int32, p4: Color } -> {} =
+$ imageDrawCircle : { p0: @Ptr, p1 p2 p3: @Int32, p4: Color } -> {} =
     @extern "C" "ImageDrawCircle" "bin/libraylib.so"
 $ imageDrawCircleV : { p0: @Ptr, p1: Vector2, p2: @Int32, p3: Color } -> {} =
     @extern "C" "ImageDrawCircleV" "bin/libraylib.so"
-$ imageDrawCircleLines : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: @Int32, p4: Color } -> {} =
+$ imageDrawCircleLines : { p0: @Ptr, p1 p2 p3: @Int32, p4: Color } -> {} =
     @extern "C" "ImageDrawCircleLines" "bin/libraylib.so"
 $ imageDrawCircleLinesV : { p0: @Ptr, p1: Vector2, p2: @Int32, p3: Color } -> {} =
     @extern "C" "ImageDrawCircleLinesV" "bin/libraylib.so"
-$ imageDrawRectangle : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: @Int32, p4: @Int32, p5: Color }
-    -> {} =
+$ imageDrawRectangle : { p0: @Ptr, p1 p2 p3 p4: @Int32, p5: Color } -> {} =
     @extern "C" "ImageDrawRectangle" "bin/libraylib.so"
-$ imageDrawRectangleV : { p0: @Ptr, p1: Vector2, p2: Vector2, p3: Color } -> {} =
+$ imageDrawRectangleV : { p0: @Ptr, p1 p2: Vector2, p3: Color } -> {} =
     @extern "C" "ImageDrawRectangleV" "bin/libraylib.so"
 $ imageDrawRectangleRec : { p0: @Ptr, p1: Rectangle, p2: Color } -> {} =
     @extern "C" "ImageDrawRectangleRec" "bin/libraylib.so"
 $ imageDrawRectangleLines : { p0: @Ptr, p1: Rectangle, p2: @Int32, p3: Color } -> {} =
     @extern "C" "ImageDrawRectangleLines" "bin/libraylib.so"
-$ imageDrawTriangle : { p0: @Ptr, p1: Vector2, p2: Vector2, p3: Vector2, p4: Color } -> {} =
+$ imageDrawTriangle : { p0: @Ptr, p1 p2 p3: Vector2, p4: Color } -> {} =
     @extern "C" "ImageDrawTriangle" "bin/libraylib.so"
-$ imageDrawTriangleEx : {
-    p0: @Ptr,
-    p1: Vector2,
-    p2: Vector2,
-    p3: Vector2,
-    p4: Color,
-    p5: Color,
-    p6: Color
-} -> {} =
+$ imageDrawTriangleEx : { p0: @Ptr, p1 p2 p3: Vector2, p4 p5 p6: Color } -> {} =
     @extern "C" "ImageDrawTriangleEx" "bin/libraylib.so"
-$ imageDrawTriangleLines : { p0: @Ptr, p1: Vector2, p2: Vector2, p3: Vector2, p4: Color } -> {} =
+$ imageDrawTriangleLines : { p0: @Ptr, p1 p2 p3: Vector2, p4: Color } -> {} =
     @extern "C" "ImageDrawTriangleLines" "bin/libraylib.so"
-$ imageDrawTriangleFan : { p0: @Ptr, p1: @Ptr, p2: @Int32, p3: Color } -> {} =
+$ imageDrawTriangleFan : { p0 p1: @Ptr, p2: @Int32, p3: Color } -> {} =
     @extern "C" "ImageDrawTriangleFan" "bin/libraylib.so"
-$ imageDrawTriangleStrip : { p0: @Ptr, p1: @Ptr, p2: @Int32, p3: Color } -> {} =
+$ imageDrawTriangleStrip : { p0 p1: @Ptr, p2: @Int32, p3: Color } -> {} =
     @extern "C" "ImageDrawTriangleStrip" "bin/libraylib.so"
-$ imageDraw : { p0: @Ptr, p1: Image, p2: Rectangle, p3: Rectangle, p4: Color } -> {} =
+$ imageDraw : { p0: @Ptr, p1: Image, p2 p3: Rectangle, p4: Color } -> {} =
     @extern "C" "ImageDraw" "bin/libraylib.so"
-$ imageDrawText : { p0: @Ptr, p1: @Str, p2: @Int32, p3: @Int32, p4: @Int32, p5: Color } -> {} =
+$ imageDrawText : { p0: @Ptr, p1: @Str, p2 p3 p4: @Int32, p5: Color } -> {} =
     @extern "C" "ImageDrawText" "bin/libraylib.so"
-$ imageDrawTextEx : {
-    p0: @Ptr,
-    p1: Font,
-    p2: @Str,
-    p3: Vector2,
-    p4: @Float32,
-    p5: @Float32,
-    p6: Color
-} -> {} =
+$ imageDrawTextEx : { p0: @Ptr, p1: Font, p2: @Str, p3: Vector2, p4 p5: @Float32, p6: Color }
+    -> {} =
     @extern "C" "ImageDrawTextEx" "bin/libraylib.so"
 $ loadTexture : @Str -> Texture2D = @extern "C" "LoadTexture" "bin/libraylib.so"
 $ loadTextureFromImage : Image -> Texture2D = @extern "C" "LoadTextureFromImage" "bin/libraylib.so"
 $ loadTextureCubemap : { p0: Image, p1: @Int32 } -> TextureCubemap =
     @extern "C" "LoadTextureCubemap" "bin/libraylib.so"
-$ loadRenderTexture : { p0: @Int32, p1: @Int32 } -> RenderTexture2D =
+$ loadRenderTexture : { p0 p1: @Int32 } -> RenderTexture2D =
     @extern "C" "LoadRenderTexture" "bin/libraylib.so"
 $ isTextureValid : Texture2D -> @Nat8 = @extern "C" "IsTextureValid" "bin/libraylib.so"
 $ unloadTexture : Texture2D -> {} = @extern "C" "UnloadTexture" "bin/libraylib.so"
@@ -1139,22 +991,15 @@ $ updateTextureRec : { p0: Texture2D, p1: Rectangle, p2: @Ptr } -> {} =
 $ genTextureMipmaps : @Ptr -> {} = @extern "C" "GenTextureMipmaps" "bin/libraylib.so"
 $ setTextureWrap : { p0: Texture2D, p1: @Int32 } -> {} =
     @extern "C" "SetTextureWrap" "bin/libraylib.so"
-$ drawTexture : { p0: Texture2D, p1: @Int32, p2: @Int32, p3: Color } -> {} =
+$ drawTexture : { p0: Texture2D, p1 p2: @Int32, p3: Color } -> {} =
     @extern "C" "DrawTexture" "bin/libraylib.so"
 $ drawTextureV : { p0: Texture2D, p1: Vector2, p2: Color } -> {} =
     @extern "C" "DrawTextureV" "bin/libraylib.so"
-$ drawTextureEx : { p0: Texture2D, p1: Vector2, p2: @Float32, p3: @Float32, p4: Color } -> {} =
+$ drawTextureEx : { p0: Texture2D, p1: Vector2, p2 p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawTextureEx" "bin/libraylib.so"
 $ drawTextureRec : { p0: Texture2D, p1: Rectangle, p2: Vector2, p3: Color } -> {} =
     @extern "C" "DrawTextureRec" "bin/libraylib.so"
-$ drawTexturePro : {
-    p0: Texture2D,
-    p1: Rectangle,
-    p2: Rectangle,
-    p3: Vector2,
-    p4: @Float32,
-    p5: Color
-} -> {} =
+$ drawTexturePro : { p0: Texture2D, p1 p2: Rectangle, p3: Vector2, p4: @Float32, p5: Color } -> {} =
     @extern "C" "DrawTexturePro" "bin/libraylib.so"
 $ drawTextureNPatch : {
     p0: Texture2D,
@@ -1165,78 +1010,55 @@ $ drawTextureNPatch : {
     p5: Color
 } -> {} =
     @extern "C" "DrawTextureNPatch" "bin/libraylib.so"
-$ colorIsEqual : { p0: Color, p1: Color } -> @Nat8 = @extern "C" "ColorIsEqual" "bin/libraylib.so"
+$ colorIsEqual : { p0 p1: Color } -> @Nat8 = @extern "C" "ColorIsEqual" "bin/libraylib.so"
 $ fade : { p0: Color, p1: @Float32 } -> Color = @extern "C" "Fade" "bin/libraylib.so"
 $ colorToInt : Color -> @Int32 = @extern "C" "ColorToInt" "bin/libraylib.so"
 $ colorNormalize : Color -> Vector4 = @extern "C" "ColorNormalize" "bin/libraylib.so"
 $ colorFromNormalized : Vector4 -> Color = @extern "C" "ColorFromNormalized" "bin/libraylib.so"
 $ colorToHSV : Color -> Vector3 = @extern "C" "ColorToHSV" "bin/libraylib.so"
-$ colorFromHSV : { p0: @Float32, p1: @Float32, p2: @Float32 } -> Color =
-    @extern "C" "ColorFromHSV" "bin/libraylib.so"
-$ colorTint : { p0: Color, p1: Color } -> Color = @extern "C" "ColorTint" "bin/libraylib.so"
+$ colorFromHSV : { p0 p1 p2: @Float32 } -> Color = @extern "C" "ColorFromHSV" "bin/libraylib.so"
+$ colorTint : { p0 p1: Color } -> Color = @extern "C" "ColorTint" "bin/libraylib.so"
 $ colorBrightness : { p0: Color, p1: @Float32 } -> Color =
     @extern "C" "ColorBrightness" "bin/libraylib.so"
 $ colorContrast : { p0: Color, p1: @Float32 } -> Color =
     @extern "C" "ColorContrast" "bin/libraylib.so"
 $ colorAlpha : { p0: Color, p1: @Float32 } -> Color = @extern "C" "ColorAlpha" "bin/libraylib.so"
-$ colorAlphaBlend : { p0: Color, p1: Color, p2: Color } -> Color =
-    @extern "C" "ColorAlphaBlend" "bin/libraylib.so"
-$ colorLerp : { p0: Color, p1: Color, p2: @Float32 } -> Color =
-    @extern "C" "ColorLerp" "bin/libraylib.so"
+$ colorAlphaBlend : { p0 p1 p2: Color } -> Color = @extern "C" "ColorAlphaBlend" "bin/libraylib.so"
+$ colorLerp : { p0 p1: Color, p2: @Float32 } -> Color = @extern "C" "ColorLerp" "bin/libraylib.so"
 $ getColor : @Nat32 -> Color = @extern "C" "GetColor" "bin/libraylib.so"
 $ getPixelColor : { p0: @Ptr, p1: @Int32 } -> Color = @extern "C" "GetPixelColor" "bin/libraylib.so"
 $ setPixelColor : { p0: @Ptr, p1: Color, p2: @Int32 } -> {} =
     @extern "C" "SetPixelColor" "bin/libraylib.so"
-$ getPixelDataSize : { p0: @Int32, p1: @Int32, p2: @Int32 } -> @Int32 =
+$ getPixelDataSize : { p0 p1 p2: @Int32 } -> @Int32 =
     @extern "C" "GetPixelDataSize" "bin/libraylib.so"
 $ getFontDefault : {} -> Font = @extern "C" "GetFontDefault" "bin/libraylib.so"
 $ loadFont : @Str -> Font = @extern "C" "LoadFont" "bin/libraylib.so"
 $ loadFontFromImage : { p0: Image, p1: Color, p2: @Int32 } -> Font =
     @extern "C" "LoadFontFromImage" "bin/libraylib.so"
-$ loadFontFromMemory : { p0: @Str, p1: @Str, p2: @Int32, p3: @Int32, p4: @Ptr, p5: @Int32 }
-    -> Font =
+$ loadFontFromMemory : { p0 p1: @Str, p2 p3: @Int32, p4: @Ptr, p5: @Int32 } -> Font =
     @extern "C" "LoadFontFromMemory" "bin/libraylib.so"
 $ isFontValid : Font -> @Nat8 = @extern "C" "IsFontValid" "bin/libraylib.so"
-$ loadFontData : { p0: @Str, p1: @Int32, p2: @Int32, p3: @Ptr, p4: @Int32, p5: @Int32, p6: @Ptr }
-    -> @Ptr =
+$ loadFontData : { p0: @Str, p1 p2: @Int32, p3: @Ptr, p4 p5: @Int32, p6: @Ptr } -> @Ptr =
     @extern "C" "LoadFontData" "bin/libraylib.so"
-$ genImageFontAtlas : { p0: @Ptr, p1: @Ptr, p2: @Int32, p3: @Int32, p4: @Int32, p5: @Int32 }
-    -> Image =
+$ genImageFontAtlas : { p0 p1: @Ptr, p2 p3 p4 p5: @Int32 } -> Image =
     @extern "C" "GenImageFontAtlas" "bin/libraylib.so"
 $ unloadFontData : { p0: @Ptr, p1: @Int32 } -> {} = @extern "C" "UnloadFontData" "bin/libraylib.so"
 $ unloadFont : Font -> {} = @extern "C" "UnloadFont" "bin/libraylib.so"
 $ exportFontAsCode : { p0: Font, p1: @Str } -> @Nat8 =
     @extern "C" "ExportFontAsCode" "bin/libraylib.so"
-$ drawFPS : { p0: @Int32, p1: @Int32 } -> {} = @extern "C" "DrawFPS" "bin/libraylib.so"
-$ drawText : { p0: @Str, p1: @Int32, p2: @Int32, p3: @Int32, p4: Color } -> {} =
+$ drawFPS : { p0 p1: @Int32 } -> {} = @extern "C" "DrawFPS" "bin/libraylib.so"
+$ drawText : { p0: @Str, p1 p2 p3: @Int32, p4: Color } -> {} =
     @extern "C" "DrawText" "bin/libraylib.so"
-$ drawTextPro : {
-    p0: Font,
-    p1: @Str,
-    p2: Vector2,
-    p3: Vector2,
-    p4: @Float32,
-    p5: @Float32,
-    p6: @Float32,
-    p7: Color
-} -> {} =
+$ drawTextPro : { p0: Font, p1: @Str, p2 p3: Vector2, p4 p5 p6: @Float32, p7: Color } -> {} =
     @extern "C" "DrawTextPro" "bin/libraylib.so"
 $ drawTextCodepoint : { p0: Font, p1: @Int32, p2: Vector2, p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawTextCodepoint" "bin/libraylib.so"
-$ drawTextCodepoints : {
-    p0: Font,
-    p1: @Ptr,
-    p2: @Int32,
-    p3: Vector2,
-    p4: @Float32,
-    p5: @Float32,
-    p6: Color
-} -> {} =
+$ drawTextCodepoints : { p0: Font, p1: @Ptr, p2: @Int32, p3: Vector2, p4 p5: @Float32, p6: Color }
+    -> {} =
     @extern "C" "DrawTextCodepoints" "bin/libraylib.so"
 $ setTextLineSpacing : @Int32 -> {} = @extern "C" "SetTextLineSpacing" "bin/libraylib.so"
 $ measureText : { p0: @Str, p1: @Int32 } -> @Int32 = @extern "C" "MeasureText" "bin/libraylib.so"
-$ measureTextCodepoints : { p0: Font, p1: @Ptr, p2: @Int32, p3: @Float32, p4: @Float32 }
-    -> Vector2 =
+$ measureTextCodepoints : { p0: Font, p1: @Ptr, p2: @Int32, p3 p4: @Float32 } -> Vector2 =
     @extern "C" "MeasureTextCodepoints" "bin/libraylib.so"
 $ getGlyphIndex : { p0: Font, p1: @Int32 } -> @Int32 =
     @extern "C" "GetGlyphIndex" "bin/libraylib.so"
@@ -1259,31 +1081,26 @@ $ codepointToUTF8 : { p0: @Int32, p1: @Ptr } -> @Str =
 $ loadTextLines : { p0: @Str, p1: @Ptr } -> @Ptr = @extern "C" "LoadTextLines" "bin/libraylib.so"
 $ unloadTextLines : { p0: @Ptr, p1: @Int32 } -> {} =
     @extern "C" "UnloadTextLines" "bin/libraylib.so"
-$ textCopy : { p0: @Str, p1: @Str } -> @Int32 = @extern "C" "TextCopy" "bin/libraylib.so"
-$ textIsEqual : { p0: @Str, p1: @Str } -> @Nat8 = @extern "C" "TextIsEqual" "bin/libraylib.so"
+$ textCopy : { p0 p1: @Str } -> @Int32 = @extern "C" "TextCopy" "bin/libraylib.so"
+$ textIsEqual : { p0 p1: @Str } -> @Nat8 = @extern "C" "TextIsEqual" "bin/libraylib.so"
 $ textLength : @Str -> @Nat32 = @extern "C" "TextLength" "bin/libraylib.so"
 $ textFormat : { p0: @Str, p1: @Int } -> @Str = @extern "C" "TextFormat" "bin/libraylib.so"
-$ textSubtext : { p0: @Str, p1: @Int32, p2: @Int32 } -> @Str =
-    @extern "C" "TextSubtext" "bin/libraylib.so"
+$ textSubtext : { p0: @Str, p1 p2: @Int32 } -> @Str = @extern "C" "TextSubtext" "bin/libraylib.so"
 $ textRemoveSpaces : @Str -> @Str = @extern "C" "TextRemoveSpaces" "bin/libraylib.so"
-$ getTextBetween : { p0: @Str, p1: @Str, p2: @Str } -> @Str =
-    @extern "C" "GetTextBetween" "bin/libraylib.so"
-$ textReplace : { p0: @Str, p1: @Str, p2: @Str } -> @Str =
-    @extern "C" "TextReplace" "bin/libraylib.so"
-$ textReplaceAlloc : { p0: @Str, p1: @Str, p2: @Str } -> @Str =
-    @extern "C" "TextReplaceAlloc" "bin/libraylib.so"
-$ textReplaceBetween : { p0: @Str, p1: @Str, p2: @Str, p3: @Str } -> @Str =
+$ getTextBetween : { p0 p1 p2: @Str } -> @Str = @extern "C" "GetTextBetween" "bin/libraylib.so"
+$ textReplace : { p0 p1 p2: @Str } -> @Str = @extern "C" "TextReplace" "bin/libraylib.so"
+$ textReplaceAlloc : { p0 p1 p2: @Str } -> @Str = @extern "C" "TextReplaceAlloc" "bin/libraylib.so"
+$ textReplaceBetween : { p0 p1 p2 p3: @Str } -> @Str =
     @extern "C" "TextReplaceBetween" "bin/libraylib.so"
-$ textReplaceBetweenAlloc : { p0: @Str, p1: @Str, p2: @Str, p3: @Str } -> @Str =
+$ textReplaceBetweenAlloc : { p0 p1 p2 p3: @Str } -> @Str =
     @extern "C" "TextReplaceBetweenAlloc" "bin/libraylib.so"
-$ textInsert : { p0: @Str, p1: @Str, p2: @Int32 } -> @Str =
-    @extern "C" "TextInsert" "bin/libraylib.so"
-$ textInsertAlloc : { p0: @Str, p1: @Str, p2: @Int32 } -> @Str =
+$ textInsert : { p0 p1: @Str, p2: @Int32 } -> @Str = @extern "C" "TextInsert" "bin/libraylib.so"
+$ textInsertAlloc : { p0 p1: @Str, p2: @Int32 } -> @Str =
     @extern "C" "TextInsertAlloc" "bin/libraylib.so"
 $ textJoin : { p0: @Ptr, p1: @Int32, p2: @Str } -> @Str = @extern "C" "TextJoin" "bin/libraylib.so"
 $ textSplit : { p0: @Str, p1: @Int8, p2: @Ptr } -> @Ptr = @extern "C" "TextSplit" "bin/libraylib.so"
-$ textAppend : { p0: @Str, p1: @Str, p2: @Ptr } -> {} = @extern "C" "TextAppend" "bin/libraylib.so"
-$ textFindIndex : { p0: @Str, p1: @Str } -> @Int32 = @extern "C" "TextFindIndex" "bin/libraylib.so"
+$ textAppend : { p0 p1: @Str, p2: @Ptr } -> {} = @extern "C" "TextAppend" "bin/libraylib.so"
+$ textFindIndex : { p0 p1: @Str } -> @Int32 = @extern "C" "TextFindIndex" "bin/libraylib.so"
 $ textToUpper : @Str -> @Str = @extern "C" "TextToUpper" "bin/libraylib.so"
 $ textToLower : @Str -> @Str = @extern "C" "TextToLower" "bin/libraylib.so"
 $ textToPascal : @Str -> @Str = @extern "C" "TextToPascal" "bin/libraylib.so"
@@ -1291,58 +1108,38 @@ $ textToSnake : @Str -> @Str = @extern "C" "TextToSnake" "bin/libraylib.so"
 $ textToCamel : @Str -> @Str = @extern "C" "TextToCamel" "bin/libraylib.so"
 $ textToInteger : @Str -> @Int32 = @extern "C" "TextToInteger" "bin/libraylib.so"
 $ textToFloat : @Str -> @Float32 = @extern "C" "TextToFloat" "bin/libraylib.so"
-$ drawLine3D : { p0: Vector3, p1: Vector3, p2: Color } -> {} =
-    @extern "C" "DrawLine3D" "bin/libraylib.so"
+$ drawLine3D : { p0 p1: Vector3, p2: Color } -> {} = @extern "C" "DrawLine3D" "bin/libraylib.so"
 $ drawPoint3D : { p0: Vector3, p1: Color } -> {} = @extern "C" "DrawPoint3D" "bin/libraylib.so"
 $ drawCircle3D : { p0: Vector3, p1: @Float32, p2: Vector3, p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawCircle3D" "bin/libraylib.so"
-$ drawTriangle3D : { p0: Vector3, p1: Vector3, p2: Vector3, p3: Color } -> {} =
+$ drawTriangle3D : { p0 p1 p2: Vector3, p3: Color } -> {} =
     @extern "C" "DrawTriangle3D" "bin/libraylib.so"
 $ drawTriangleStrip3D : { p0: @Ptr, p1: @Int32, p2: Color } -> {} =
     @extern "C" "DrawTriangleStrip3D" "bin/libraylib.so"
-$ drawCube : { p0: Vector3, p1: @Float32, p2: @Float32, p3: @Float32, p4: Color } -> {} =
+$ drawCube : { p0: Vector3, p1 p2 p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawCube" "bin/libraylib.so"
-$ drawCubeV : { p0: Vector3, p1: Vector3, p2: Color } -> {} =
-    @extern "C" "DrawCubeV" "bin/libraylib.so"
-$ drawCubeWires : { p0: Vector3, p1: @Float32, p2: @Float32, p3: @Float32, p4: Color } -> {} =
+$ drawCubeV : { p0 p1: Vector3, p2: Color } -> {} = @extern "C" "DrawCubeV" "bin/libraylib.so"
+$ drawCubeWires : { p0: Vector3, p1 p2 p3: @Float32, p4: Color } -> {} =
     @extern "C" "DrawCubeWires" "bin/libraylib.so"
-$ drawCubeWiresV : { p0: Vector3, p1: Vector3, p2: Color } -> {} =
+$ drawCubeWiresV : { p0 p1: Vector3, p2: Color } -> {} =
     @extern "C" "DrawCubeWiresV" "bin/libraylib.so"
 $ drawSphere : { p0: Vector3, p1: @Float32, p2: Color } -> {} =
     @extern "C" "DrawSphere" "bin/libraylib.so"
-$ drawSphereEx : { p0: Vector3, p1: @Float32, p2: @Int32, p3: @Int32, p4: Color } -> {} =
+$ drawSphereEx : { p0: Vector3, p1: @Float32, p2 p3: @Int32, p4: Color } -> {} =
     @extern "C" "DrawSphereEx" "bin/libraylib.so"
-$ drawSphereWires : { p0: Vector3, p1: @Float32, p2: @Int32, p3: @Int32, p4: Color } -> {} =
+$ drawSphereWires : { p0: Vector3, p1: @Float32, p2 p3: @Int32, p4: Color } -> {} =
     @extern "C" "DrawSphereWires" "bin/libraylib.so"
-$ drawCylinder : { p0: Vector3, p1: @Float32, p2: @Float32, p3: @Float32, p4: @Int32, p5: Color }
-    -> {} =
+$ drawCylinder : { p0: Vector3, p1 p2 p3: @Float32, p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCylinder" "bin/libraylib.so"
-$ drawCylinderEx : { p0: Vector3, p1: Vector3, p2: @Float32, p3: @Float32, p4: @Int32, p5: Color }
-    -> {} =
+$ drawCylinderEx : { p0 p1: Vector3, p2 p3: @Float32, p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCylinderEx" "bin/libraylib.so"
-$ drawCylinderWires : {
-    p0: Vector3,
-    p1: @Float32,
-    p2: @Float32,
-    p3: @Float32,
-    p4: @Int32,
-    p5: Color
-} -> {} =
+$ drawCylinderWires : { p0: Vector3, p1 p2 p3: @Float32, p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCylinderWires" "bin/libraylib.so"
-$ drawCylinderWiresEx : {
-    p0: Vector3,
-    p1: Vector3,
-    p2: @Float32,
-    p3: @Float32,
-    p4: @Int32,
-    p5: Color
-} -> {} =
+$ drawCylinderWiresEx : { p0 p1: Vector3, p2 p3: @Float32, p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCylinderWiresEx" "bin/libraylib.so"
-$ drawCapsule : { p0: Vector3, p1: Vector3, p2: @Float32, p3: @Int32, p4: @Int32, p5: Color }
-    -> {} =
+$ drawCapsule : { p0 p1: Vector3, p2: @Float32, p3 p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCapsule" "bin/libraylib.so"
-$ drawCapsuleWires : { p0: Vector3, p1: Vector3, p2: @Float32, p3: @Int32, p4: @Int32, p5: Color }
-    -> {} =
+$ drawCapsuleWires : { p0 p1: Vector3, p2: @Float32, p3 p4: @Int32, p5: Color } -> {} =
     @extern "C" "DrawCapsuleWires" "bin/libraylib.so"
 $ drawPlane : { p0: Vector3, p1: Vector2, p2: Color } -> {} =
     @extern "C" "DrawPlane" "bin/libraylib.so"
@@ -1355,13 +1152,11 @@ $ unloadModel : Model -> {} = @extern "C" "UnloadModel" "bin/libraylib.so"
 $ getModelBoundingBox : Model -> BoundingBox = @extern "C" "GetModelBoundingBox" "bin/libraylib.so"
 $ drawModel : { p0: Model, p1: Vector3, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawModel" "bin/libraylib.so"
-$ drawModelEx : { p0: Model, p1: Vector3, p2: Vector3, p3: @Float32, p4: Vector3, p5: Color }
-    -> {} =
+$ drawModelEx : { p0: Model, p1 p2: Vector3, p3: @Float32, p4: Vector3, p5: Color } -> {} =
     @extern "C" "DrawModelEx" "bin/libraylib.so"
 $ drawModelWires : { p0: Model, p1: Vector3, p2: @Float32, p3: Color } -> {} =
     @extern "C" "DrawModelWires" "bin/libraylib.so"
-$ drawModelWiresEx : { p0: Model, p1: Vector3, p2: Vector3, p3: @Float32, p4: Vector3, p5: Color }
-    -> {} =
+$ drawModelWiresEx : { p0: Model, p1 p2: Vector3, p3: @Float32, p4: Vector3, p5: Color } -> {} =
     @extern "C" "DrawModelWiresEx" "bin/libraylib.so"
 $ drawBoundingBox : { p0: BoundingBox, p1: Color } -> {} =
     @extern "C" "DrawBoundingBox" "bin/libraylib.so"
@@ -1380,16 +1175,14 @@ $ drawBillboardPro : {
     p0: Camera,
     p1: Texture2D,
     p2: Rectangle,
-    p3: Vector3,
-    p4: Vector3,
-    p5: Vector2,
-    p6: Vector2,
+    p3 p4: Vector3,
+    p5 p6: Vector2,
     p7: @Float32,
     p8: Color
 } -> {} =
     @extern "C" "DrawBillboardPro" "bin/libraylib.so"
 $ uploadMesh : { p0: @Ptr, p1: @Nat8 } -> {} = @extern "C" "UploadMesh" "bin/libraylib.so"
-$ updateMeshBuffer : { p0: Mesh, p1: @Int32, p2: @Ptr, p3: @Int32, p4: @Int32 } -> {} =
+$ updateMeshBuffer : { p0: Mesh, p1: @Int32, p2: @Ptr, p3 p4: @Int32 } -> {} =
     @extern "C" "UpdateMeshBuffer" "bin/libraylib.so"
 $ unloadMesh : Mesh -> {} = @extern "C" "UnloadMesh" "bin/libraylib.so"
 # skipped fn drawMesh (uses an unrepresentable type)
@@ -1400,21 +1193,20 @@ $ exportMesh : { p0: Mesh, p1: @Str } -> @Nat8 = @extern "C" "ExportMesh" "bin/l
 $ exportMeshAsCode : { p0: Mesh, p1: @Str } -> @Nat8 =
     @extern "C" "ExportMeshAsCode" "bin/libraylib.so"
 $ genMeshPoly : { p0: @Int32, p1: @Float32 } -> Mesh = @extern "C" "GenMeshPoly" "bin/libraylib.so"
-$ genMeshPlane : { p0: @Float32, p1: @Float32, p2: @Int32, p3: @Int32 } -> Mesh =
+$ genMeshPlane : { p0 p1: @Float32, p2 p3: @Int32 } -> Mesh =
     @extern "C" "GenMeshPlane" "bin/libraylib.so"
-$ genMeshCube : { p0: @Float32, p1: @Float32, p2: @Float32 } -> Mesh =
-    @extern "C" "GenMeshCube" "bin/libraylib.so"
-$ genMeshSphere : { p0: @Float32, p1: @Int32, p2: @Int32 } -> Mesh =
+$ genMeshCube : { p0 p1 p2: @Float32 } -> Mesh = @extern "C" "GenMeshCube" "bin/libraylib.so"
+$ genMeshSphere : { p0: @Float32, p1 p2: @Int32 } -> Mesh =
     @extern "C" "GenMeshSphere" "bin/libraylib.so"
-$ genMeshHemiSphere : { p0: @Float32, p1: @Int32, p2: @Int32 } -> Mesh =
+$ genMeshHemiSphere : { p0: @Float32, p1 p2: @Int32 } -> Mesh =
     @extern "C" "GenMeshHemiSphere" "bin/libraylib.so"
-$ genMeshCylinder : { p0: @Float32, p1: @Float32, p2: @Int32 } -> Mesh =
+$ genMeshCylinder : { p0 p1: @Float32, p2: @Int32 } -> Mesh =
     @extern "C" "GenMeshCylinder" "bin/libraylib.so"
-$ genMeshCone : { p0: @Float32, p1: @Float32, p2: @Int32 } -> Mesh =
+$ genMeshCone : { p0 p1: @Float32, p2: @Int32 } -> Mesh =
     @extern "C" "GenMeshCone" "bin/libraylib.so"
-$ genMeshTorus : { p0: @Float32, p1: @Float32, p2: @Int32, p3: @Int32 } -> Mesh =
+$ genMeshTorus : { p0 p1: @Float32, p2 p3: @Int32 } -> Mesh =
     @extern "C" "GenMeshTorus" "bin/libraylib.so"
-$ genMeshKnot : { p0: @Float32, p1: @Float32, p2: @Int32, p3: @Int32 } -> Mesh =
+$ genMeshKnot : { p0 p1: @Float32, p2 p3: @Int32 } -> Mesh =
     @extern "C" "GenMeshKnot" "bin/libraylib.so"
 $ genMeshHeightmap : { p0: Image, p1: Vector3 } -> Mesh =
     @extern "C" "GenMeshHeightmap" "bin/libraylib.so"
@@ -1426,7 +1218,7 @@ $ loadMaterials : { p0: @Str, p1: @Ptr } -> @Ptr = @extern "C" "LoadMaterials" "
 # skipped fn unloadMaterial (uses an unrepresentable type)
 $ setMaterialTexture : { p0: @Ptr, p1: @Int32, p2: Texture2D } -> {} =
     @extern "C" "SetMaterialTexture" "bin/libraylib.so"
-$ setModelMeshMaterial : { p0: @Ptr, p1: @Int32, p2: @Int32 } -> {} =
+$ setModelMeshMaterial : { p0: @Ptr, p1 p2: @Int32 } -> {} =
     @extern "C" "SetModelMeshMaterial" "bin/libraylib.so"
 $ loadModelAnimations : { p0: @Str, p1: @Ptr } -> @Ptr =
     @extern "C" "LoadModelAnimations" "bin/libraylib.so"
@@ -1437,7 +1229,7 @@ $ unloadModelAnimations : { p0: @Ptr, p1: @Int32 } -> {} =
 # skipped fn isModelAnimationValid (uses an unrepresentable type)
 $ checkCollisionSpheres : { p0: Vector3, p1: @Float32, p2: Vector3, p3: @Float32 } -> @Nat8 =
     @extern "C" "CheckCollisionSpheres" "bin/libraylib.so"
-$ checkCollisionBoxes : { p0: BoundingBox, p1: BoundingBox } -> @Nat8 =
+$ checkCollisionBoxes : { p0 p1: BoundingBox } -> @Nat8 =
     @extern "C" "CheckCollisionBoxes" "bin/libraylib.so"
 $ checkCollisionBoxSphere : { p0: BoundingBox, p1: Vector3, p2: @Float32 } -> @Nat8 =
     @extern "C" "CheckCollisionBoxSphere" "bin/libraylib.so"
@@ -1447,10 +1239,9 @@ $ getRayCollisionBox : { p0: Ray, p1: BoundingBox } -> RayCollision =
     @extern "C" "GetRayCollisionBox" "bin/libraylib.so"
 $ getRayCollisionMesh : { p0: Ray, p1: Mesh, p2: Matrix } -> RayCollision =
     @extern "C" "GetRayCollisionMesh" "bin/libraylib.so"
-$ getRayCollisionTriangle : { p0: Ray, p1: Vector3, p2: Vector3, p3: Vector3 } -> RayCollision =
+$ getRayCollisionTriangle : { p0: Ray, p1 p2 p3: Vector3 } -> RayCollision =
     @extern "C" "GetRayCollisionTriangle" "bin/libraylib.so"
-$ getRayCollisionQuad : { p0: Ray, p1: Vector3, p2: Vector3, p3: Vector3, p4: Vector3 }
-    -> RayCollision =
+$ getRayCollisionQuad : { p0: Ray, p1 p2 p3 p4: Vector3 } -> RayCollision =
     @extern "C" "GetRayCollisionQuad" "bin/libraylib.so"
 $ AudioCallback : @Type = @Ptr
 $ initAudioDevice : {} -> {} = @extern "C" "InitAudioDevice" "bin/libraylib.so"
@@ -1459,7 +1250,7 @@ $ isAudioDeviceReady : {} -> @Nat8 = @extern "C" "IsAudioDeviceReady" "bin/libra
 $ setMasterVolume : @Float32 -> {} = @extern "C" "SetMasterVolume" "bin/libraylib.so"
 $ getMasterVolume : {} -> @Float32 = @extern "C" "GetMasterVolume" "bin/libraylib.so"
 $ loadWave : @Str -> Wave = @extern "C" "LoadWave" "bin/libraylib.so"
-$ loadWaveFromMemory : { p0: @Str, p1: @Str, p2: @Int32 } -> Wave =
+$ loadWaveFromMemory : { p0 p1: @Str, p2: @Int32 } -> Wave =
     @extern "C" "LoadWaveFromMemory" "bin/libraylib.so"
 $ isWaveValid : Wave -> @Nat8 = @extern "C" "IsWaveValid" "bin/libraylib.so"
 $ loadSound : @Str -> Sound = @extern "C" "LoadSound" "bin/libraylib.so"
@@ -1484,13 +1275,12 @@ $ setSoundVolume : { p0: Sound, p1: @Float32 } -> {} =
 $ setSoundPitch : { p0: Sound, p1: @Float32 } -> {} = @extern "C" "SetSoundPitch" "bin/libraylib.so"
 $ setSoundPan : { p0: Sound, p1: @Float32 } -> {} = @extern "C" "SetSoundPan" "bin/libraylib.so"
 $ waveCopy : Wave -> Wave = @extern "C" "WaveCopy" "bin/libraylib.so"
-$ waveCrop : { p0: @Ptr, p1: @Int32, p2: @Int32 } -> {} = @extern "C" "WaveCrop" "bin/libraylib.so"
-$ waveFormat : { p0: @Ptr, p1: @Int32, p2: @Int32, p3: @Int32 } -> {} =
-    @extern "C" "WaveFormat" "bin/libraylib.so"
+$ waveCrop : { p0: @Ptr, p1 p2: @Int32 } -> {} = @extern "C" "WaveCrop" "bin/libraylib.so"
+$ waveFormat : { p0: @Ptr, p1 p2 p3: @Int32 } -> {} = @extern "C" "WaveFormat" "bin/libraylib.so"
 $ loadWaveSamples : Wave -> @Ptr = @extern "C" "LoadWaveSamples" "bin/libraylib.so"
 $ unloadWaveSamples : @Ptr -> {} = @extern "C" "UnloadWaveSamples" "bin/libraylib.so"
 $ loadMusicStream : @Str -> Music = @extern "C" "LoadMusicStream" "bin/libraylib.so"
-$ loadMusicStreamFromMemory : { p0: @Str, p1: @Str, p2: @Int32 } -> Music =
+$ loadMusicStreamFromMemory : { p0 p1: @Str, p2: @Int32 } -> Music =
     @extern "C" "LoadMusicStreamFromMemory" "bin/libraylib.so"
 $ isMusicValid : Music -> @Nat8 = @extern "C" "IsMusicValid" "bin/libraylib.so"
 $ unloadMusicStream : Music -> {} = @extern "C" "UnloadMusicStream" "bin/libraylib.so"
@@ -1508,7 +1298,7 @@ $ setMusicPitch : { p0: Music, p1: @Float32 } -> {} = @extern "C" "SetMusicPitch
 $ setMusicPan : { p0: Music, p1: @Float32 } -> {} = @extern "C" "SetMusicPan" "bin/libraylib.so"
 $ getMusicTimeLength : Music -> @Float32 = @extern "C" "GetMusicTimeLength" "bin/libraylib.so"
 $ getMusicTimePlayed : Music -> @Float32 = @extern "C" "GetMusicTimePlayed" "bin/libraylib.so"
-$ loadAudioStream : { p0: @Nat32, p1: @Nat32, p2: @Nat32 } -> AudioStream =
+$ loadAudioStream : { p0 p1 p2: @Nat32 } -> AudioStream =
     @extern "C" "LoadAudioStream" "bin/libraylib.so"
 $ isAudioStreamValid : AudioStream -> @Nat8 = @extern "C" "IsAudioStreamValid" "bin/libraylib.so"
 $ unloadAudioStream : AudioStream -> {} = @extern "C" "UnloadAudioStream" "bin/libraylib.so"

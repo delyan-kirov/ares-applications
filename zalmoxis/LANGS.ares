@@ -14,10 +14,7 @@ $ @import ARESxOPT
 
 $ Lang : @Type = @struct
     name: @Str,
-    exts: @Vec @Str,
-    files: @Vec @Str,
-    line: @Vec @Str,
-    docs: @Vec @Str,
+    exts files line docs: @Vec @Str,
     blocks: @Vec { @Str, @Str },
     nested: Bool,
     quotes: @Vec { @Str, @Str },
@@ -25,29 +22,21 @@ $ Lang : @Type = @struct
 
 $ Table : @Type = @struct
     langs: @Vec Lang,
-    by_ext: @Vec { @Str, @Int },
-    by_file: @Vec { @Str, @Int },
+    by_ext by_file: @Vec { @Str, @Int },
 
 # ---- building blocks ----
 
-$ code : {
-    name: @Str,
-    exts: @Vec @Str,
-    line: @Vec @Str,
-    blocks: @Vec { @Str, @Str },
-    quotes: @Vec { @Str, @Str }
-} -> Lang =
-    Lang.{
-        name,
-        exts,
-        .files = [],
-        line,
-        .docs = [],
-        blocks,
-        .nested = false,
-        quotes,
-        .prose = false
-    }
+$ code : { name: @Str, exts line: @Vec @Str, blocks quotes: @Vec { @Str, @Str } } -> Lang = Lang.{
+    name,
+    exts,
+    .files = [],
+    line,
+    .docs = [],
+    blocks,
+    .nested = false,
+    quotes,
+    .prose = false
+}
 
 # Every non-blank line is a comment (prose has no code).
 $ text : { name: @Str, exts: @Vec @Str } -> Lang = Lang.{
@@ -293,11 +282,10 @@ $ base_name : @Str -> @Str = \p => base_from p (@array_len p - 1)
 $ base_from : @Str -> @Int -> @Str = \p i =>
     if i < 0 => p else if at i p == 47 => substr (i + 1) (@array_len p) p else base_from p (i - 1)
 
-$ foldl_index : @ctx { a: @Type, t: @Type } -> (a -> @Int -> t -> a) -> a -> @Vec t
-    -> a = \f acc v =>
+$ foldl_index : @ctx { a t: @Type } -> (a -> @Int -> t -> a) -> a -> @Vec t -> a = \f acc v =>
     foldl_index_from f acc v 0
 
-$ foldl_index_from : @ctx { a: @Type, t: @Type } -> (a -> @Int -> t -> a) -> a -> @Vec t -> @Int
+$ foldl_index_from : @ctx { a t: @Type } -> (a -> @Int -> t -> a) -> a -> @Vec t -> @Int
     -> a = \f acc v i =>
     if i >= @vec_len v => acc else foldl_index_from f (f acc i (@vec_get v i)) v (i + 1)
 

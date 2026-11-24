@@ -19,8 +19,7 @@ $ IntLit : @Type = @struct
     value : @Int,
     unsigned : Bool,
     longs : @Int,
-    decimal : Bool,
-    overflow : Bool,
+    decimal overflow : Bool,
 
 # `kind` is 0 for `double`, 1 for `float`, 2 for `long double`.
 $ FloatLit : @Type = @struct value : @Float64, kind : @Int,

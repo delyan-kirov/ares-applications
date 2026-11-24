@@ -8,7 +8,7 @@ $ @mod MAIN
 $ @import ARESxSTR
 $ @import HOST
 
-$ swap : @ctx { a: @Type, b: @Type } -> { a, b } -> { b, a } = \t => { t.1, t.0 }
+$ swap : @ctx { a b: @Type } -> { a, b } -> { b, a } = \t => { t.1, t.0 }
 
 $ @main : @Vec @Str -> <@IO> @Int = \args =>
     let p = { 42, "answer" } in

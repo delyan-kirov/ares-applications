@@ -26,7 +26,7 @@ $ vt_byte : ValT -> @Int = \v =>
 $ vt_eq : ValT -> ValT -> Bool = \a b => vt_byte a == vt_byte b
 
 # A function signature: parameter and result types.
-$ Sig : @Type = @struct params : @Vec ValT, results : @Vec ValT,
+$ Sig : @Type = @struct params results : @Vec ValT,
 
 $ sig_key : Sig -> @Str = \s =>
     foldl (\acc v => @array_push acc (vt_byte v)) "" s.params
@@ -105,8 +105,8 @@ $ memory_grow : @Str = byte 64 ++ byte 0
 
 # -- module ----------------------------------------------------------------------
 
-$ Import : @Type = @struct module : @Str, name : @Str, type : @Int,
-$ Export : @Type = @struct name : @Str, kind : @Int, index : @Int,
+$ Import : @Type = @struct module name : @Str, type : @Int,
+$ Export : @Type = @struct name : @Str, kind index : @Int,
 $ Global : @Type = @struct vt : ValT, mutable : Bool, init : @Str,
 $ Data : @Type = @struct offset : @Int, bytes : @Str,
 
@@ -117,8 +117,7 @@ $ Body : @Type = @struct locals : @Vec ValT, code : @Str,
 $ Module : @Type = @struct
     types : @Vec Sig,
     imports : @Vec Import,
-    funcs : @Vec @Int,
-    table : @Vec @Int,
+    funcs table : @Vec @Int,
     pages : @Int,
     mem64 : Bool,
     globals : @Vec Global,

@@ -13,8 +13,7 @@ $ IArea : (t: @Type) -> @Class = @struct
     area: t -> @Int,
 
 $ Rect : @Type = @struct
-    w: @Int,
-    h: @Int,
+    w h: @Int,
 
 $ impl_IArea_for_Rect : IArea Rect = .{ .area = \r => r.w * r.h }
 

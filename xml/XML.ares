@@ -35,7 +35,7 @@ $ @import ARESxOPT
 # The document model
 # ==========================================================================
 
-$ Attr : @Type = @struct name : @Str, value : @Str,
+$ Attr : @Type = @struct name value : @Str,
 
 # An element's payload is a struct, and its children are a `List`, because a
 # slot whose type leads back to `Node` is held LAZILY. A lazy cell is forced
@@ -57,7 +57,7 @@ $ Node : @Type = @union
 # than whichever happened to be tried last; `note` is extra guidance, or "".
 $ Err : @Type = @struct at : @Int, msg : @Str, want : @Vec @Str, note : @Str,
 
-$ LineCol : @Type = @struct line : @Int, col : @Int,
+$ LineCol : @Type = @struct line col : @Int,
 $ Parsed : (a: @Type) -> @Type = @union Ok : { a }, Bad : { Err },
 
 # -- accessors --------------------------------------------------------------

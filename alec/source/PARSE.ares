@@ -53,8 +53,7 @@ $ TagB : @Type = @union
     TEnum : { Ty },
 
 $ Scope : @Effect =
-    enter : {} -> {},
-    leave : {} -> {},
+    enter leave : {} -> {},
     lookup : @Str -> Opt Binding,
     bind : { @Str, Binding } -> {},
     tag : { @Str, Bool } -> Opt TagB,
@@ -340,7 +339,7 @@ $ with_unit : @ctx { a: @Type } -> ({} -> <Unit, Files, Diag> a)
  - declaration, an initializer beats a tentative definition, and a complete
  - array type beats an incomplete one.
  -#
-$ merge_gvar : { old: GVar, g: GVar } -> GVar =
+$ merge_gvar : { old g: GVar } -> GVar =
     if g.init =>
         GVar.{ .static = old.static || g.static | g }
     else if old.init =>
@@ -514,7 +513,7 @@ $ skip_brackets : @Int -> <Tok, Diag> {} = \depth =>
  - unit's number (static names are made unique per unit with it), and the local
  - holding the variadic argument area (-1 when the function is not variadic).
  -#
-$ Fn : @Type = @struct name : @Str, ret : Ty, loop : Bool, sw : Opt Ty, tu : @Int, va : @Int,
+$ Fn : @Type = @struct name : @Str, ret : Ty, loop : Bool, sw : Opt Ty, tu va : @Int,
 
 $ file_fn : @Int -> Fn = \tu =>
     Fn.{ .name = "", .ret = t_void, .loop = false, .sw = Opt.None, .tu = tu, .va = 0 - 1 }
@@ -552,7 +551,7 @@ $ wrap_ty : { lay: Layout, t: Ty, v: @Int } -> @Int =
         | Ty.Enum.{ i } => sext v 32
         | _             => v
 
-$ ult : { a: @Int, b: @Int } -> Bool = let x : @Nat = @cast a in let y : @Nat = @cast b in x < y
+$ ult : { a b: @Int } -> Bool = let x : @Nat = @cast a in let y : @Nat = @cast b in x < y
 
 $ u2d : @Int -> @Float64 = \v =>
     if v >= 0 => C.i2d v else C.i2d (shr_u v 1) * 2.0 + C.i2d (band v 1)
@@ -633,7 +632,7 @@ $ addr_cv : { lay: Layout, x: Expr } -> CVal =
         | ENode.Deref.{ p }    => eval { lay, p }
         | _                    => CVal.CNone
 
-$ conv_cv : { lay: Layout, v: CVal, from: Ty, to: Ty } -> CVal =
+$ conv_cv : { lay: Layout, v: CVal, from to: Ty } -> CVal =
     v |> \
         | CVal.CInt.{ i } =>
             if is_flonum to =>
@@ -663,7 +662,7 @@ $ conv_cv : { lay: Layout, v: CVal, from: Ty, to: Ty } -> CVal =
 $ round_flt : { t: Ty, f: @Float64 } -> @Float64 =
     t |> \ | Ty.Float => f32_to_f64 (f64_to_f32 f) | _ => f
 
-$ bin_cv : { lay: Layout, op: @Str, opt: Ty, rt: Ty, a: CVal, b: CVal } -> CVal =
+$ bin_cv : { lay: Layout, op: @Str, opt rt: Ty, a b: CVal } -> CVal =
     a |> \
         | CVal.CInt.{ x }     => (
             b |> \
@@ -702,7 +701,7 @@ $ bin_cv : { lay: Layout, op: @Str, opt: Ty, rt: Ty, a: CVal, b: CVal } -> CVal 
         )
         | _                   => CVal.CNone
 
-$ int_bin : { lay: Layout, op: @Str, opt: Ty, rt: Ty, x: @Int, y: @Int } -> CVal =
+$ int_bin : { lay: Layout, op: @Str, opt rt: Ty, x y: @Int } -> CVal =
     let u = is_unsigned opt || is_ptr opt in
     let w = \v => CVal.CInt.{ wrap_ty { lay, rt, v } } in
     let flag = \c => CVal.CInt.{ if c => 1 else 0 } in
@@ -781,7 +780,7 @@ $ rv : Expr -> Expr = \e =>
         | Ty.Func.{ f }    => mk_expr ENode.Addr.{ e } (ptr_to e.ty) e.pos
         | _                => e
 
-$ same_repr : { a: Ty, b: Ty } -> Bool =
+$ same_repr : { a b: Ty } -> Bool =
     a |> \
         | Ty.Int.{ x } => (
             b |> \
@@ -883,7 +882,7 @@ $ default_promote : Expr -> <Tab> Expr = \e0 =>
         | Ty.Float => cast_to { e, t_double }
         | _        => if is_integer e.ty => cast_to { e, promote e.ty } else e
 
-$ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ arith_bin : { op: @Str, x y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if not (is_arith a.ty) || not (is_arith b.ty) =>
@@ -897,7 +896,7 @@ $ arith_bin : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit
         let b2 = cast_to { b, t } in
         fold (mk_expr ENode.Bin.{ op, a2, b2 } t pos)
 
-$ bad_operands : @ctx { r: @Type } -> { op: @Str, a: Expr, b: Expr, pos: Pos }
+$ bad_operands : @ctx { r: @Type } -> { op: @Str, a b: Expr, pos: Pos }
     -> <Tok, Scope, Tab, Unit, Diag> r =
     error_at pos
         (
@@ -937,7 +936,7 @@ $ size_expr : { t: Ty, pos: Pos } -> <Tab> Expr =
         | Ty.Vla.{ b, sz } => mk_expr ENode.Local.{ sz } st pos
         | _                => int_expr (sizeof_ty t) st pos
 
-$ add_e : { x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ add_e : { x y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if is_arith a.ty && is_arith b.ty =>
@@ -949,7 +948,7 @@ $ add_e : { x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     else
         bad_operands { "+", a, b, pos }
 
-$ sub_e : { x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ sub_e : { x y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if is_arith a.ty && is_arith b.ty =>
@@ -968,7 +967,7 @@ $ sub_e : { x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     else
         bad_operands { "-", a, b, pos }
 
-$ shift_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ shift_e : { op: @Str, x y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if not (is_integer a.ty && is_integer b.ty) =>
@@ -979,7 +978,7 @@ $ shift_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, 
         let b2 = cast_to { b, t } in
         fold (mk_expr ENode.Bin.{ op, a2, b2 } t pos)
 
-$ cmp_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ cmp_e : { op: @Str, x y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = rv x in
     let b = rv y in
     if is_arith a.ty && is_arith b.ty =>
@@ -994,12 +993,12 @@ $ cmp_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Di
     else
         bad_operands { op, a, b, pos }
 
-$ logic_e : { op: @Str, x: Expr, y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ logic_e : { op: @Str, x y: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = need_scalar x in
     let b = need_scalar y in
     fold (mk_expr ENode.Bin.{ op, a, b } t_int pos)
 
-$ mk_bin : { op: @Str, a: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ mk_bin : { op: @Str, a b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     op |> \
         | "+"                                   => add_e { a, b, pos }
         | "-"                                   => sub_e { a, b, pos }
@@ -1019,7 +1018,7 @@ $ mk_cast : { e0: Expr, t: Ty, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr 
     else
         error_at pos ("conversion to non-scalar type '" ++ tname t ++ "' requested")
 
-$ mk_cond : { c0: Expr, a0: Expr, b0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ mk_cond : { c0 a0 b0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let c = need_scalar c0 in
     let a = rv a0 in
     let b = rv b0 in
@@ -1095,11 +1094,7 @@ $ field_e : { e: Expr, name: @Str, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> E
 
 $ Spec : @Type = @struct
     ty : Ty,
-    typedef : Bool,
-    static : Bool,
-    extern : Bool,
-    inline : Bool,
-    tls : Bool,
+    typedef static extern inline tls : Bool,
     align : @Int,
 
 #-
@@ -1813,7 +1808,7 @@ $ global_var : { c: Fn, sp: Spec, d: Decl, ty: Ty } -> <Tok, Scope, Tab, Unit, D
     else
         Unit.gvar (gvar { ln, ty, "", @vec_new {}, not sp.extern, false, sp, d.pos })
 
-$ gvar : { n: @Str, t: Ty, data: @Str, rs: @Vec Reloc, def: Bool, init: Bool, sp: Spec, pos: Pos }
+$ gvar : { n: @Str, t: Ty, data: @Str, rs: @Vec Reloc, def init: Bool, sp: Spec, pos: Pos }
     -> GVar =
     GVar.{
         .name = n,
@@ -2156,16 +2151,8 @@ $ string_init : { c: Fn, ty: Ty, off: @Int, acc: List Item }
     let acc2 = string_items { v.units, elem, esz, off, pos, 0, count, acc } in
     InitR.{ .items = acc2, .ty = (if len < 0 => array_of elem n else ty) }
 
-$ string_items : {
-    us: @Vec @Int,
-    elem: Ty,
-    esz: @Int,
-    off: @Int,
-    pos: Pos,
-    i: @Int,
-    upto: @Int,
-    acc: List Item
-} -> List Item =
+$ string_items : { us: @Vec @Int, elem: Ty, esz off: @Int, pos: Pos, i upto: @Int, acc: List Item }
+    -> List Item =
     if i >= upto || i >= @vec_len us =>
         acc
     else
@@ -2181,17 +2168,8 @@ $ arr_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <Tok, Scope, Tab,
     let r = arr_items { c, elem, esz, len, off, 0, 0, true, acc } in
     InitR.{ .items = r.0, .ty = (if len < 0 => array_of elem r.1 else ty) }
 
-$ arr_items : {
-    c: Fn,
-    elem: Ty,
-    esz: @Int,
-    len: @Int,
-    off: @Int,
-    i: @Int,
-    maxi: @Int,
-    first: Bool,
-    acc: List Item
-} -> <Tok, Scope, Tab, Unit, Diag> { List Item, @Int } =
+$ arr_items : { c: Fn, elem: Ty, esz len off i maxi: @Int, first: Bool, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> { List Item, @Int } =
     if accept "}" =>
         { acc, maxi }
     else
@@ -2219,8 +2197,7 @@ $ arr_items : {
             arr_items { c, elem, esz, len, off, i + 1, max_i { maxi, i + 1 }, false, r.items }
 
 # `[lo ... hi] = x` initializes each element with the same items.
-$ replicate : { one: List Item, esz: @Int, lo: @Int, hi: @Int, k: @Int, acc: List Item }
-    -> List Item =
+$ replicate : { one: List Item, esz lo hi k: @Int, acc: List Item } -> List Item =
     if k > hi =>
         acc
     else
@@ -2229,7 +2206,7 @@ $ replicate : { one: List Item, esz: @Int, lo: @Int, hi: @Int, k: @Int, acc: Lis
             (reverse one) in
         replicate { one, esz, lo, hi, k + 1, ARES.reverse_onto acc shifted }
 
-$ max_i : { a: @Int, b: @Int } -> @Int = if a > b => a else b
+$ max_i : { a b: @Int } -> @Int = if a > b => a else b
 
 $ designation : { c: Fn, ty: Ty, off: @Int, acc: List Item }
     -> <Tok, Scope, Tab, Unit, Diag> List Item =
@@ -2278,16 +2255,8 @@ $ arr_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Opt Expr, acc: List Item }
     } in
     InitR.{ .items = items, .ty = ty }
 
-$ arr_un : {
-    c: Fn,
-    elem: Ty,
-    esz: @Int,
-    len: @Int,
-    off: @Int,
-    i: @Int,
-    pend: Opt Expr,
-    acc: List Item
-} -> <Tok, Scope, Tab, Unit, Diag> List Item =
+$ arr_un : { c: Fn, elem: Ty, esz len off i: @Int, pend: Opt Expr, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> List Item =
     if i >= len =>
         acc
     else if is_none pend && (is_end {} || (i > 0 && designator_next {})) =>
@@ -2303,16 +2272,8 @@ $ agg_braced : { c: Fn, ty: Ty, off: @Int, acc: List Item } -> <Tok, Scope, Tab,
         (ty |> \ | Ty.Agg.{ id } => agg_of (cur_layout {}) id | _ => agg_of (cur_layout {}) 0) in
     InitR.{ .items = agg_items { c, ty, a, off, 0, true, false, acc }, .ty = ty }
 
-$ agg_items : {
-    c: Fn,
-    ty: Ty,
-    a: Agg,
-    off: @Int,
-    idx: @Int,
-    first: Bool,
-    done: Bool,
-    acc: List Item
-} -> <Tok, Scope, Tab, Unit, Diag> List Item =
+$ agg_items : { c: Fn, ty: Ty, a: Agg, off idx: @Int, first done: Bool, acc: List Item }
+    -> <Tok, Scope, Tab, Unit, Diag> List Item =
     if accept "}" =>
         acc
     else
@@ -2385,7 +2346,7 @@ $ agg_unbraced : { c: Fn, ty: Ty, off: @Int, pend: Opt Expr, acc: List Item }
     -> <Tok, Scope, Tab, Unit, Diag> List Item =
     agg_un { c, agg_of (cur_layout {}) (agg_id ty), off, 0, true, pend, acc }
 
-$ agg_un : { c: Fn, a: Agg, off: @Int, idx: @Int, first: Bool, pend: Opt Expr, acc: List Item }
+$ agg_un : { c: Fn, a: Agg, off idx: @Int, first: Bool, pend: Opt Expr, acc: List Item }
     -> <Tok, Scope, Tab, Unit, Diag> List Item =
     let i = skip_unnamed { a, idx } in
     if i >= @vec_len a.members || (a.union && not first) =>
@@ -2481,16 +2442,16 @@ $ literal_data : Expr -> <Unit> Opt GVar = \e =>
         | ENode.Global.{ g } => if starts_with ".compound." g => Unit.find_gvar g else Opt.None
         | _                  => Opt.None
 
-$ put_bytes : { b: @Str, off: @Int, src: @Str, i: @Int, n: @Int } -> @Str =
+$ put_bytes : { b: @Str, off: @Int, src: @Str, i n: @Int } -> @Str =
     if i >= n => b else put_bytes { @array_set b (off + i) (@array_get src i), off, src, i + 1, n }
 
-$ put_le : { b: @Str, off: @Int, sz: @Int, v: @Int } -> @Str =
+$ put_le : { b: @Str, off sz v: @Int } -> @Str =
     if sz <= 0 => b else put_le { @array_set b off (band v 255), off + 1, sz - 1, shr_u v 8 }
 
-$ get_le : { b: @Str, off: @Int, sz: @Int } -> @Int =
+$ get_le : { b: @Str, off sz: @Int } -> @Int =
     if sz <= 0 => 0 else @array_get b off + 256 * get_le { b, off + 1, sz - 1 }
 
-$ put_bits : { b: @Str, off: @Int, sz: @Int, bo: @Int, w: @Int, v: @Int } -> @Str =
+$ put_bits : { b: @Str, off sz bo w v: @Int } -> @Str =
     let old = get_le { b, off, sz } in
     let mask = shl 1 w - 1 in
     let cleared = band old (bnot (shl mask bo)) in
@@ -2528,7 +2489,7 @@ $ assign : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
 $ need_lvalue : { e: Expr, what: @Str } -> <Diag> {} =
     if is_lvalue e && not (is_array e.ty) => {} else error_at e.pos ("lvalue required as " ++ what)
 
-$ mk_assign : { lhs: Expr, rhs: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ mk_assign : { lhs rhs: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     need_lvalue { lhs, "left operand of assignment" };
     let v = assign_conv { rhs, lhs.ty, "assigning to" } in
     mk_expr ENode.Assign.{ lhs, v } lhs.ty pos
@@ -2537,7 +2498,7 @@ $ mk_assign : { lhs: Expr, rhs: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag
  - `a op= b`: `a` is evaluated once. The operation is done in `ct`, the type the
  - plain binary operator would use, then converted back to `a`'s type.
  -#
-$ op_assign : { op: @Str, lhs: Expr, rhs0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ op_assign : { op: @Str, lhs rhs0: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     need_lvalue { lhs, "left operand of '" ++ op ++ "='" };
     let rhs = rv rhs0 in
     if is_ptr lhs.ty && (op == "+" || op == "-") && is_integer rhs.ty =>
@@ -2570,7 +2531,7 @@ $ conditional : Fn -> <Tok, Scope, Tab, Unit, Diag> Expr = \c =>
         cnd
 
 # `a ?: b` (GNU): `a` if it is nonzero, evaluating it once.
-$ gnu_elvis : { a0: Expr, b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
+$ gnu_elvis : { a0 b: Expr, pos: Pos } -> <Tok, Scope, Tab, Unit, Diag> Expr =
     let a = need_scalar a0 in
     let id = new_local { "elvis", a.ty, false } in
     let tmp = mk_expr ENode.Local.{ id } a.ty pos in
@@ -2976,7 +2937,7 @@ $ generic : { c: Fn, t: Token } -> <Tok, Scope, Tab, Unit, Diag> Expr =
                     ++ "' is not compatible with any association"
             )
 
-$ generic_assocs : { c: Fn, ct: Ty, chosen: Opt Expr, dflt: Opt Expr }
+$ generic_assocs : { c: Fn, ct: Ty, chosen dflt: Opt Expr }
     -> <Tok, Scope, Tab, Unit, Diag> Opt Expr =
     let picked = (
         if accept_kw "default" =>
@@ -2995,7 +2956,7 @@ $ generic_assocs : { c: Fn, ct: Ty, chosen: Opt Expr, dflt: Opt Expr }
     else
         (if is_some picked.0 => picked.0 else picked.1)
 
-$ generic_match : { a: Ty, b: Ty } -> <Tab> Bool =
+$ generic_match : { a b: Ty } -> <Tab> Bool =
     a |> \
         | Ty.Int.{ x } => (
             b |> \

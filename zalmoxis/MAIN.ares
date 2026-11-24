@@ -30,10 +30,8 @@ $ usage : @Str =
         ++ "  -h, --help           show this help\n"
 
 $ Args : @Type = @struct
-    roots: @Vec @Str,
-    excludes: @Vec @Str,
-    files: Bool,
-    help: Bool,
+    roots excludes: @Vec @Str,
+    files help: Bool,
     bad: @Str,
 
 $ @main : @Vec @Str -> <@IO> @Int = \argv =>
@@ -76,12 +74,7 @@ $ Tally : @Type = @struct
     per: @Vec PerFile,
 
 $ LangStat : @Type = @struct
-    lang: @Int,
-    files: @Int,
-    lines: @Int,
-    code: @Int,
-    comments: @Int,
-    blanks: @Int,
+    lang files lines code comments blanks: @Int,
 
 $ PerFile : @Type = @struct
     path: @Str,
@@ -104,7 +97,7 @@ $ syntaxes : @Vec Syntax = fmap syntax_of LANGS.table.langs
 $ big_file : @Int = 131072
 
 # Every file is read and counted by the walker task that finds it.
-$ count_all : { roots: @Vec @Str, excludes: @Vec @Str, keep: Bool } -> <@IO> Tally =
+$ count_all : { roots excludes: @Vec @Str, keep: Bool } -> <@IO> Tally =
     let w = Walker.{
         .init = \_ => Counter.{ .tally = empty {}, keep, .big = [] },
         .visit = visit,
@@ -180,11 +173,7 @@ $ add_stat_at : @Vec LangStat -> LangStat -> @Int -> @Vec LangStat = \stats x i 
 
 $ Row : @Type = @struct
     name: @Str,
-    files: @Int,
-    lines: @Int,
-    code: @Int,
-    comments: @Int,
-    blanks: @Int,
+    files lines code comments blanks: @Int,
 
 $ rows : @Vec LangStat -> @Vec { Row, @Int } = \stats =>
     fmap (\x => { row_of x, x.lang }) stats |> sort_by (\x y => cmp_str x.0.name y.0.name)

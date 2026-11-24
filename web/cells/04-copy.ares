@@ -10,8 +10,7 @@ $ @import HOST
 $ @import ARESxDERIVE
 
 $ Point : @Type = @struct
-    x: @Int,
-    y: @Int,
+    x y: @Int,
 
 # The `!` entry inserts x: @Int, y: @Int.
 $ Point3 : @Type = @struct

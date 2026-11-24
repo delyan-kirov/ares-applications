@@ -83,10 +83,7 @@ $ GVar : @Type = @struct
     ty : Ty,
     data : @Str,
     relocs : @Vec Reloc,
-    defined : Bool,
-    init : Bool,
-    static : Bool,
-    tls : Bool,
+    defined init static tls : Bool,
     align : @Int,
     pos : Pos,
 

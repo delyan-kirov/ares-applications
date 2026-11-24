@@ -66,14 +66,11 @@ $ Opts : @Type = @struct
     target : Target,
     out : @Str,
     mode : Mode,
-    files : @Vec @Str,
-    incs : @Vec @Str,
+    files incs : @Vec @Str,
     defs : @Str,
     stdlib : Bool,
     home : @Str,
-    dump : Bool,
-    verbose : Bool,
-    quiet : Bool,
+    dump verbose quiet : Bool,
 
 $ parse_args : @Vec @Str -> @Int -> Opts -> Result Opts @Str = \a i o =>
     if i >= @vec_len a =>

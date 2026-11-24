@@ -45,8 +45,7 @@ $ Sh : @Type = @struct
     lib : Map @Str ({} -> TU),
     index : Map @Str @Str,
     decls : @Vec @Str,
-    dir : @Str,
-    last : @Str,
+    dir last : @Str,
 
 $ run : Opts -> <@IO> @Int = \o0 =>
     let o = Opts.{ .files = @vec_new {} | o0 } in

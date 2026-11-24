@@ -35,15 +35,10 @@ $ @import LANGS
 # special byte) and `post` (after its last), must begin and end any match, so
 # they turn most entries away before the matcher runs.
 $ Rule : @Type = @struct
-    base: @Str,
-    glob: @Str,
-    negate: Bool,
-    dir_only: Bool,
-    anchored: Bool,
+    base glob: @Str,
+    negate dir_only anchored: Bool,
     shape: @Int,
-    lit: @Str,
-    pre: @Str,
-    post: @Str,
+    lit pre post: @Str,
 
 # A file to count and its language (an index into `LANGS.table.langs`).
 $ Found : @Type = @struct
@@ -61,7 +56,7 @@ $ Walker : (s: @Type) -> @Type = @struct
 
 # Fold `w` over every countable file under each root. `excludes` are extra
 # rules, given as gitignore patterns, that apply under every root.
-$ fold : @ctx { s: @Type } -> { roots: @Vec @Str, excludes: @Vec @Str, w: Walker s } -> <@IO> s =
+$ fold : @ctx { s: @Type } -> { roots excludes: @Vec @Str, w: Walker s } -> <@IO> s =
     walk_roots w (w.init {}) roots excludes 0
 
 # The rules of an ignore file's text, for the directory `base` (with its
